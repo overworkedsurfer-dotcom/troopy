@@ -2,9 +2,9 @@
  "id": "kickback",
  "bot": "smart",
  "seed": 1,
- "lengthMs": 114200,
- "finalScore": 355857,
- "cause": "smashed by a big rock",
+ "lengthMs": 73300,
+ "finalScore": 58418,
+ "cause": "caught by a seeker",
  "replayMatches": true,
  "shots": [
   {
@@ -16,22 +16,22 @@
   },
   {
    "name": "2-mid",
-   "t": 57100,
-   "score": 15250,
+   "t": 36700,
+   "score": 13222,
    "over": false,
    "file": "lab/shots/kickback/2-mid.png"
   },
   {
    "name": "3-intense",
-   "t": 112700,
-   "score": 334097,
+   "t": 71800,
+   "score": 58091,
    "over": false,
    "file": "lab/shots/kickback/3-intense.png"
   },
   {
    "name": "4-gameover",
-   "t": 114200,
-   "score": 355857,
+   "t": 73300,
+   "score": 58418,
    "over": true,
    "file": "lab/shots/kickback/4-gameover.png"
   }

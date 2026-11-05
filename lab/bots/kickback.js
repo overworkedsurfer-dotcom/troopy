@@ -41,7 +41,8 @@ module.exports = {
           }
         }
         let rot = 0;
-        if (target != null) { const da = wrap(target - s.a); if (da > 0.05) rot = 1; else if (da < -0.05) rot = -1; }
+        // account for turning momentum: compare the target with where the nose will stop if we release now
+        if (target != null) { const stopA = s.a + s.av * Math.abs(s.av) / (2 * s.rotBrake), da = wrap(target - stopA); if (da > 0.06) rot = 1; else if (da < -0.06) rot = -1; }
         if (rot < 0) return fire ? 'leftfire' : 'left';
         if (rot > 0) return fire ? 'rightfire' : 'right';
         return fire ? 'fire' : 'none';
