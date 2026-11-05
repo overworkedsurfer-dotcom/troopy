@@ -126,3 +126,14 @@ I loaded tiltwell, spellsnake, junkorbit and magsumo in real time and pressed on
   - a grippier early ice feel
 - **Still hard:** in stepped play I won 0 of 3 rounds. The builder's scripted deliberate first-timer won round 1 on 98 of 100 seeds and won 3 of 3 by hand. Blind keys won 0 of 9. My losses came from chasing too close to the edge, which is a skill problem the game now explains. Even so, the gap between "understood" and "executed" is the widest in the set.
 - Gut score moves from 6.5 to 7.0. It's a better game, but still the one I'd most want a human tester on, because the stepped play tool hurts twitchy physics games the most.
+
+## PIPWALK, full replay after the friction fixes (Phase 4)
+- Floor 1 cleared in 6 moves. I retreated a roll to turn a "⚔2 push" into a 4, then rolled right so a 6 landed on top directly under a slime ("⚔6 KILL"), and bumped twice for a MATCH ×2.
+- Floor 2 with Momentum (+1 damage per roll since the last hit): I baited a skull, killed a slime for "⚔14", then rolled a 6 between the skull and the second slime, with both showing "⚔24 KILL", and cleared. Score went 98 → 266.
+- Every move was a small plan that paid off. The kill badges ("⚔24 KILL"), the big TOP face, "DODGED: you left the red tile" and "CHAIN BROKEN (you were hit)" made the whole system readable without a manual.
+- This is the most "interesting decisions per move" in the set. My round-1 7.5 came from a partial run in which I misread pips. Gut score moves to **8.5**.
+
+## LOOPBACK, replay after the polish (Phase 4)
+- 250 points in 15 s across two ghosts, with ORB CHAIN ×3. Two orbs on the board and the first ghost arriving at about 5 s remove the round-1 dead time: something is happening from second one. Taps now carry the dot properly.
+- I tried to PHASE through ghost #2 but it had moved on, so the dash went past it. That was my timing, not the game. The one-time PHASE hint needs a ghost within about 60 px while dash is ready, and I never got that close before dashing, so I didn't see it.
+- Still the most original idea in the set, and still "one more go". Gut score moves to **8.5**.

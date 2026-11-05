@@ -96,3 +96,52 @@ Setup: `lab/play.js` stepped-time server on port 8844, at most 15 screenshots pe
 - The death cause "slid off the edge on your own" seems to cover being *repelled* off the edge too, which reads as blame when I made no input.
 - Unbraced point-blank slams against the heavy CPU did almost nothing, and nothing on screen says that until the brace hint appears. The hint is good, but it only appeared after my first slam.
 - One `/step` of 350 ms advanced the game clock only about 117 ms, around the slam. I assume this was hitstop freezing sim time, not a bug.
+
+---
+
+## 3. compound
+
+**What it is (as I understood it):** an engine-building economy race against an exponentially rising "tide". You start with $30. Your score is 10 × your margin (money ÷ tide) every second. Three cards are offered (Seed = flat income, Mill = ×2–2.5 to orthogonal neighbours, Lens = ×2 to a row or column, Bank = interest, Furnace = big income that halves its neighbours, plus rare and legendary variants). You build them onto a 4×4 grid with 1/2/3 (press once to preview, again to build), R rerolls, and arrows/Space move a cursor. Buying costs margin now, and the tide's growth rate keeps rising and throws "rogue waves".
+
+| Run | Score | Length | Cause | Mode |
+|---|---|---|---|---|
+| 1 (seed 203) | 1320 | ~73 s | "a rogue wave swamped you at 1:12 — keep a bigger buffer above the tide" | Deliberate: Seeds next to a Mill, Lens on the column (one Seed went ×2.5 → ×5 → ×10), Furnace, row Lens, a second Mill, Bank. At ~50 s the tide (+6.24%/s) overtook my growth (+6.13%/s). I rerolled and bought a Mill, drifted at a thin margin, and a wave finished me. |
+| 2 (restart) | 274 | ~21 s | "the tide (+3.19%/s) outgrew your engine (+2.31%/s) at 0:21" | **Blind probe**: random 1/2/3/R/Space every 300 ms. |
+| 3 (restart) | 1283 | ~65 s | "a rogue wave swamped you at 1:05 — keep a bigger buffer above the tide" | Deliberate, trying "keep a buffer, then buy a Bank". I was too conservative: I waited for ×3.2 margin, it plateaued at ×2.6 and then bled away, I never bought the Bank, and a wave got me. |
+
+**Did I improve?** No: 1320, then 1283. I learned the *right* lesson (Seed income is flat, so your %/s decays while the tide's accelerates, and you need Banks and multipliers *early*), but in run 3 I over-corrected into hoarding. The skill gap, though, is obvious: deliberate play scored about 4.8× the blind probe.
+
+| # | Principle | Score | Why |
+|---|---|---|---|
+| 1 | Readable in 5 s | 1 | "press 1 2 3 to pick a card" is on screen and I pressed 1 within seconds. But a four-line rules panel sits over the board, and the HUD is dense with jargon ("$30 · you +0.00%/s vs tide +2.00%/s", costs given as "0.25 tide"). I knew *what to press* in 5 s, not *what was good* for about a minute. |
+| 2 | Clear goal, visible score | 2 | Score and per-second rate, a huge "×2.94 ABOVE THE TIDE", and a you-vs-tide log graph with a forecast. Goal: "grow faster than the tide; your score is how far above it you are." |
+| 3 | Juicy feedback | 2 | A "+15.2%/s GROWTH · your engine just compounded" banner, build particles, a floating "−$15", tile multipliers ticking up (×5 → ×10), the sea visibly rising behind the board, a red tint near the tide, and a "ROGUE WAVE — HOLD ON" banner. |
+| 4 | Forgiving input | 2 | A "★ BEST" spot preview with the exact %/s gain, and a "too close to the tide" guard that refuses suicidal purchases. Both are real assists. |
+| 5 | Fair, legible failure | 2 | The best causes in the set: "the tide (+3.19%/s) outgrew your engine (+2.31%/s) at 0:21", and the rogue-wave one with actionable advice. Waves are random, but they are telegraphed by a banner and a bump on the forecast graph. |
+| 6 | Instant retry | 2 | Restart was immediate and play was live at once. |
+| 7 | Interesting decisions | 2 | Deliberate play scored 1320 and 1283 against 274 random (about 4.8×). There are real trade-offs: margin now vs growth later, adjacency, the Furnace's neighbour penalty, reroll cost, and spending vs keeping a wave buffer. |
+| 8 | Pattern to learn | 1 | A rich pattern that I clearly grasped (flat income vs compounding tide), but my score did not rise run to run. |
+| 9 | Escalation | 2 | The tide's growth rose from 2.0%/s to 6.25%/s within a minute, plus rogue waves. Sessions of 65–73 s. |
+| 10 | Not solved | 2 | Every run died in about a minute. |
+| 11 | Risk and reward | 2 | The core push-your-luck: every purchase spends the buffer that protects you from a wave. Legendary cards are juicy but "too close to the tide". |
+| 12 | Few verbs, deep use | 1 | Margin is both your score and your currency, which is a nice dual purpose. But the input set is large (1, 2, 3, R, four arrows, Space), and "press again to build" vs "build at cursor" was ambiguous. |
+| 13 | Variety | 2 | Different card offers per seed (Furnace, Lens column/row, Bank, legendary ×3 Lens), and random waves. |
+| 14 | Reward cadence / compounding | 2 | Score ticks every second, and multipliers stack multiplicatively (Mill ×2.5 × Lens ×2 → ×5, then another Mill → ×10). The most Balatro-like of the set. |
+| 15 | One more go | 2 | Best is shown in the HUD. I want to run "Bank by 20 s, keep ×1.5 buffer" and see if it beats 1320. |
+
+**Total 27/30, so total/3 = 9.0 and Fun score = 9.**
+
+**Primary MDA aesthetic felt:** Challenge (strategic optimisation), with Discovery as I worked out the tide maths.
+
+**Best moment:** the Column Lens landing and the top Seed's badge jumping ×2.5 → ×5 (and later ×10), with "+15.2%/s GROWTH · your engine just compounded" filling the screen while my margin dropped to a terrifying ×1.07. That was a real gamble that paid.
+
+**Worst moment:**
+- In run 1 the Furnace was built at my cursor cell, not at the starred "best spot" the panel had just recommended. That gave me +5.44%/s instead of +10.9%/s.
+- Run 3's long passive stretches, watching the margin bleed away with nothing affordable.
+
+**Would I play a 4th run?** Yes. It is the game I most want to replay, because I now have a concrete theory to test.
+
+**Bugs, glitches, confusion:** no console errors.
+- **Placement ambiguity:** "pick a card: its best cell glows · press again to build" reads as if a second press builds on the glowing best cell, but it seems to build at the cursor (the panel says "FURNACE here: +5.44%/s · ★ best spot +10.9%/s").
+- Costs given in "tide" units (e.g. "0.81 tide") take a while to decode.
+- Long waits between affordable purchases make the middle of a run feel idle.

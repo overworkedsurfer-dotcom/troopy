@@ -80,7 +80,8 @@
    1,
    2
   ],
-  "gut": 8.0
+  "gut": 8.0,
+  "gut2": 8.5
  },
  "pipwalk": {
   "rubric": [
@@ -100,7 +101,8 @@
    1,
    1
   ],
-  "gut": 7.5
+  "gut": 7.5,
+  "gut2": 8.5
  },
  "mazewright": {
   "rubric": [
