@@ -106,3 +106,8 @@ I loaded tiltwell, spellsnake, junkorbit and magsumo in real time and pressed on
 - "CAN'T AFFORD: that buy would sink you under the tide" is a clear, kind guard. A 4×4 board with one badge per tile is far more legible.
 - I fixed one thing myself: the ×2 milestone banner fired at t = 0.2 s, because runs start at about ×3, and it covered the board. It now arms only after you dip below ×1.6.
 - Builder's play data: mash runs scored 1.2–1.5k (dead at about 1:10) and deliberate runs 16–25k (3:15–4:40). The bots show a 56× skill gap, up from 18×. Gut score moves from 6.5 to 7.5.
+
+## JUNK ORBIT, after the hard rework (Phase 4)
+- The first frame states the new contract: "hit a star → SAFE orbit (scores for you) · miss → LOOSE debris that hunts you · shoot it to SAVE". The preview line now shows "×2" when it passes through two stars. I fired it, got "×2 CHAIN +600" and ×1.5 STREAK, and my comet settled blue and safe.
+- Late game (level 12, ×7 streak): the incoming wreck gets a red ring around the launcher, a 1.3 s countdown and a dashed line. That's real counterplay, which the critic said was missing. I capped the floating texts at 4 (largest and newest first), because the level-12 frame had six overlapping score pops.
+- Builder's data: the skill gap went from 5.5× to 59×, and random survives 29.5 s instead of 56 s. Spam on seeds 7/8/9 scored 2.8k/570/300, against 4.8k/3.3k/11.2k for deliberate play. Aim matters now. Gut score moves from 7.0 to 7.5.

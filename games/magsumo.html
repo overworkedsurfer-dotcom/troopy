@@ -19,8 +19,9 @@ const ID = 'magsumo';
 const W = 540, H = 840;                        // logical resolution
 const STEP = 1000 / 60, SUBS = 2, DT = 1 / 60 / SUBS;
 const CX = 270, CY = 450, PR = 22;             // arena centre, puck radius
-const K_MAG = 1.6e6, A_MAX = 1200, FRICTION = 1.0, RESTITUTION = 0.8;
-const SLAM_RANGE = 16, SLAM_V = 190, SLAM_RECOIL = 0.3, TEETER = 300, RMIN = 58;
+const K_MAG = 1.6e6, A_MAX = 1200, RESTITUTION = 0.8;
+const SLAM_RANGE = 16, SLAM_V = 190, SLAM_RECOIL = 0.2, BRACE_MS = 450, BRACE_DOT = 0.35;
+const TEETER = 350, TBAND = 24, ASSIST = 650, RMIN = 58;   // edge grace: ms in the teeter band, band width, inward assist
 const P_THRUST = 320, P_FLIPCD = 520, FLIP_BUF = 150, VS_TARGET = 5;
 const NAMES = ['PEBBLE', 'SLUSH', 'CURLER', 'ICEBOX', 'MAGNETO', 'TUNDRA', 'GLACIER', 'AURORA', 'ZAMBONI', 'BLIZZARD', 'PERMAFROST', 'ABSOLUTE ZERO'];
 const COL = { N: '#ff4d5e', Nd: '#9e1730', S: '#3da5ff', Sd: '#0f4f99', p1: '#ffd23f', p2: '#5ef2c2', cpu: '#c39bff', ice: '#e8f7ff', ink: '#0b1226' };
@@ -95,6 +96,8 @@ const SFX = {
   bump(v) { const a = Math.min(0.09, 0.015 + v / 9000); tone(330 + Math.min(500, v), 0.05, 'triangle', a); noise(0.06, a * 0.8, 4000, 1500); },
   yank() { tone(260, 0.25, 'sine', 0.06, 2.2); },
   teeter() { tone(880, 0.12, 'triangle', 0.04, 1.3); },
+  brace() { noise(0.28, 0.12, 6000, 2500, 0, 'highpass'); tone(1180, 0.1, 'triangle', 0.05, 1.4); },
+  ready() { tone(1250, 0.05, 'sine', 0.025); },
   splash() { noise(0.8, 0.25, 1800, 120); tone(140, 0.5, 'sine', 0.08, 0.4); },
   win() { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.25, 'triangle', 0.07, null, i * 0.07)); },
   lose() { [392, 330, 262, 196].forEach((f, i) => tone(f, 0.3, 'triangle', 0.07, null, i * 0.1)); },
@@ -111,60 +114,75 @@ const keys = {};                                   // human keyboard
 const touchIn = [{ x: 0, y: 0 }, { x: 0, y: 0 }];  // human touch sticks
 let touchUI = false;
 
-function puck(x, y, q, m, thrust, flipcd) { return { x, y, vx: 0, vy: 0, q, m, thrust, flipcd, cd: 0, buf: 0, teeter: 0, out: false, hit: null }; }
+function puck(x, y, q, m, thrust, flipcd) { return { x, y, vx: 0, vy: 0, ix: 0, iy: 0, q, m, thrust, flipcd, cd: 0, buf: 0, teeter: 0, brace: 0, bk: 0, out: false, hit: null }; }
+// The gauntlet teaches: LV1 is always the Wall, LV2 the Dancer, LV3 the Brawler, LV4 the Trickster; seeded after that.
 const STYLES = [
-  { tag: 'the Brawler', mass: 1.3, thrust: 0.92, react: 1, flipcd: 1, back: 0.55, pSlam: 0.12, pDef: 0, edge: 0 },
-  { tag: 'the Dancer', mass: 0.75, thrust: 1.22, react: 0.85, flipcd: 1, back: 1.2, pSlam: 0, pDef: 0.05, edge: 12 },
-  { tag: 'the Trickster', mass: 1, thrust: 1, react: 0.95, flipcd: 0.7, back: 1, pSlam: 0.05, pDef: 0.18, edge: 0 },
-  { tag: 'the Wall', mass: 1.6, thrust: 0.75, react: 1.1, flipcd: 1.1, back: 0.8, pSlam: 0, pDef: 0.08, edge: -8 },
+  { tag: 'the Wall', mass: 1.35, thrust: 0.8, react: 1.1, flipcd: 1.1, back: 0.8, pSlam: 0, pDef: 0.08, edge: -8, tip: 'heavy & slow · pull it in, flip point-blank to SLAM it out' },
+  { tag: 'the Dancer', mass: 0.75, thrust: 1.22, react: 0.85, flipcd: 1, back: 1.2, pSlam: 0, pDef: 0.05, edge: 12, tip: 'light & quick · hold the centre, let it come to you' },
+  { tag: 'the Brawler', mass: 1.3, thrust: 0.92, react: 1, flipcd: 1, back: 0.55, pSlam: 0.12, pDef: 0, edge: 0, tip: 'it slams too · steer INTO a slam to brace' },
+  { tag: 'the Trickster', mass: 1, thrust: 1, react: 0.95, flipcd: 0.7, back: 1, pSlam: 0.05, pDef: 0.18, edge: 0, tip: 'flips back · slam it while its ring is charging' },
 ];
 function cpuStats(L, st) {
   const b = baseStats(L), y = STYLES[st || 0];
-  return { name: b.name, tag: y.tag, react: b.react * y.react, thrust: b.thrust * y.thrust, mass: b.mass * y.mass, flipcd: b.flipcd * y.flipcd,
-    pSlam: Math.min(0.98, b.pSlam + y.pSlam), pDef: Math.min(0.95, b.pDef + y.pDef), noise: b.noise, back: b.back * y.back, edge: b.edge + y.edge };
+  return { name: b.name, tag: y.tag, tip: y.tip, react: b.react * y.react, thrust: b.thrust * y.thrust, mass: b.mass * y.mass, flipcd: b.flipcd * y.flipcd,
+    pSlam: b.pSlam > 0 ? Math.min(0.98, b.pSlam + y.pSlam) : 0, pDef: Math.min(0.95, b.pDef + y.pDef * (1 - b.gentle)), noise: b.noise, back: b.back * y.back,
+    edge: b.edge + y.edge, passive: b.passive, brace: b.brace };
 }
 function baseStats(L) {
+  const gentle = L <= 1 ? 1 : L === 2 ? 0.65 : L === 3 ? 0.3 : 0;     // LV1-2: slow, passive, never slam
   return {
     name: NAMES[(L - 1) % NAMES.length] + (L > NAMES.length ? ' ' + 'I'.repeat(1 + Math.floor((L - 1) / NAMES.length)) : ''),
-    react: Math.max(60, 390 - 30 * L), thrust: 225 + 13 * L, mass: 1 + 0.07 * (L - 1), flipcd: Math.max(360, 900 - 50 * L),
-    pSlam: Math.min(0.97, 0.3 + 0.07 * L), pDef: Math.min(0.9, 0.15 + 0.07 * L), noise: Math.max(0.04, 0.75 - 0.065 * L),
-    back: Math.max(26, 100 - 7 * L), edge: Math.min(80, 40 + 4 * L),
+    gentle, react: Math.max(60, 390 - 30 * L) * (1 + 0.6 * gentle), thrust: 225 + 13 * L, mass: 1 + 0.07 * (L - 1), flipcd: Math.max(360, 900 - 50 * L),
+    pSlam: L <= 2 ? 0 : Math.min(0.97, (0.3 + 0.07 * L) * (1 - 0.6 * gentle)), pDef: Math.min(0.9, (0.15 + 0.07 * L) * (1 - 0.8 * gentle)),
+    noise: Math.max(0.04, 0.75 - 0.065 * L) * (1 + 0.4 * gentle), back: Math.max(26, 100 - 7 * L), edge: Math.min(80, 40 + 4 * L),
+    passive: 0.6 * gentle, brace: Math.max(0, Math.min(0.9, (L - 4) * 0.15)),
   };
+}
+// Ice per round: grippy and slow early, the full slippery ice by about round 6. F scales every force so the
+// slam still travels a sensible distance on grippy ice.
+function iceFor(round, mode) {
+  const u = mode === 'solo' ? Math.min(1, Math.max(0, (round - 1) / 5)) : 0.6;
+  const e = u * u * (3 - 2 * u), fr = 2.4 - 1.4 * e, g = (175 + 145 * e) / 320;
+  return { e, fr, g, F: g * fr };
 }
 function newState(seed, mode) {
   const s = {
-    rng: (seed | 0) || 1, t: 0, score: 0, over: false, cause: null, mode: mode || 'solo',
-    hearts: 3, round: 0, wins: 0, streak: 0, vs: [0, 0], level: 1, style: 0,
-    phase: 'count', phaseT: 0, fightT: 0, ringR: 250, R0: 250, shrink: 5,
+    rng: (seed | 0) || 1, t: 0, score: 0, over: false, cause: null, mode: mode || 'solo', wait: false,
+    hearts: 3, round: 0, wins: 0, streak: 0, vs: [0, 0], level: 1, style: 0, styleL: 0,
+    phase: 'count', phaseT: 0, fightT: 0, ringR: 250, R0: 250, ringT: 30, ice: iceFor(1, mode || 'solo'),
     p: [puck(0, 0, 1, 1, P_THRUST, P_FLIPCD), puck(0, 0, -1, 1, 225, 900)],
     cpu: { think: 0, dx: 0, dy: 0 },
-    botDir: null, flipQ: [false, false], freeze: 0, slow: 0, endT: 0,
-    roundPts: 0, pendingOver: null, lastWin: -1, st: { slams: 0, slammed: 0, clutch: 0, ringouts: 0 },
+    botDir: null, flipQ: [false, false], freeze: 0, endT: 0,
+    roundPts: 0, pendingOver: null, lastWin: -1, st: { slams: 0, slammed: 0, clutch: 0, ringouts: 0, braced: 0 },
   };
   return s;
 }
-function newFX() { return { parts: [], texts: [], rings: [], shake: 0, flash: 0, flashCol: '255,255,255', zoom: 0, hintA: 1, banner: null, trails: [[], []], squash: [0, 0], flipPop: [0, 0], crowd: 0, edgeWarn: 0, teeterT: 0 }; }
+function newFX() { return { parts: [], texts: [], rings: [], shake: 0, flash: 0, flashCol: '255,255,255', zoom: 0, hintA: 1, banner: null, tip: null, trails: [[], []], squash: [0, 0], flipPop: [0, 0], crowd: 0, edgeWarn: 0, teeterT: 0, rdy: [0, 0] }; }
 
 function reset(seed, mode) { S = newState(seed, mode); FX = newFX(); carry = 0; startRound(true); }
 
 function startRound(first) {
   S.round++;
-  S.style = Math.floor(rnd() * STYLES.length);
-  const L = S.mode === 'solo' ? S.level : 4, cs = cpuStats(L, S.style);
-  S.R0 = S.mode === 'solo' ? Math.max(165, 252 - 6 * (S.round - 1)) : 245;
-  S.shrink = S.mode === 'solo' ? 5 + 0.4 * S.round : 6;
+  const solo = S.mode === 'solo';
+  if (solo && S.styleL !== S.level) { S.style = S.level <= 4 ? S.level - 1 : Math.floor(rnd() * STYLES.length); S.styleL = S.level; }
+  const L = solo ? S.level : 4, cs = cpuStats(L, S.style);
+  S.ice = iceFor(S.round, S.mode);
+  S.R0 = solo ? Math.max(170, 252 - 7 * (S.round - 1)) : 245;
+  S.ringT = solo ? Math.max(13, 30 - 2.2 * (S.round - 1)) : 26;      // seconds until the ring is at its smallest
   S.ringR = S.R0; S.fightT = 0;
-  const a = rnd() * 0.8 - 0.4, d = S.R0 * 0.55;
-  const p1 = S.p[0], p2 = S.p[1];
-  Object.assign(p1, puck(CX + Math.sin(a) * d, CY + Math.cos(a) * d, rnd() < 0.5 ? 1 : -1, 1, P_THRUST, P_FLIPCD));
-  if (S.mode === 'solo') Object.assign(p2, puck(CX - Math.sin(a) * d, CY - Math.cos(a) * d, 0, cs.mass, cs.thrust, cs.flipcd));
+  const d = S.R0 * 0.55, p1 = S.p[0], p2 = S.p[1];
+  // round 1 is always the same layout (you below, N vs S, attracting) so the first screen is the one you play
+  const a = solo && S.round === 1 ? 0 : rnd() * 0.8 - 0.4;
+  const q1 = solo && S.round === 1 ? 1 : (rnd() < 0.5 ? 1 : -1);
+  Object.assign(p1, puck(CX + Math.sin(a) * d, CY + Math.cos(a) * d, q1, 1, P_THRUST, P_FLIPCD));
+  if (solo) Object.assign(p2, puck(CX - Math.sin(a) * d, CY - Math.cos(a) * d, 0, cs.mass, cs.thrust, cs.flipcd));
   else Object.assign(p2, puck(CX - Math.sin(a) * d, CY - Math.cos(a) * d, 0, 1, P_THRUST, P_FLIPCD));
-  p2.q = rnd() < 0.65 ? -p1.q : p1.q;                  // usually start attracting: instant action
+  p2.q = solo && S.round === 1 ? -p1.q : (rnd() < 0.65 ? -p1.q : p1.q);   // usually start attracting: instant action
   S.cpu = { think: 300, dx: 0, dy: 0 };
   S.phase = 'count'; S.phaseT = first ? 800 : 1000; S.roundPts = 0; S.clutchUsed = false;
   if (!QUIET && FX) {
     FX.trails = [[], []];
-    if (S.mode === 'solo') banner('ROUND ' + S.round, 'vs ' + cs.name + ' ' + cs.tag + '  (LV ' + L + ')', COL.cpu);
+    if (solo) banner('ROUND ' + S.round, 'vs ' + cs.name + ' ' + cs.tag + '  (LV ' + L + ')', COL.cpu, S.level <= 4 ? cs.tip : null);
     else banner('ROUND ' + S.round, 'P1 ' + S.vs[0] + ' — ' + S.vs[1] + ' P2   ·   first to ' + VS_TARGET, '#ffffff');
     SFX.beep(false);
   }
@@ -188,15 +206,17 @@ function spray(x, y, nx, ny, n, col, spd) {
 function floatText(x, y, txt, col, size) {
   if (QUIET) return;
   for (let k = 0; k < 4; k++) { let hit = false; for (const t of FX.texts) if (t.life > 0.55 && Math.abs(t.x - x) < 100 && Math.abs(t.y - y) < 22) { hit = true; break; } if (!hit) break; y -= 24; }
-  FX.texts.push({ x, y, txt, col, life: 1, size: size || 22 });
+  FX.texts.push({ x: Math.max(90, Math.min(W - 90, x)), y, txt, col, life: 1, size: size || 22 });
 }
 function ring(x, y, col, r0, r1, w) { if (!QUIET) FX.rings.push({ x, y, col, r0, r1, w: w || 3, life: 1 }); }
 function shake(a) { if (!QUIET) FX.shake = Math.max(FX.shake, a); }
 function flash(a, col) { if (!QUIET) { FX.flash = Math.max(FX.flash, a); FX.flashCol = col || '255,255,255'; } }
-function banner(txt, sub, col) { if (!QUIET) FX.banner = { txt, sub, col, life: 1 }; }
+function banner(txt, sub, col, tip) { if (!QUIET) FX.banner = { txt, sub, col, tip: tip || null, life: 1 }; }
+function tipText(a, b, col) { if (!QUIET) FX.tip = { a, b, col, life: 1 }; }
 function mult() { return 1 + 0.5 * Math.min(6, S.streak); }
 function polCol(q, dark) { return q > 0 ? (dark ? COL.Nd : COL.N) : (dark ? COL.Sd : COL.S); }
 function who(i) { return S.mode === 'solo' ? (i === 0 ? 'YOU' : 'CPU') : 'P' + (i + 1); }
+function assisted(i) { return i === 0 || S.mode !== 'solo'; }      // the edge assist is for human-controlled pucks
 
 // ---------- input resolution ----------
 function humanDir(i) {
@@ -222,13 +242,14 @@ function stepFX() {
   for (const r of FX.rings) r.life -= 0.035;
   FX.rings = FX.rings.filter(r => r.life > 0);
   FX.shake *= 0.86; FX.flash *= 0.88; FX.zoom *= 0.88; FX.crowd *= 0.94;
-  for (let i = 0; i < 2; i++) { FX.squash[i] *= 0.84; FX.flipPop[i] *= 0.88; }
-  if (FX.banner) { FX.banner.life -= 0.011; if (FX.banner.life <= 0) FX.banner = null; }
+  for (let i = 0; i < 2; i++) { FX.squash[i] *= 0.84; FX.flipPop[i] *= 0.88; FX.rdy[i] *= 0.9; }
+  if (FX.banner) { FX.banner.life -= FX.banner.tip ? 0.0075 : 0.011; if (FX.banner.life <= 0) FX.banner = null; }
+  if (FX.tip) { FX.tip.life -= 0.0045; if (FX.tip.life <= 0) FX.tip = null; }
 }
 
 function step() {
   if (!QUIET) stepFX();
-  if (S.over) return;
+  if (S.over || S.wait) return;                      // S.wait: a human's very first screen holds until the first input
   if (S.freeze > 0) { S.freeze -= STEP; return; }   // hitstop (deterministic)
   S.t += STEP;
   if (S.phase === 'count') {
@@ -250,7 +271,8 @@ function step() {
   }
   // fight
   S.fightT += STEP;
-  S.ringR = Math.max(RMIN, S.R0 - S.shrink * S.fightT / 1000);
+  const u = Math.min(1, S.fightT / 1000 / S.ringT);              // slow at first, then the squeeze
+  S.ringR = RMIN + (S.R0 - RMIN) * (1 - u * u);
   // inputs: P1 = bot or human, P2 = CPU or human
   const d1 = S.botDir ? S.botDir : humanDir(0);
   let d2;
@@ -259,21 +281,23 @@ function step() {
   S.p[0].ix = d1.x; S.p[0].iy = d1.y; S.p[1].ix = d2.x; S.p[1].iy = d2.y;
   for (let i = 0; i < 2; i++) {
     const p = S.p[i];
-    if (p.cd > 0) p.cd -= STEP;
+    if (p.cd > 0) { p.cd -= STEP; if (p.cd <= 0 && !QUIET) { FX.rdy[i] = 1; if (i === 0) SFX.ready(); } }
+    if (p.brace > 0) p.brace -= STEP;
     if (S.flipQ[i]) { S.flipQ[i] = false; p.buf = FLIP_BUF; }
     if (p.buf > 0) { if (p.cd <= 0) { p.buf = 0; doFlip(i); } else p.buf -= STEP; }
   }
   physics(1);
   if (!QUIET) { recordTrails(); edgeFX(); }
-  // ring-out
+  // ring-out: past the edge you teeter (a short grace); fully off the ice you're out
   let out0 = false, out1 = false;
   for (let i = 0; i < 2; i++) {
     const p = S.p[i], r = Math.hypot(p.x - CX, p.y - CY);
-    if (r > S.ringR) {
+    if (r > S.ringR + TBAND) { if (i === 0) out0 = true; else out1 = true; }
+    else if (r > S.ringR) {
       p.teeter += STEP;
       if (p.teeter > TEETER) { if (i === 0) out0 = true; else out1 = true; }
     } else {
-      if (p.teeter > 110 && !p.out) clutch(i);
+      if (p.teeter > 90 && !p.out) clutch(i);
       p.teeter = 0;
     }
   }
@@ -281,18 +305,36 @@ function step() {
 }
 
 function physics(scale) {
-  const a = S.p[0], b = S.p[1], dt = DT * scale;
+  const a = S.p[0], b = S.p[1], dt = DT * scale, ice = S.ice, F = ice.F;
   for (let k = 0; k < SUBS; k++) {
     let dx = b.x - a.x, dy = b.y - a.y, r = Math.hypot(dx, dy) || 0.001;
     const nx = dx / r, ny = dy / r, rr = Math.max(r, 2 * PR);
-    let f = Math.min(A_MAX, K_MAG / (rr * rr)) * (a.q === b.q ? -1 : 1);   // + attract, - repel
+    let f = Math.min(A_MAX, K_MAG / (rr * rr)) * (a.q === b.q ? -1 : 1) * F;   // + attract, - repel
     if (S.phase === 'end') f = 0;
-    for (const [p, sgn] of [[a, 1], [b, -1]]) {
+    for (let j = 0; j < 2; j++) {
+      const p = S.p[j], sgn = j === 0 ? 1 : -1;
       let ix = p.out ? 0 : p.ix || 0, iy = p.out ? 0 : p.iy || 0; const il = Math.hypot(ix, iy);
       if (il > 1) { ix /= il; iy /= il; }
-      const ax = ix * p.thrust + sgn * f * nx / p.m, ay = iy * p.thrust + sgn * f * ny / p.m;
+      let mf = f, fr = ice.fr;
+      if (p.brace > 0) {     // after your own slam: brace by steering INTO the other puck
+        const into = sgn * (ix * nx + iy * ny);
+        if (into > BRACE_DOT) {
+          mf *= 0.25; fr += 3 * ice.fr;
+          if (p.bk === 1) braced(j);
+        } else mf *= 0.6;
+      }
+      let ax = ix * p.thrust * F + sgn * mf * nx / p.m, ay = iy * p.thrust * F + sgn * mf * ny / p.m;
+      if (p.teeter > 0 && !p.out && assisted(j)) {   // edge assist: steering inward while teetering pulls you back
+        const pr = Math.hypot(p.x - CX, p.y - CY) || 1, ox = (p.x - CX) / pr, oy = (p.y - CY) / pr, din = -(ix * ox + iy * oy);
+        if (din > 0.25) {
+          ax -= ox * ASSIST * F * din; ay -= oy * ASSIST * F * din;
+          const vo = p.vx * ox + p.vy * oy;
+          if (vo > 0) { const c = vo * Math.min(1, 9 * dt); p.vx -= ox * c; p.vy -= oy * c; }
+          if (!QUIET && Math.random() < 0.3) FX.parts.push({ x: p.x + ox * PR, y: p.y + oy * PR, vx: ox * 2 + (Math.random() - 0.5) * 2, vy: oy * 2 + (Math.random() - 0.5) * 2, life: 0.7, dec: 0.04, col: '#bfefff', sz: 3, g: 0 });
+        }
+      }
       p.vx += ax * dt; p.vy += ay * dt;
-      const fr = 1 - FRICTION * dt; p.vx *= fr; p.vy *= fr;
+      const fk = Math.max(0, 1 - fr * dt); p.vx *= fk; p.vy *= fk;
       p.x += p.vx * dt; p.y += p.vy * dt;
     }
     // collision
@@ -317,17 +359,33 @@ function physics(scale) {
   }
 }
 
+function braced(i) {
+  const p = S.p[i];
+  p.bk = 2;
+  if (i === 0 && S.mode === 'solo') { const pts = Math.round(10 * mult()); S.score += pts; S.roundPts += pts; S.st.braced++; }
+  if (!QUIET) {
+    const o = S.p[1 - i], r = Math.hypot(o.x - p.x, o.y - p.y) || 1;
+    spray(p.x, p.y, (p.x - o.x) / r, (p.y - o.y) / r, 16, '#e8fbff', 3.5);
+    floatText(p.x, p.y + 44, i === 0 && S.mode === 'solo' ? 'BRACED +' + Math.round(10 * mult()) : 'BRACED', '#bff7ff', 20);
+    SFX.brace(); FX.squash[i] = 0.6;
+  }
+}
+
 function doFlip(i) {
   const p = S.p[i], o = S.p[1 - i], wasAttract = p.q !== o.q;
   p.q = -p.q; p.cd = p.flipcd;
   const r = Math.hypot(o.x - p.x, o.y - p.y), nx = (o.x - p.x) / (r || 1), ny = (o.y - p.y) / (r || 1);
   if (!QUIET) { FX.flipPop[i] = 1; ring(p.x, p.y, polCol(p.q), PR, PR + 26, 3); SFX.flip(p.q); }
   if (wasAttract && r < 2 * PR + SLAM_RANGE) {
-    // MAGNET SLAM: point-blank attract -> repel
-    o.vx += nx * SLAM_V / o.m; o.vy += ny * SLAM_V / o.m;
-    p.vx -= nx * SLAM_V * SLAM_RECOIL / p.m; p.vy -= ny * SLAM_V * SLAM_RECOIL / p.m;
+    // MAGNET SLAM: point-blank attract -> repel. It pushes BOTH pucks; steering into it braces you.
+    const F = S.ice.F, il = Math.hypot(p.ix || 0, p.iy || 0) || 1, into = ((p.ix || 0) * nx + (p.iy || 0) * ny) / il;
+    const firstSlam = S.st.slams + S.st.slammed === 0;
+    o.vx += nx * SLAM_V * F / o.m; o.vy += ny * SLAM_V * F / o.m;
+    const rc = SLAM_V * F * (into > BRACE_DOT ? 0.05 : SLAM_RECOIL) / p.m;
+    p.vx -= nx * rc; p.vy -= ny * rc;
+    p.brace = BRACE_MS; p.bk = 1;
     o.hit = { by: i, kind: 'slam', t: S.t };
-    S.freeze = Math.max(S.freeze, 110);
+    S.freeze = Math.max(S.freeze, firstSlam && S.mode === 'solo' ? 220 : 110);
     if (i === 0) { const pts = Math.round(20 * mult()); S.score += pts; S.roundPts += pts; S.st.slams++; }
     else S.st.slammed++;
     if (!QUIET) {
@@ -335,9 +393,12 @@ function doFlip(i) {
       ring(mx, my, '#ffffff', 10, 120, 7); ring(mx, my, polCol(p.q), 6, 80, 5); ring(mx, my, '#ffffff', 30, 190, 2);
       spray(mx, my, nx, ny, 34, '#ffffff', 7); spray(mx, my, nx, ny, 18, polCol(o.q), 5); spray(mx, my, -nx, -ny, 10, '#bfefff', 3);
       shake(16); flash(0.55, p.q > 0 ? '255,90,110' : '90,170,255'); FX.zoom = 1; FX.crowd = 1;
-      floatText(mx, my - 34, i === 0 ? 'MAGNET SLAM! +' + Math.round(20 * mult()) : 'SLAMMED!', i === 0 ? '#fff3b0' : '#ffb3c0', 30);
+      const solo = S.mode === 'solo';
+      floatText(mx, my - 34, i === 0 && solo ? 'MAGNET SLAM! +' + Math.round(20 * mult()) : solo ? 'SLAMMED!' : 'P' + (i + 1) + ' SLAM!', i === 0 ? '#fff3b0' : '#ffb3c0', 30);
+      if (firstSlam || (S.round <= 3 && S.st.braced === 0 && S.st.slams + S.st.slammed === 3)) tipText('SLAM pushes BOTH of you', 'brace: keep steering INTO them as you flip', '#fff3b0');
       SFX.slam(); crowd('ooh');
     }
+    if (p.bk === 1 && into > BRACE_DOT) braced(i);
   } else if (!wasAttract && r < 170) {
     o.hit = { by: i, kind: 'yank', t: S.t };
     if (!QUIET) { SFX.yank(); for (let k = 0; k < 8; k++) { const f = k / 8; FX.parts.push({ x: o.x + (p.x - o.x) * f, y: o.y + (p.y - o.y) * f, vx: 0, vy: 0, life: 0.8, dec: 0.05, col: COL.S, sz: 3, g: 0 }); } }
@@ -353,13 +414,14 @@ function causeFor(i) {
   const p = S.p[i], h = p.hit, foe = S.mode === 'solo' ? cpuStats(S.level, S.style).name : 'P' + (2 - i);
   const age = h ? S.t - h.t : 1e9;
   if (h && h.kind === 'slam' && age < 2200) return 'magnet-slammed off the ice by ' + foe;
+  if (p.brace > 0 && p.bk === 1) return 'flew off on your own slam\'s recoil (steer into it to brace)';
   if (h && h.kind === 'yank' && age < 1500) return 'yanked off the edge by ' + foe + '\'s magnet';
   if (h && age < 1800) return 'shoved off the ring by ' + foe;
   return S.ringR < S.R0 - 30 ? 'the ring shrank out from under you' : 'slid off the edge on your own';
 }
 
 function ringOut(out0, out1) {
-  S.phase = 'end'; S.phaseT = 1500;
+  S.phase = 'end'; S.phaseT = 1400;
   S.freeze = 200;                               // hitstop on ring-out, then slow-mo
   S.st.ringouts++;
   for (let i = 0; i < 2; i++) if ((i === 0 ? out0 : out1)) S.p[i].out = true;
@@ -389,8 +451,8 @@ function ringOut(out0, out1) {
     } else {
       S.hearts--; S.streak = 0;
       const c = causeFor(0) + ' (round ' + S.round + ')';
-      banner('RING OUT', S.hearts > 0 ? S.hearts + (S.hearts === 1 ? ' heart' : ' hearts') + ' left' : 'out of hearts', '#ff6b7d');
-      if (!QUIET) SFX.lose();
+      banner('RING OUT', S.hearts > 0 ? S.hearts + (S.hearts === 1 ? ' heart' : ' hearts') + ' left · rematch' : 'out of hearts', '#ff6b7d');
+      if (!QUIET) { SFX.lose(); FX.lossWhy = causeFor(0); }
       if (S.hearts <= 0) S.pendingOver = c;
     }
   } else {
@@ -416,26 +478,33 @@ function cpuThink() {
   const la = 0.28;
   const mx = me.x + me.vx * la, my = me.y + me.vy * la, fx = foe.x + foe.vx * la, fy = foe.y + foe.vy * la;
   const rMe = Math.hypot(mx - CX, my - CY), rF = Math.hypot(fx - CX, fy - CY) || 1;
-  let tx, ty;
-  if (rMe > R - cs.edge) { tx = CX; ty = CY; }
+  let tx, ty, home = false;
+  if (rMe > R - cs.edge) { tx = CX; ty = CY; home = true; }
   else {
     const back = Math.min(cs.back, rF * 0.8);
     tx = CX + (fx - CX) / rF * (rF - back); ty = CY + (fy - CY) / rF * (rF - back);
     if (Math.hypot(tx - mx, ty - my) < 24) { tx = fx; ty = fy; }
+    if (cs.passive > 0) { tx += (CX - tx) * cs.passive; ty += (CY - ty) * cs.passive; }   // gentle CPUs hang back
   }
   let dx = tx - mx, dy = ty - my; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
   const jit = (rnd() - 0.5) * 2 * cs.noise, c = Math.cos(jit), s = Math.sin(jit);
   S.cpu.dx = dx * c - dy * s; S.cpu.dy = dx * s + dy * c;
-  if (dl < 8) { S.cpu.dx *= 0.3; S.cpu.dy *= 0.3; }
-  // polarity tactics
+  const lazy = dl < 8 ? 0.3 : !home && cs.passive > 0 ? 1 - 0.5 * cs.passive : 1;
+  S.cpu.dx *= lazy; S.cpu.dy *= lazy;
+  // polarity tactics (LV1-2 never slam, so they never slam-counter either)
   if (me.cd <= 0 && me.buf <= 0) {
     const d = Math.hypot(foe.x - me.x, foe.y - me.y), attract = me.q !== foe.q;
     const meIn = Math.hypot(me.x - CX, me.y - CY) < Math.hypot(foe.x - CX, foe.y - CY) - 6;
     const u = rnd();
-    if (attract && d < 2 * PR + SLAM_RANGE && meIn) { if (u < cs.pSlam) S.flipQ[1] = true; }
-    else if (attract && d < 2 * PR + SLAM_RANGE + 10 && !meIn) { if (u < cs.pDef * 0.6) S.flipQ[1] = true; }
+    let slam = false;
+    if (attract && d < 2 * PR + SLAM_RANGE && meIn) { if (u < cs.pSlam) slam = true; }
+    else if (attract && d < 2 * PR + SLAM_RANGE + 10 && !meIn) { if (cs.pSlam > 0 && u < cs.pDef * 0.6) slam = true; }
     else if (!attract && !meIn && d < 150) { if (u < cs.pDef) S.flipQ[1] = true; }
     else if (!attract && meIn && d > 190) { if (u < 0.12 + cs.pDef * 0.2) S.flipQ[1] = true; }
+    if (slam) {
+      S.flipQ[1] = true;
+      if (rnd() < cs.brace) { const l = d || 1; S.cpu.dx = (foe.x - me.x) / l; S.cpu.dy = (foe.y - me.y) / l; }
+    }
   }
 }
 
@@ -450,6 +519,13 @@ function edgeFX() {
   let w = 0;
   for (let i = 0; i < 2; i++) { const p = S.p[i], r = Math.hypot(p.x - CX, p.y - CY); w = Math.max(w, 1 - Math.max(0, S.ringR - r) / 45); if (p.teeter > 0 && FX.teeterT <= 0) { SFX.teeter(); FX.teeterT = 220; FX.crowd = Math.max(FX.crowd, 0.4); } }
   FX.edgeWarn = Math.max(0, w); FX.teeterT -= STEP;
+}
+// magnetic acceleration currently felt by puck i (read-only; used for the on-puck force arrow)
+function magFelt(i) {
+  const p = S.p[i], o = S.p[1 - i], dx = o.x - p.x, dy = o.y - p.y, r = Math.hypot(dx, dy) || 1, rr = Math.max(r, 2 * PR);
+  let f = Math.min(A_MAX, K_MAG / (rr * rr)) * (p.q === o.q ? -1 : 1) * S.ice.F / p.m;
+  if (p.brace > 0) f *= p.bk === 2 ? 0.25 : 0.6;
+  return { x: dx / r * f, y: dy / r * f, rel: Math.abs(f) / (p.thrust * S.ice.F), attract: f > 0 };
 }
 
 // ---------- render ----------
@@ -466,7 +542,7 @@ function buildBG(scale) {
 function crowdDots(now) {
   const n = 46, jump = FX.crowd;
   for (let i = 0; i < n; i++) {
-    const a = (i / n) * 6.283, rr = 286 + (i % 3) * 13, hop = jump * 8 * Math.abs(Math.sin(now / 90 + i * 1.7));
+    const a = (i / n) * 6.283, rr = 290 + (i % 3) * 13, hop = jump * 8 * Math.abs(Math.sin(now / 90 + i * 1.7));
     const x = CX + Math.cos(a) * rr, y = CY + Math.sin(a) * rr * 1.0 - hop;
     if (y < 150 || y > H - 120) continue;
     cx.fillStyle = ['#2a3a6e', '#33427a', '#283563'][i % 3]; cx.beginPath(); cx.arc(x, y, 9, Math.PI, 0); cx.fill();
@@ -476,9 +552,9 @@ function crowdDots(now) {
 // traced field lines of the two poles: N->S when attracting (blue), splaying apart when repelling (red)
 function fieldLines(now) {
   const a = S.p[0], b = S.p[1];
-  if (a.out || b.out || S.phase === 'count') return;
+  if (a.out || b.out) return;
   const r = Math.hypot(b.x - a.x, b.y - a.y) || 1, attract = a.q !== b.q;
-  const str = Math.max(0.22, Math.min(0.95, 1.25 - r / 330)), lim = S.ringR + 24;
+  const str = Math.max(0.22, Math.min(0.95, 1.25 - r / 330)) * (S.phase === 'count' ? 0.6 : 1), lim = S.ringR + 24;
   const src = attract ? [a.q > 0 ? a : b] : [a, b];
   cx.save(); cx.lineCap = 'round'; cx.lineJoin = 'round'; cx.setLineDash([8, 10]);
   cx.strokeStyle = attract ? '#2f93ff' : '#ff3d58';
@@ -506,6 +582,17 @@ function fieldLines(now) {
   cx.restore(); cx.globalAlpha = 1;
 }
 function font(sz, w) { return (w || 'bold') + ' ' + sz + 'px "Trebuchet MS", "Segoe UI", system-ui, sans-serif'; }
+function arrow(x0, y0, x1, y1, col, w) {
+  const a = Math.atan2(y1 - y0, x1 - x0), h = 7 + w;
+  cx.lineCap = 'round';
+  for (const [c, lw] of [['rgba(11,18,38,0.75)', w + 4], [col, w]]) {
+    cx.strokeStyle = c; cx.fillStyle = c; cx.lineWidth = lw;
+    cx.beginPath(); cx.moveTo(x0, y0); cx.lineTo(x1 - Math.cos(a) * h * 0.6, y1 - Math.sin(a) * h * 0.6); cx.stroke();
+    cx.beginPath(); cx.moveTo(x1 + Math.cos(a) * (lw - w) * 0.5, y1 + Math.sin(a) * (lw - w) * 0.5);
+    cx.lineTo(x1 - Math.cos(a - 0.5) * (h + (lw - w) * 0.5), y1 - Math.sin(a - 0.5) * (h + (lw - w) * 0.5));
+    cx.lineTo(x1 - Math.cos(a + 0.5) * (h + (lw - w) * 0.5), y1 - Math.sin(a + 0.5) * (h + (lw - w) * 0.5)); cx.closePath(); cx.fill();
+  }
+}
 
 function render() {
   const now = performance.now();
@@ -518,9 +605,11 @@ function render() {
   const pulse = 0.5 + 0.5 * Math.sin(now / 120);
   crowdDots(now);
 
-  // ice: the original rink faintly, the live ring bright
+  // ice: the original rink faintly, the live ring bright, and the teeter band (slush) just outside it
   const R = S.ringR;
-  cx.fillStyle = 'rgba(160,200,240,0.07)'; cx.beginPath(); cx.arc(CX, CY, S.R0, 0, 6.283); cx.fill();
+  cx.fillStyle = 'rgba(160,200,240,0.07)'; cx.beginPath(); cx.arc(CX, CY, S.R0 + TBAND, 0, 6.283); cx.fill();
+  cx.strokeStyle = 'rgba(150,200,255,0.22)'; cx.lineWidth = TBAND; cx.beginPath(); cx.arc(CX, CY, R + TBAND / 2, 0, 6.283); cx.stroke();
+  cx.save(); cx.setLineDash([6, 9]); cx.strokeStyle = 'rgba(255,120,140,0.45)'; cx.lineWidth = 2; cx.beginPath(); cx.arc(CX, CY, R + TBAND, 0, 6.283); cx.stroke(); cx.restore();
   const ig = cx.createRadialGradient(CX - R * 0.3, CY - R * 0.35, R * 0.1, CX, CY, R);
   ig.addColorStop(0, '#fbfeff'); ig.addColorStop(0.7, '#d7efff'); ig.addColorStop(1, '#a9d4f2');
   cx.fillStyle = ig; cx.beginPath(); cx.arc(CX, CY, R, 0, 6.283); cx.fill();
@@ -531,15 +620,17 @@ function render() {
   const ew = FX.edgeWarn, warnCol = 'rgba(255,' + Math.round(235 - 60 * ew) + ',' + Math.round(240 - 70 * ew) + ',' + (0.6 + 0.3 * ew * pulse) + ')';
   cx.strokeStyle = warnCol; cx.lineWidth = 5 + ew * 3; cx.beginPath(); cx.arc(CX, CY, R, 0, 6.283); cx.stroke();
   cx.strokeStyle = 'rgba(255,255,255,0.8)'; cx.lineWidth = 1.5; cx.beginPath(); cx.arc(CX, CY, R - 4, 0, 6.283); cx.stroke();
-  for (let i = 0; i < 2; i++) {   // local hot-spot on the edge near each puck
-    const p = S.p[i], r = Math.hypot(p.x - CX, p.y - CY) || 1, near = 1 - Math.max(0, R - r) / 70;
+  for (let i = 0; i < 2; i++) {   // local hot-spot on the edge near each puck: warns well before you teeter
+    const p = S.p[i], r = Math.hypot(p.x - CX, p.y - CY) || 1, near = Math.min(1.3, 1 - Math.max(0, R - r) / 80);
     if (near <= 0 || p.out) continue;
-    const ang = Math.atan2(p.y - CY, p.x - CX), span = 0.25 + 0.25 * near;
-    const eg = cx.createRadialGradient(CX + Math.cos(ang) * R, CY + Math.sin(ang) * R, 0, CX + Math.cos(ang) * R, CY + Math.sin(ang) * R, 70);
-    eg.addColorStop(0, 'rgba(255,40,70,' + Math.min(0.5, near * 0.5) + ')'); eg.addColorStop(1, 'rgba(255,40,70,0)');
-    cx.fillStyle = eg; cx.beginPath(); cx.arc(CX + Math.cos(ang) * R, CY + Math.sin(ang) * R, 70, 0, 6.283); cx.fill();
-    cx.strokeStyle = 'rgba(255,50,75,' + Math.min(1, near) * (0.65 + 0.35 * pulse) + ')'; cx.lineWidth = 8 + 7 * near;
+    const ang = Math.atan2(p.y - CY, p.x - CX), span = 0.22 + 0.25 * Math.min(1, near);
+    const ex = CX + Math.cos(ang) * R, ey = CY + Math.sin(ang) * R;
+    const eg = cx.createRadialGradient(ex, ey, 0, ex, ey, 70);
+    eg.addColorStop(0, 'rgba(255,40,70,' + Math.min(0.55, near * 0.5) + ')'); eg.addColorStop(1, 'rgba(255,40,70,0)');
+    cx.fillStyle = eg; cx.beginPath(); cx.arc(ex, ey, 70, 0, 6.283); cx.fill();
+    cx.strokeStyle = 'rgba(255,50,75,' + Math.min(1, near) * (0.65 + 0.35 * pulse) + ')'; cx.lineWidth = 6 + 7 * Math.min(1, near);
     cx.beginPath(); cx.arc(CX, CY, R, ang - span, ang + span); cx.stroke();
+    if (p.teeter > 0) { cx.strokeStyle = 'rgba(255,60,90,' + (0.45 + 0.4 * pulse) + ')'; cx.lineWidth = TBAND; cx.beginPath(); cx.arc(CX, CY, R + TBAND / 2, ang - span, ang + span); cx.stroke(); }
   }
 
   fieldLines(now);
@@ -556,7 +647,7 @@ function render() {
   // pucks
   for (let i = 0; i < 2; i++) {
     const p = S.p[i];
-    let sc = 1; if (p.out) sc = Math.max(0.3, S.phaseT / 1500);
+    let sc = 1; if (p.out) sc = Math.max(0.3, S.phaseT / 1400);
     const sq = FX.squash[i] * 0.25, fp = FX.flipPop[i];
     cx.save(); cx.translate(p.x, p.y); cx.scale(sc * (1 + sq + fp * 0.25), sc * (1 - sq + fp * 0.25));
     if (p.teeter > 0 && !p.out) cx.rotate(Math.sin(now / 40) * 0.12);
@@ -566,15 +657,37 @@ function render() {
     cx.fillStyle = g; cx.beginPath(); cx.arc(0, 0, PR, 0, 6.283); cx.fill();
     const idc = i === 0 ? COL.p1 : S.mode === 'solo' ? COL.cpu : COL.p2;
     cx.strokeStyle = idc; cx.lineWidth = 4; cx.beginPath(); cx.arc(0, 0, PR + 1, 0, 6.283); cx.stroke();
-    if (p.cd > 0) { cx.strokeStyle = 'rgba(255,255,255,0.85)'; cx.lineWidth = 3; cx.beginPath(); cx.arc(0, 0, PR + 7, -Math.PI / 2, -Math.PI / 2 + 6.283 * (1 - p.cd / p.flipcd)); cx.stroke(); }
+    // flip cooldown ring: dark track, fills in the colour of the pole you'd flip to; pops when ready
+    if (p.cd > 0 && !p.out) {
+      cx.strokeStyle = 'rgba(11,18,38,0.55)'; cx.lineWidth = 6; cx.beginPath(); cx.arc(0, 0, PR + 8, 0, 6.283); cx.stroke();
+      cx.strokeStyle = polCol(-p.q); cx.lineWidth = 4; cx.beginPath(); cx.arc(0, 0, PR + 8, -Math.PI / 2, -Math.PI / 2 + 6.283 * (1 - p.cd / p.flipcd)); cx.stroke();
+    } else if (FX.rdy[i] > 0.05 && !p.out) { cx.globalAlpha = FX.rdy[i]; cx.strokeStyle = '#ffffff'; cx.lineWidth = 3; cx.beginPath(); cx.arc(0, 0, PR + 8 + 10 * (1 - FX.rdy[i]), 0, 6.283); cx.stroke(); cx.globalAlpha = 1; }
     cx.fillStyle = '#ffffff'; cx.font = font(22); cx.textAlign = 'center'; cx.textBaseline = 'middle';
     cx.fillText(p.q > 0 ? 'N' : 'S', 0, 1); cx.textBaseline = 'alphabetic';
     cx.restore();
     if (!p.out) {
       cx.font = font(14); cx.textAlign = 'center'; cx.lineWidth = 3; cx.strokeStyle = 'rgba(11,18,38,0.7)';
-      const lb = who(i); cx.strokeText(lb, p.x, p.y - PR - 12); cx.fillStyle = idc; cx.fillText(lb, p.x, p.y - PR - 12);
+      const lb = who(i); cx.strokeText(lb, p.x, p.y - PR - 16); cx.fillStyle = idc; cx.fillText(lb, p.x, p.y - PR - 16);
     }
-    if (p.teeter > 0 && !p.out) { cx.strokeStyle = 'rgba(255,60,80,' + (0.5 + 0.5 * pulse) + ')'; cx.lineWidth = 3; cx.beginPath(); cx.arc(p.x, p.y, PR + 12, -Math.PI / 2, -Math.PI / 2 + 6.283 * (1 - p.teeter / TEETER)); cx.stroke(); }
+    if (p.teeter > 0 && !p.out) {
+      cx.strokeStyle = 'rgba(255,60,80,' + (0.5 + 0.5 * pulse) + ')'; cx.lineWidth = 3; cx.beginPath(); cx.arc(p.x, p.y, PR + 14, -Math.PI / 2, -Math.PI / 2 + 6.283 * (1 - p.teeter / TEETER)); cx.stroke();
+      if (assisted(i)) {
+        const r = Math.hypot(p.x - CX, p.y - CY) || 1, ux = (CX - p.x) / r, uy = (CY - p.y) / r;
+        arrow(p.x + ux * (PR + 18), p.y + uy * (PR + 18), p.x + ux * (PR + 58), p.y + uy * (PR + 58), '#7df9ff', 5);
+        cx.font = font(15); cx.textAlign = 'center'; cx.lineWidth = 4; cx.strokeStyle = 'rgba(11,18,38,0.85)';
+        cx.strokeText('STEER IN!', p.x + ux * (PR + 78), p.y + uy * (PR + 78) + 5); cx.fillStyle = '#7df9ff'; cx.fillText('STEER IN!', p.x + ux * (PR + 78), p.y + uy * (PR + 78) + 5);
+      }
+    }
+  }
+  // force arrow on your puck(s): the magnetic pull / push you feel right now (blue = pull, red = push)
+  if (S.phase !== 'end') for (let i = 0; i < 2; i++) {
+    if (!assisted(i) || S.p[i].out) continue;
+    const p = S.p[i], m = magFelt(i);
+    if (m.rel < 0.06) continue;
+    const l = Math.hypot(m.x, m.y) || 1, ux = m.x / l, uy = m.y / l, len = 10 + 46 * Math.min(1.4, m.rel) / 1.4;
+    cx.globalAlpha = Math.min(1, 0.35 + m.rel);
+    arrow(p.x + ux * (PR + 4), p.y + uy * (PR + 4), p.x + ux * (PR + 4 + len), p.y + uy * (PR + 4 + len), m.attract ? '#2f93ff' : '#ff3d58', m.rel > 1 ? 6 : 4);
+    cx.globalAlpha = 1;
   }
 
   // FX
@@ -588,9 +701,10 @@ function render() {
   }
   cx.globalAlpha = 1;
   if (S.phase === 'count' && !S.over) {
-    const n = Math.ceil(S.phaseT / 500), u = 1 - (S.phaseT % 500) / 500;
+    const n = Math.ceil(S.phaseT / 500), u = S.wait ? 0.3 + 0.2 * pulse : 1 - (S.phaseT % 500) / 500, word = S.wait || n > 1 ? 'READY' : 'SET';
     cx.globalAlpha = 1 - u * 0.6; cx.font = font(Math.round(60 + 30 * u)); cx.lineWidth = 6; cx.strokeStyle = 'rgba(11,18,38,0.8)';
-    cx.strokeText(n > 1 ? 'READY' : 'SET', CX, CY + 20); cx.fillStyle = '#ffffff'; cx.fillText(n > 1 ? 'READY' : 'SET', CX, CY + 20); cx.globalAlpha = 1;
+    cx.strokeText(word, CX, CY + 20); cx.fillStyle = '#ffffff'; cx.fillText(word, CX, CY + 20); cx.globalAlpha = 1;
+    if (S.wait) { cx.font = font(18); cx.lineWidth = 4; cx.strokeText(touchUI ? 'drag to start' : 'steer (WASD / arrows) to start', CX, CY + 56); cx.fillStyle = COL.p1; cx.fillText(touchUI ? 'drag to start' : 'steer (WASD / arrows) to start', CX, CY + 56); }
   }
   cx.restore();
   if (FX.flash > 0.02) { cx.fillStyle = 'rgba(' + FX.flashCol + ',' + (FX.flash * 0.45) + ')'; cx.fillRect(0, 0, W, H); }
@@ -622,10 +736,12 @@ function drawHUD(now, pulse) {
     cx.textAlign = 'right'; cx.font = font(24); cx.fillStyle = COL.p1; cx.fillText(String(Math.max(best, S.score)), W - 16, 38);
     cx.font = font(14); cx.fillStyle = '#8fa0c8'; cx.fillText('BEST', W - 16, 56);
     for (let i = 0; i < 3; i++) { heartPath(W / 2 - 34 + i * 34, 14, 22); if (i < S.hearts) { cx.fillStyle = '#ff4d5e'; cx.fill(); } else { cx.strokeStyle = 'rgba(255,77,94,0.4)'; cx.lineWidth = 2; cx.stroke(); } }
+    const cs = cpuStats(S.level, S.style);
     cx.textAlign = 'center'; cx.font = font(17); cx.fillStyle = COL.cpu;
-    cx.fillText('ROUND ' + S.round + ' · vs ' + cpuStats(S.level, S.style).name + ' ' + cpuStats(S.level, S.style).tag, W / 2, 68);
-    cx.font = font(15); cx.fillStyle = S.streak ? '#7df9ff' : '#5e6c92'; cx.fillText('win streak ×' + mult().toFixed(1), W / 2, 90);
+    cx.fillText('ROUND ' + S.round + ' · vs ' + cs.name + ' ' + cs.tag, W / 2, 68);
+    cx.font = font(15); cx.fillStyle = S.streak ? '#7df9ff' : '#5e6c92'; cx.fillText('win streak ×' + mult().toFixed(1), W / 2, 88);
     polBadge(16, 104, S.p[0], 'YOU', COL.p1, 'left'); polBadge(W - 16, 104, S.p[1], 'CPU', COL.cpu, 'right');
+    if (S.level <= 4 && !S.over && !(FX.banner && FX.banner.tip)) { cx.font = font(13, 'normal'); cx.fillStyle = 'rgba(195,155,255,0.85)'; cx.fillText(cs.tip, W / 2, 168); }
   } else {
     cx.textAlign = 'center'; cx.font = font(44);
     cx.fillStyle = COL.p1; cx.fillText(String(S.vs[0]), W / 2 - 60, 52); cx.fillStyle = '#8fa0c8'; cx.font = font(28); cx.fillText('—', W / 2, 48);
@@ -636,15 +752,16 @@ function drawHUD(now, pulse) {
   }
   // ring timer (shrink)
   if (!S.over) {
-    const f = (S.ringR - RMIN) / Math.max(1, S.R0 - RMIN);
-    cx.fillStyle = 'rgba(160,210,255,0.15)'; cx.fillRect(W / 2 - 60, 98, 120, 5); cx.fillStyle = f < 0.25 ? '#ff6b7d' : '#bfe6ff'; cx.fillRect(W / 2 - 60, 98, 120 * f, 5);
-    cx.font = font(12, 'normal'); cx.fillStyle = '#8fa0c8'; cx.textAlign = 'center'; cx.fillText('ring', W / 2, 118);
+    const f = (S.ringR - RMIN) / Math.max(1, S.R0 - RMIN), bw = 150, by = 100;
+    cx.fillStyle = 'rgba(160,210,255,0.15)'; cx.fillRect(W / 2 - bw / 2, by, bw, 6); cx.fillStyle = f < 0.3 ? '#ff6b7d' : '#bfe6ff'; cx.fillRect(W / 2 - bw / 2 + bw * (1 - f) / 2, by, bw * f, 6);
+    cx.font = font(12); cx.fillStyle = f < 0.3 ? 'rgba(255,107,125,' + (0.6 + 0.4 * pulse) + ')' : '#8fa0c8'; cx.textAlign = 'center'; cx.fillText(f < 0.3 ? 'RING SHRINKS · SQUEEZE!' : 'RING SHRINKS', W / 2, by + 22);
   }
   // touch buttons
   if (touchUI && !S.over) {
     const btn = (x, y, p, label) => {
       cx.globalAlpha = 0.85; cx.fillStyle = polCol(-p.q); cx.beginPath(); cx.arc(x, y, 44, 0, 6.283); cx.fill();
       cx.strokeStyle = '#fff'; cx.lineWidth = 3; cx.stroke(); cx.globalAlpha = 1;
+      if (p.cd > 0) { cx.strokeStyle = 'rgba(11,18,38,0.7)'; cx.lineWidth = 6; cx.beginPath(); cx.arc(x, y, 44, -Math.PI / 2, -Math.PI / 2 + 6.283 * p.cd / p.flipcd); cx.stroke(); }
       cx.fillStyle = '#fff'; cx.font = font(17); cx.textAlign = 'center'; cx.fillText(label, x, y + 6);
     };
     btn(FLIPBTN[0].x, FLIPBTN[0].y, S.p[0], 'FLIP');
@@ -653,7 +770,7 @@ function drawHUD(now, pulse) {
     else { cx.strokeStyle = 'rgba(255,255,255,0.12)'; cx.setLineDash([6, 8]); cx.beginPath(); cx.moveTo(0, CY); cx.lineTo(W, CY); cx.stroke(); cx.setLineDash([]); }
   }
   // hint
-  if (FX.hintA > 0.01 && !S.over) {
+  if (FX.hintA > 0.01 && !S.over && !FX.tip) {
     cx.globalAlpha = Math.min(1, FX.hintA); cx.textAlign = 'center';
     const hx = touchUI ? (W - 120) / 2 + 6 : W / 2;
     cx.font = font(touchUI ? 17 : 19); cx.fillStyle = '#f4f7ff';
@@ -665,11 +782,22 @@ function drawHUD(now, pulse) {
     if (solo) { cx.fillStyle = COL.p2; cx.fillText(touchUI ? 'tap 2P: friend vs friend' : '2 players? P2 press ENTER', hx, touchUI ? H - 18 : H - 34); }
     cx.globalAlpha = 1;
   }
+  if (FX.tip && !S.over) {     // one-time coaching (e.g. the first slam)
+    const t = FX.tip, a = Math.min(1, t.life * 5), u = 1 - t.life, e = u < 0.06 ? 1 - Math.pow(1 - u / 0.06, 3) : 1;
+    cx.globalAlpha = a; cx.textAlign = 'center';
+    cx.fillStyle = 'rgba(11,18,38,0.82)'; cx.beginPath(); if (cx.roundRect) cx.roundRect(28, H - 122, W - 56, 76, 14); else cx.rect(28, H - 122, W - 56, 76); cx.fill();
+    cx.strokeStyle = t.col; cx.lineWidth = 2; cx.stroke();
+    cx.font = font(Math.round(24 * (0.7 + 0.3 * e))); cx.fillStyle = t.col; cx.fillText(t.a, W / 2, H - 90);
+    cx.font = font(17, 'normal'); cx.fillStyle = '#f4f7ff'; cx.fillText(t.b, W / 2, H - 62);
+    cx.globalAlpha = 1;
+  }
   if (FX.banner) {
     const b = FX.banner, u = 1 - b.life, e = u < 0.12 ? 1 - Math.pow(1 - u / 0.12, 3) : 1, a = Math.min(1, b.life * 4);
     cx.globalAlpha = a; cx.textAlign = 'center'; cx.font = font(Math.round(46 * (0.6 + 0.4 * e)));
     cx.lineWidth = 7; cx.strokeStyle = 'rgba(11,18,38,0.85)'; cx.strokeText(b.txt, W / 2, 250); cx.fillStyle = b.col; cx.fillText(b.txt, W / 2, 250);
-    cx.font = font(18); cx.lineWidth = 5; cx.strokeText(b.sub, W / 2, 280); cx.fillStyle = '#f4f7ff'; cx.fillText(b.sub, W / 2, 280); cx.globalAlpha = 1;
+    cx.font = font(18); cx.lineWidth = 5; cx.strokeText(b.sub, W / 2, 280); cx.fillStyle = '#f4f7ff'; cx.fillText(b.sub, W / 2, 280);
+    if (b.tip) { cx.font = font(16); cx.strokeText(b.tip, W / 2, 306); cx.fillStyle = '#e3d2ff'; cx.fillText(b.tip, W / 2, 306); }
+    cx.globalAlpha = 1;
   }
   if (S.over) {
     cx.fillStyle = 'rgba(6,9,20,0.6)'; cx.fillRect(0, 0, W, H);
@@ -678,12 +806,12 @@ function drawHUD(now, pulse) {
     cx.textAlign = 'center'; cx.font = font(48); cx.fillStyle = solo ? '#ff4d5e' : COL.p2; cx.fillText(solo ? 'GAME OVER' : 'MATCH OVER', W / 2, 315);
     cx.font = font(19); cx.fillStyle = '#ffd6dd';
     const cs = S.cause || '', ci = cs.indexOf(' (');
-    (ci > 0 ? [cs.slice(0, ci), cs.slice(ci + 1)] : [cs]).forEach((ln, i) => cx.fillText(ln, W / 2, 356 + i * 26));
+    (ci > 0 ? [cs.slice(0, ci), cs.slice(ci + 1)] : [cs]).forEach((ln, i) => cx.fillText(ln, W / 2, 356 + i * 26, W - 90));
     if (solo) {
       cx.fillStyle = '#f4f7ff'; cx.font = font(38); cx.fillText(String(S.score), W / 2, 440);
       cx.font = font(15); cx.fillStyle = '#8fa0c8'; cx.fillText('SCORE', W / 2, 460);
       cx.font = font(21); cx.fillStyle = COL.p1; cx.fillText((FX.newBest ? 'NEW BEST! ' : 'BEST ') + best, W / 2, 496);
-      cx.font = font(15, 'normal'); cx.fillStyle = '#b6c6ea'; cx.fillText(S.wins + ' rounds won · ' + S.st.slams + ' slams · beat up to ' + baseStats(Math.max(1, S.level - 1)).name, W / 2, 528);
+      cx.font = font(15, 'normal'); cx.fillStyle = '#b6c6ea'; cx.fillText(S.wins + ' rounds won · ' + S.st.slams + ' slams · ' + S.st.braced + ' braced · beat up to ' + baseStats(Math.max(1, S.level - 1)).name, W / 2, 528, W - 90);
     } else {
       cx.font = font(40); cx.fillStyle = '#f4f7ff'; cx.fillText(S.vs[0] + ' — ' + S.vs[1], W / 2, 450);
       cx.fillStyle = 'rgba(94,242,194,0.15)'; cx.strokeStyle = COL.p2; cx.lineWidth = 2; cx.beginPath(); if (cx.roundRect) cx.roundRect(BTN1P.x - 90, BTN1P.y - 22, 180, 44, 12); else cx.rect(BTN1P.x - 90, BTN1P.y - 22, 180, 44); cx.fill(); cx.stroke();
@@ -708,7 +836,7 @@ addEventListener('resize', fit); fit();
 // ---------- human input ----------
 const FLIPBTN = [{ x: W - 62, y: H - 62 }, { x: 62, y: 172 }], BTN2P = { x: W - 40, y: 172 }, BTN1P = { x: W / 2, y: 515 };
 function humanRestart() { if (S.over && performance.now() - overAt > 400) { const m = S.mode; reset(Date.now() & 0x7fffffff, m); return true; } return false; }
-function hideHint() { if (FX.hintA >= 1) FX.hintA = 0.999; }
+function hideHint() { if (FX.hintA >= 1) FX.hintA = 0.999; S.wait = false; }
 function setMode(m) { reset(Date.now() & 0x7fffffff, m); FX.hintA = 1; }
 const P1KEYS = { KeyW: 1, KeyA: 1, KeyS: 1, KeyD: 1 }, ARROWS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1 };
 addEventListener('keydown', e => {
@@ -767,11 +895,11 @@ const DIRS = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 },
 window.__game = {
   reset(seed) { manual = true; reset(seed, 'solo'); },
   getState() {
-    const pk = p => ({ x: p.x, y: p.y, vx: p.vx, vy: p.vy, q: p.q, m: p.m, cd: p.cd, teeter: p.teeter, out: p.out });
+    const pk = p => ({ x: p.x, y: p.y, vx: p.vx, vy: p.vy, q: p.q, m: p.m, cd: p.cd, teeter: p.teeter, brace: p.brace > 0 ? p.brace : 0, out: p.out });
     return {
       t: S.t, score: S.score, over: S.over, cause: S.over ? S.cause : null, difficulty: S.level + S.round * 0.5,
       phase: S.phase, round: S.round, level: S.level, wins: S.wins, hearts: S.hearts, streak: S.streak, mode: S.mode,
-      center: { x: CX, y: CY }, ringR: S.ringR, puckR: PR, slamRange: 2 * PR + SLAM_RANGE,
+      center: { x: CX, y: CY }, ringR: S.ringR, R0: S.R0, band: TBAND, teeterMs: TEETER, puckR: PR, slamRange: 2 * PR + SLAM_RANGE, ice: S.ice.fr,
       me: pk(S.p[0]), foe: pk(S.p[1]), attract: S.p[0].q !== S.p[1].q, cpu: cpuStats(S.level, S.style).name, style: S.style,
     };
   },
@@ -791,6 +919,7 @@ window.__game = {
 };
 
 reset(Date.now() & 0x7fffffff, 'solo');
+S.wait = true;           // the very first human screen waits for your first input (bots call reset(seed) and never wait)
 requestAnimationFrame(frame);
 })();
 </script>

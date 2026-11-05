@@ -2,8 +2,8 @@
  "id": "junkorbit",
  "bot": "smart",
  "seed": 1,
- "lengthMs": 207200,
- "finalScore": 111394,
+ "lengthMs": 225000,
+ "finalScore": 185750,
  "cause": "the wreck of a star you let burn out (it came back for you)",
  "replayMatches": true,
  "shots": [
@@ -16,22 +16,22 @@
   },
   {
    "name": "2-mid",
-   "t": 103600,
-   "score": 19019,
+   "t": 112500,
+   "score": 30980,
    "over": false,
    "file": "lab/shots/junkorbit/2-mid.png"
   },
   {
    "name": "3-intense",
-   "t": 205700,
-   "score": 108669,
+   "t": 223500,
+   "score": 184070,
    "over": false,
    "file": "lab/shots/junkorbit/3-intense.png"
   },
   {
    "name": "4-gameover",
-   "t": 207200,
-   "score": 111394,
+   "t": 225000,
+   "score": 185750,
    "over": true,
    "file": "lab/shots/junkorbit/4-gameover.png"
   }

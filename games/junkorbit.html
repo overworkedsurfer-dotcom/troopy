@@ -241,6 +241,8 @@ function floatText(x, y, txt, col, size) {
   if (QUIET) return;
   for (let k = 0; k < 5; k++) { let hit = false; for (const t of FX.texts) if (t.life > 0.55 && Math.abs(t.x - x) < 90 && Math.abs(t.y - y) < 19) { hit = true; break; } if (!hit) break; y -= 21; }
   FX.texts.push({ x, y, txt, col, life: 1, size: size || 20 });
+  // late-game legibility: keep at most 4 floating texts; age out the smallest/oldest first
+  if (FX.texts.length > 4) { FX.texts.sort((a, b) => (b.size * b.life) - (a.size * a.life)); FX.texts.length = 4; }
 }
 function ring(x, y, col, r0, r1, w) { if (!QUIET) FX.rings.push({ x, y, col, r0, r1, w: w || 3, life: 1 }); }
 function shake(a) { if (!QUIET) FX.shake = Math.max(FX.shake, a); }
