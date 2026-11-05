@@ -149,13 +149,12 @@ module.exports = {
           if (s.phase === 'draft' || s.depth > s0.depth) return (wantStairs ? 2e5 : 4000) + s.hp * 1500 + (s.score - s0.score) * 2;
           const i = idx(s.px, s.py);
           let v = s.hp * 1000 + s.maxHp * 150 + (s.score - s0.score) * 10 + s.oil * 600 - s.gloom * 300;
-          v -= Math.min(60, dist[i]) * 140;
+          v -= Math.min(60, dist[i]) * (left <= 0 ? 300 : 140);   // once the dark has risen, every step home matters double
           if (!noDanger) { let dz = 0; for (const d of s.danger) if (d[0] === s.px && d[1] === s.py) dz += d[2]; v -= dz * 1300; }
           // total foe HP, independent of where you stand or what is awake: only damage dealt moves it
           for (const e of s.enemies) {
             const md = Math.abs(e.x - s.px) + Math.abs(e.y - s.py);
             v -= e.hp * (e.type === 'warden' ? 450 : 100);
-            if (e.type === 'shade' && s.dim && md <= 4) v -= 1200 / md;
           }
           v += (s.kills - s0.kills) * 300;
           if (s.dim) v -= 500;

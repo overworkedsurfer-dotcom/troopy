@@ -213,7 +213,7 @@ function mkEnemy(type, x, y) {
   const d = S.depth;
   let hp, atk;
   if (type === 'moth') { hp = d >= 6 ? 2 : 1; atk = 1; }
-  else if (type === 'husk') { hp = 4 + Math.floor(d / 2); atk = d >= 7 ? 3 : 2; }
+  else if (type === 'husk') { hp = 4 + Math.floor(d / 4); atk = d >= 7 ? 3 : 2; }
   else if (type === 'shade') { hp = 2 + Math.floor(d / 6); atk = d >= 6 ? 2 : 1; }
   else { const n = Math.max(1, Math.round(d / 4)); hp = 14 + 8 * (n - 1); atk = 2 + (n - 1); }
   return { id: S.nid++, type, x, y, ox: x, oy: y, mt: -1e9, hp, maxHp: hp, atk, awake: type === 'shade' || type === 'moth',
