@@ -35,7 +35,7 @@ const REPULSE = [0.10, 0.10, 0.065, 0.035], REP_W = 56;   // on-ramp: soft rim r
 const DRAG_BY_WAVE = [0.982, 0.982, 0.985, 0.988];        // on-ramp: extra drag early, normal DRAG from wave 4
 const SKIM_W = 26;                   // skim band width (px between hitbox and rim)
 const SKIM_GAIN = 0.012, SKIM_FATIGUE = 80, MULT_MAX = 8, MULT_HOLD = 2000, MULT_DECAY = 0.006;
-const COMBO_MS = 1800, COMBO_MAX = 20, PB_DIST = 56;
+const COMBO_MS = 1800, COMBO_MAX = 20, PB_DIST = 56, MISS_DRAIN = 300;   // each shot that reaches the rim drains the chain timer
 const COL = { bg: '#05030c', rim: '#38f0ff', ship: '#f4f7ff', bul: '#ffe45c', rock: '#ffab4a', seek: '#ff3d9a', shoot: '#b47bff', ebul: '#ff4d6d', mult: '#5ef2ff', pts: '#ffe45c', bad: '#ff3b5c' };
 
 // ---------- seeded RNG (state lives in S.rng) ----------
@@ -100,7 +100,7 @@ function newState(seed) {
   return {
     rng: (seed | 0) || 1, t: 0, score: 0, over: false, cause: null, freeze: 0,
     x: CX, y: CY + 30, vx: 0, vy: 0, a: -Math.PI / 2, heat: 0, lock: 0, cd: 0,
-    av: 0, rimT: 0, R: R0, mult: 1, multHold: 0, skimming: false, skimGain: 0, peakMult: 1, skimTick: 0,
+    av: 0, spin: 0, strain: 0, lean: 0, rimT: 0, R: R0, mult: 1, multHold: 0, skimming: false, skimGain: 0, peakMult: 1, skimTick: 0,
     combo: 0, comboT: 0, kills: 0, pbKills: 0, hits: 0,
     wave: 0, phase: 'break', waveT: 0, waveQ: [], spawnT: 0, breakT: 1100, waveDur: 0,
     ents: [], bul: [], ebul: [], warn: [], nid: 1,
@@ -220,7 +220,10 @@ function shoot() {
   const ca = Math.cos(S.a), sa = Math.sin(S.a);
   S.bul.push({ x: S.x + ca * 14, y: S.y + sa * 14, vx: ca * BUL_V, vy: sa * BUL_V });
   S.vx -= ca * KICK; S.vy -= sa * KICK;
-  S.heat += HEAT_SHOT;
+  { const ddx = S.x - CX, ddy = S.y - CY, dd = Math.hypot(ddx, ddy) || 1; S.lean = Math.max(0, -(ca * ddx + sa * ddy) / dd); }   // recoil's outward share
+  const whip = 1 + Math.max(0, Math.abs(S.spin) - 2.5) * 1.2;   // spraying while spinning heats the gun much faster
+  S.heat += HEAT_SHOT * whip;
+  if (whip > 1.6 && !QUIET && Math.floor(S.t / STEP) % 50 === 0) floatText(S.x, S.y - 30, 'SPINNING HEATS THE GUN', '#ffb26b', 12);
   if (!QUIET) {
     FX.muzzle = 1; FX.kick = 1; shake(1.6);
     spray(S.x + ca * 15, S.y + sa * 15, S.a, 0.7, 3, COL.bul, 3.5, 8);
@@ -228,7 +231,10 @@ function shoot() {
   }
   if (S.heat >= 100) {
     S.heat = 100; S.lock = LOCK_MS;
+    const lostChain = S.combo;
+    S.combo = 0; S.comboT = 0;              // overheating breaks your kill chain: heat management is part of scoring
     if (!QUIET) {
+      if (lostChain > 1) { floatText(S.x, S.y + 30, 'CHAIN ×' + lostChain + ' BROKEN', '#ff9d9d', 15); FX.comboPop = 1; }
       floatText(S.x, S.y - 26, 'OVERHEAT!', COL.bad, 22); shake(7); flash(0.25, '255,80,60');
       burst(S.x, S.y, 22, '#ddd', 1.6, 45, -0.03);
       noise(0.9, 0.16, 6000, 0.08, 'highpass'); tone(300, 0.5, 'sawtooth', 0.07, 0.3);
@@ -331,6 +337,7 @@ function step() {
   const racc = (want === 0 || want * S.av < 0) ? ROT_BRAKE : ROT_ACC;
   if (S.av < want) S.av = Math.min(want, S.av + racc); else if (S.av > want) S.av = Math.max(want, S.av - racc);
   S.a = wrapA(S.a + S.av);
+  S.spin = S.spin * 0.97 + S.av;                    // recent NET rotation (~0.5 s window): sustained one-way spinning = barrel whip
   if (S.cd > 0) S.cd--;
   if (S.lock > 0) {
     S.lock -= STEP; S.heat = Math.max(0, S.heat - HEAT_COOL_LOCK);
@@ -347,7 +354,11 @@ function step() {
   {
     const dx = S.x - CX, dy = S.y - CY, d = Math.hypot(dx, dy) || 1, gap = S.R - (d + HIT_R);
     const rk = repulseNow();
-    if (rk > 0 && gap < REP_W) { const f = rk * (1 - Math.max(0, gap) / REP_W); S.vx -= dx / d * f; S.vy -= dy / d * f; }
+    // shield strain: leaning on the shield with sustained outward recoil overloads it (~2 s); coasting ships are still caught
+    const leaning = rk > 0 && gap < REP_W && S.cd > 0 && S.lean > 0.3;
+    S.strain = leaning ? Math.min(1, S.strain + 1 / 120) : Math.max(0, S.strain - 1 / 90);
+    if (leaning && S.strain > 0.6 && !QUIET && Math.floor(S.t / STEP) % 45 === 0) { floatText(S.x, S.y - 26, 'SHIELD STRAINING', '#ff9d9d', 13); tone(140, 0.12, 'sawtooth', 0.05); }
+    if (rk > 0 && gap < REP_W) { const f = rk * (1 - Math.max(0, gap) / REP_W) * (1 - 0.9 * S.strain); S.vx -= dx / d * f; S.vy -= dy / d * f; }
     if (gap < 0) {
       S.rimT++;
       S.vx -= dx / d * RIM_ZAP; S.vy -= dy / d * RIM_ZAP;
@@ -361,7 +372,10 @@ function step() {
       if (S.rimT > 0 && !QUIET) { floatText(S.x, S.y - 22, 'SCRAPED!', '#ff9d9d', 14); }
       S.rimT = 0;
     }
-    const inSkim = gap >= 0 && gap < SKIM_W;
+    // the rim shield (waves 1-3) makes skimming riskless, so it earns nothing: skim multiplier starts once the shield is gone
+    const shielded = rk > 0 && gap < REP_W;
+    if (shielded && gap < SKIM_W && !QUIET && Math.floor(S.t / STEP) % 40 === 0) floatText(S.x, S.y - 24, 'SHIELDED · NO SKIM', 'rgba(94,242,255,0.8)', 12);
+    const inSkim = !shielded && gap >= 0 && gap < SKIM_W;
     if (inSkim) {
       const g0 = S.mult;
       // closer = faster gain; long rides fatigue, so repeated passes beat hugging the rim
@@ -381,7 +395,7 @@ function step() {
     }
     if (!inSkim && S.skimTick > 0) S.skimTick = Math.max(0, S.skimTick - 2);
     S.skimming = inSkim;
-    if (!inSkim) { if (S.multHold > 0) S.multHold -= STEP; else if (S.mult > 1) S.mult = Math.max(1, S.mult - MULT_DECAY); }
+    if (!inSkim) { if (S.multHold > 0 && !shielded) S.multHold -= STEP; else if (S.mult > 1) S.mult = Math.max(1, S.mult - MULT_DECAY * (shielded ? 3 : 1)); }
   }
   if (S.comboT > 0) { S.comboT -= STEP; if (S.comboT <= 0) { S.combo = 0; } }
 
@@ -390,6 +404,7 @@ function step() {
     b.x += b.vx; b.y += b.vy;
     if (Math.hypot(b.x - CX, b.y - CY) > S.R) {
       b.dead = true;
+      if (S.comboT > 0) { S.comboT -= MISS_DRAIN; if (S.comboT <= 0) { if (S.combo > 1 && !QUIET) floatText(S.x, S.y + 30, 'CHAIN LOST', '#ff9d9d', 13); S.combo = 0; S.comboT = 0; } }   // misses drain the chain
       if (!QUIET && Math.random() < 0.5) spray(b.x, b.y, Math.atan2(CY - b.y, CX - b.x), 1.6, 3, COL.rim, 2, 12);
       continue;
     }
@@ -523,7 +538,8 @@ function render() {
   const rk = repulseNow();
   if (rk > 0) {
     const rg = cx.createRadialGradient(CX, CY, R - REP_W, CX, CY, R);
-    rg.addColorStop(0, 'rgba(94,242,255,0)'); rg.addColorStop(1, `rgba(94,242,255,${rk * 1.6})`);
+    const st = S.strain, red = st > 0.05 && (Math.floor(FX.time / 70) % 2 || st > 0.9);
+    rg.addColorStop(0, 'rgba(94,242,255,0)'); rg.addColorStop(1, red ? `rgba(255,59,92,${rk * 1.6 * (0.5 + st)})` : `rgba(94,242,255,${rk * 1.6 * (1 - 0.7 * st)})`);
     cx.fillStyle = rg; cx.beginPath(); cx.arc(CX, CY, R, 0, TAU); cx.arc(CX, CY, R - REP_W, 0, TAU, true); cx.fill();
   }
   // rim
@@ -667,7 +683,7 @@ function drawHUD() {
   const mp = 1 + FX.multPop * 0.25;
   cx.fillStyle = S.mult > 1.05 ? COL.mult : 'rgba(94,242,255,0.45)'; cx.font = `900 ${Math.round(26 * mp)}px ${mono}`;
   cx.fillText('×' + S.mult.toFixed(1), W / 2, 40);
-  cx.fillStyle = 'rgba(94,242,255,0.6)'; cx.font = `700 10px ${mono}`; cx.fillText(S.multHold > 0 || S.skimming ? 'SKIM MULT' : (S.mult > 1 ? 'MULT FADING' : 'SKIM RIM = MULT'), W / 2, 54);
+  cx.fillStyle = 'rgba(94,242,255,0.6)'; cx.font = `700 10px ${mono}`; cx.fillText(S.multHold > 0 || S.skimming ? 'SKIM MULT' : (S.mult > 1 ? 'MULT FADING' : repulseNow() > 0 ? 'SKIM MULT FROM WAVE 4' : 'SKIM RIM = MULT'), W / 2, 54);
   if (FX.skimTeach > 0 && !S.over) {     // first skim of the run: label the multiplier it just raised (live value)
     const u = 1 - FX.skimTeach, ease = u < 0.08 ? 1 - Math.pow(1 - u / 0.08, 3) : 1, ly = S.combo > 1 ? 98 : 78;
     const txt = 'RIM SKIM ×' + S.mult.toFixed(1) + ': skim the rim for multiplier';
@@ -791,7 +807,7 @@ window.__game = {
       t: S.t, score: S.score, over: S.over, cause: S.cause, difficulty: S.wave,
       W, H, cx: CX, cy: CY, R: S.R, x: S.x, y: S.y, vx: S.vx, vy: S.vy, a: S.a,
       heat: S.heat, lock: S.lock, rimT: S.rimT, mult: S.mult, combo: S.combo, wave: S.wave, kills: S.kills, hits: S.hits,
-      hitR: HIT_R, rotMax: ROT_MAX, rotBrake: ROT_BRAKE, av: S.av, drag: dragNow(), repulse: repulseNow(), bulV: BUL_V, kick: KICK,
+      hitR: HIT_R, rotMax: ROT_MAX, rotAcc: ROT_ACC, rotBrake: ROT_BRAKE, av: S.av, drag: dragNow(), repulse: repulseNow(), bulV: BUL_V, kick: KICK,
       ents: S.ents.map(e => ({ k: e.k, x: e.x, y: e.y, vx: e.vx, vy: e.vy, r: e.r, hp: e.hp })),
       ebul: S.ebul.map(b => ({ x: b.x, y: b.y, vx: b.vx, vy: b.vy })),
       warn: S.warn.map(w => ({ th: w.th, k: w.k, t: w.t })),

@@ -10,8 +10,9 @@ module.exports = {
     },
 
     // Rule of thumb: if drifting toward the rim, turn to face your velocity and fire to brake
-    // (recoil pushes you back). Otherwise turn toward the nearest enemy (with lead) and fire
-    // when lined up and the gun is not too hot.
+    // (recoil pushes you back). Otherwise turn toward the most pressing enemy (closest, weighted by how
+    // fast it is closing, with lead) and fire whenever ANY enemy sits in the firing line. Never fire
+    // into an overheat (that would break the kill chain), except to brake.
     heuristic: {
       decisionMs: 100,
       decide: function (G, rng, mem) {
@@ -21,28 +22,46 @@ module.exports = {
         const dx = s.x - s.cx, dy = s.y - s.cy, d = Math.hypot(dx, dy) || 1, gap = s.R - d - s.hitR;
         const nx = dx / d, ny = dy / d, vr = s.vx * nx + s.vy * ny, spd = Math.hypot(s.vx, s.vy);
         const ttr = vr > 0.05 ? gap / vr : 1e9;
+        const coolOk = s.lock <= 0 && s.heat < 92;
+        let inLine = false;
+        for (const e of s.ents) {
+          const ex = e.x - s.x, ey = e.y - s.y, ed = Math.hypot(ex, ey);
+          if (ed < 330 && Math.abs(wrap(Math.atan2(ey, ex) - s.a)) < Math.atan2(e.r, ed) + 0.03) { inLine = true; break; }
+        }
+        const recoilOut = -(Math.cos(s.a) * nx + Math.sin(s.a) * ny);
         let target = null, fire = false;
         if (gap < 30 || ttr < 75) {
-          // brake: aim along (velocity + outward normal) so recoil pushes inward
           const bx = (spd > 0.2 ? s.vx / spd : 0) + nx, by = (spd > 0.2 ? s.vy / spd : 0) + ny;
           target = Math.atan2(by, bx);
-          fire = Math.abs(wrap(target - s.a)) < 0.6;
+          fire = s.lock <= 0 && Math.abs(wrap(target - s.a)) < 0.6;
         } else {
-          let best = null, bd = 1e9;
-          for (const e of s.ents) { const dd = Math.hypot(e.x - s.x, e.y - s.y) - e.r; if (dd < bd) { bd = dd; best = e; } }
+          let best = null, bv = 1e9;
+          for (const e of s.ents) {
+            const ex = e.x - s.x, ey = e.y - s.y, ed = Math.hypot(ex, ey) - e.r;
+            const closing = -(e.vx * ex + e.vy * ey) / (ed + e.r || 1);
+            const v = ed - closing * 40 - (e.k === 'seek' ? 40 : 0);
+            if (v < bv) { bv = v; best = e; }
+          }
           if (best) {
-            const tt = Math.max(0, bd) / s.bulV, tx = best.x + best.vx * tt, ty = best.y + best.vy * tt;
-            target = Math.atan2(ty - s.y, tx - s.x);
-            const rx = -Math.cos(target), ry = -Math.sin(target), recoilOut = rx * nx + ry * ny;
-            fire = Math.abs(wrap(target - s.a)) < 0.22 && s.heat < 82 && !(recoilOut > 0.4 && gap < 100);
-          } else if (d > 50) {
-            target = Math.atan2(dy, dx);
-            fire = spd < 1.2 && s.heat < 50 && Math.abs(wrap(target - s.a)) < 0.3;
+            const bd = Math.max(0, Math.hypot(best.x - s.x, best.y - s.y) - best.r), tt = bd / s.bulV;
+            target = Math.atan2(best.y + best.vy * tt - s.y, best.x + best.vx * tt - s.x);
+          } else if (d > 50) target = Math.atan2(dy, dx);
+          const safe = !(recoilOut > 0.4 && gap < 90);
+          fire = coolOk && safe && (inLine || (!best && d > 50 && spd < 1.2 && Math.abs(wrap(target - s.a)) < 0.3));
+        }
+        // steer with a one-step model of the eased turning: for left/none/right, where would the nose
+        // stop after holding it for one decision (6 steps) and then letting go? pick the closest to target
+        let rot = 0;
+        if (target != null) {
+          let bestE = 1e9;
+          for (const r of [0, -1, 1]) {
+            let a = s.a, av = s.av;
+            for (let i = 0; i < 6; i++) { const want = r * s.rotMax, acc = (want === 0 || want * av < 0) ? s.rotBrake : s.rotAcc; av = av < want ? Math.min(want, av + acc) : Math.max(want, av - acc); a += av; }
+            while (Math.abs(av) > 1e-6) { av = av > 0 ? Math.max(0, av - s.rotBrake) : Math.min(0, av + s.rotBrake); a += av; }
+            const e = Math.abs(wrap(target - a)) + (r ? 0.02 : 0);
+            if (e < bestE) { bestE = e; rot = r; }
           }
         }
-        let rot = 0;
-        // account for turning momentum: compare the target with where the nose will stop if we release now
-        if (target != null) { const stopA = s.a + s.av * Math.abs(s.av) / (2 * s.rotBrake), da = wrap(target - stopA); if (da > 0.06) rot = 1; else if (da < -0.06) rot = -1; }
         if (rot < 0) return fire ? 'leftfire' : 'left';
         if (rot > 0) return fire ? 'rightfire' : 'right';
         return fire ? 'fire' : 'none';

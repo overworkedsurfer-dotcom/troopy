@@ -3,7 +3,7 @@
 module.exports = {
   bots: {
     random: {
-      decisionMs: 125,
+      decisionMs: 150,
       decide: function (G, rng, mem) {
         const a = G.getActions();
         return a[Math.floor(rng() * a.length)];
@@ -13,12 +13,12 @@ module.exports = {
     // Rule of thumb, one ply: kill what you can kill, shove a lone attacker (knockback cancels it), step out of
     // telegraphed attacks, shove adjacent foes when safe, otherwise approach preferring rolls that bring a big face up.
     heuristic: {
-      decisionMs: 125,
+      decisionMs: 150,
       decide: function (G, rng, mem) {
         const s = G.getState();
         if (!s.ready) return null;
         if (s.phase === 'pick') {
-          const order = ['patch', 'plus', 'odds', 'evens', 'stairs', 'twins', 'vamp', 'fire', 'quake', 'ward', 'heart', 'wild', 'mom', 'steel', 'over', 'glass'];
+          const order = ['patch', 'wind', 'stairs2', 'loaded', 'gold', 'twins2', 'plus', 'odds', 'evens', 'stairs', 'twins', 'chain', 'vamp', 'fire', 'quake', 'ward', 'reflect', 'clone', 'heart', 'wild', 'mom', 'steel', 'over', 'glass'];
           let bi = 0, bv = 1e9;
           s.cards.forEach((c, i) => { let v = order.indexOf(c.type); if (c.type === 'patch' && s.hp > s.maxHp * 0.6) v = 20; if (v < bv) { bv = v; bi = i; } });
           return 'pick' + (bi + 1);
@@ -26,18 +26,22 @@ module.exports = {
         if (s.phase !== 'play') return null;
         const D = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
         const dang = {}; for (const d of s.danger) dang[d[0] + ',' + d[1]] = d[2];
+        const warn = {}; for (const d of s.warn) warn[d[0] + ',' + d[1]] = 1;
+        const mim = s.enemies.find(e => e.type === 'mimic');
         const at = (x, y) => s.enemies.find(e => e.x === x && e.y === y);
         const inB = (x, y) => x >= 0 && y >= 0 && x < s.N && y < s.N;
         const here = dang[s.px + ',' + s.py] || 0;
         // 1) kill an adjacent foe if the current top face can
         let killDir = null, killHp = -1;
-        for (const k in s.bump) { const b = s.bump[k], e = at(s.px + D[k][0], s.py + D[k][1]); if (e && !e.dormant && b.dmg >= e.hp && e.hp > killHp) { killHp = e.hp; killDir = k; } }
+        for (const k in s.bump) { const b = s.bump[k], e = at(s.px + D[k][0], s.py + D[k][1]); if (e && !e.dormant && !b.blocked && b.dmg >= e.hp && e.hp > killHp) { killHp = e.hp; killDir = k; } }
         if (killDir) return killDir;
+        // 1b) a stunned Ogre takes x2: punish it
+        for (const k in s.bump) if (s.bump[k].punish) return k;
         // 2) a single adjacent melee attacker that can be shoved: shove it (knockback cancels its attack)
         const threats = s.enemies.filter(e => e.intent && e.intent.type === 'atk' && e.intent.cells.some(c => c[0] === s.px && c[1] === s.py));
         if (threats.length === 1) {
           const e = threats[0];
-          for (const k in s.bump) if (e.x === s.px + D[k][0] && e.y === s.py + D[k][1] && !s.bump[k].pinned && e.type !== 'boss') return k;
+          for (const k in s.bump) if (e.x === s.px + D[k][0] && e.y === s.py + D[k][1] && !s.bump[k].pinned && !s.bump[k].blocked && e.type !== 'ogre') return k;
         }
         // 3) candidate moves into free cells: dodge, approach, avoid crowds, bring a big face up
         const live = s.enemies.filter(e => !e.dormant);
@@ -47,21 +51,23 @@ module.exports = {
           if (!inB(nx, ny) || at(nx, ny)) continue;
           let v = 0;
           if (dang[nx + ',' + ny]) v -= 100;
+          if (warn[nx + ',' + ny]) v -= 60;
+          if (mim && Math.abs(mim.x - nx) + Math.abs(mim.y - ny) === 1) v += s.preview[k] > mim.armor ? 8 : -25;   // meet the Mimic with a face that beats it
           let md = 99, adj = 0; for (const e of live) { const dd = Math.abs(e.x - nx) + Math.abs(e.y - ny); md = Math.min(md, dd); if (dd === 1) adj++; }
           v -= md * 3 + Math.max(0, adj - 1) * 12;
           v += s.preview[k] * 1.5;
           if (v > bestV) { bestV = v; bestD = k; }
         }
-        // 4) not threatened: shove any adjacent awake foe (free damage), preferring chain-keeping hits
-        if (!here) {
+        // 4) not threatened (and not inside a wind-up zone): shove any adjacent awake foe, preferring chain-keeping hits
+        if (!here && !warn[s.px + ',' + s.py]) {
           let sd = null, sv = -1;
-          for (const k in s.bump) { const e = at(s.px + D[k][0], s.py + D[k][1]); if (e && !e.dormant && !s.bump[k].pinned) { const v = s.bump[k].dmg + (s.hit.keeps ? 50 : 0); if (v > sv) { sv = v; sd = k; } } }
+          for (const k in s.bump) { const e = at(s.px + D[k][0], s.py + D[k][1]); if (e && !e.dormant && !s.bump[k].pinned && !s.bump[k].blocked) { const v = s.bump[k].dmg + (s.hit.keeps ? 50 : 0); if (v > sv) { sv = v; sd = k; } } }
           if (sd && (s.hit.keeps || s.hit.v >= 3)) return sd;
         }
         if (bestD && (here || bestV > -90)) return bestD;
         // 5) cornered: hit the weakest adjacent awake foe
         let hd = null, hv = 1e9;
-        for (const k in D) { const e = at(s.px + D[k][0], s.py + D[k][1]); if (e && !e.dormant && e.hp < hv) { hv = e.hp; hd = k; } }
+        for (const k in D) { const e = at(s.px + D[k][0], s.py + D[k][1]); if (e && !e.dormant && !(s.bump[k] && s.bump[k].blocked) && e.hp < hv) { hv = e.hp; hd = k; } }
         return hd || bestD || 'up';
       },
     },
@@ -70,7 +76,7 @@ module.exports = {
     // leaf = HP, threats, foe HP removed, kills, chain mult, dread pressure, room-clear bonus.
     // Root adds an anti-oscillation penalty for revisiting recent (cell, top face) states. Picks: value table.
     smart: {
-      decisionMs: 125,
+      decisionMs: 150,
       decide: function (G, rng, mem) {
         const s0 = G.getState();
         if (!s0.ready) return null;
@@ -79,7 +85,8 @@ module.exports = {
           s0.cards.forEach((c, i) => {
             const missing = s0.maxHp - s0.hp, r = s0.relic;
             const base = { plus: 26, fire: 34, quake: 36, ward: 30, heart: 22, wild: 30, odds: 36, evens: 36, twins: 30 + r.twins * 4, stairs: 34 + r.stairs * 4,
-              vamp: 28, steel: 32, glass: (s0.maxHp >= 10 && s0.hp >= 7) ? 44 : -50, mom: 18, patch: 10 + missing * 9, over: 26 };
+              vamp: 28, steel: 32, glass: (s0.maxHp >= 10 && s0.hp >= 7) ? 44 : -50, mom: 18, patch: 10 + missing * 9, over: 26,
+              reflect: 31, chain: 33, clone: 32, gold: 42, stairs2: 52, twins2: 46, wind: 14 + missing * 9, loaded: 47 };
             let v = base[c.type] || 0;
             if (c.type === 'plus' && c.faceV != null) v += c.faceV >= 5 ? 6 : 0;
             if (v > bv) { bv = v; bi = i; }
@@ -110,6 +117,7 @@ module.exports = {
           v += (s.score - s0.score) / hm * 2;
           if (s.eliteKilled && !s0.eliteKilled) v += 9000;
           let threat = 0; for (const d of s.danger) if (d[0] === s.px && d[1] === s.py) threat += d[2];
+          for (const d of s.warn) if (d[0] === s.px && d[1] === s.py) v -= d[2] * 260;          // inside an Ogre wind-up: start leaving
           if (threat) {
             let safe = 0;
             const dz = {}; for (const d of s.danger) dz[d[0] + ',' + d[1]] = 1;

@@ -2,9 +2,9 @@
  "id": "kickback",
  "bot": "smart",
  "seed": 1,
- "lengthMs": 73300,
- "finalScore": 58418,
- "cause": "caught by a seeker",
+ "lengthMs": 89300,
+ "finalScore": 64403,
+ "cause": "shot by a turret",
  "replayMatches": true,
  "shots": [
   {
@@ -16,22 +16,22 @@
   },
   {
    "name": "2-mid",
-   "t": 36700,
-   "score": 13222,
+   "t": 44700,
+   "score": 10190,
    "over": false,
    "file": "lab/shots/kickback/2-mid.png"
   },
   {
    "name": "3-intense",
-   "t": 71800,
-   "score": 58091,
+   "t": 87800,
+   "score": 63141,
    "over": false,
    "file": "lab/shots/kickback/3-intense.png"
   },
   {
    "name": "4-gameover",
-   "t": 73300,
-   "score": 58418,
+   "t": 89300,
+   "score": 64403,
    "over": true,
    "file": "lab/shots/kickback/4-gameover.png"
   }

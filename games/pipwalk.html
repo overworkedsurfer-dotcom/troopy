@@ -139,7 +139,7 @@ const ET = {
   wolf:   { name: 'Wolf', a: 'a', hp: 5, atk: 2, mv: 2, col: '#a3b6e6', verb: 'mauled by' },
   wraith: { name: 'Dread', a: 'the', hp: 4, atk: 2, mv: 1, col: '#b07cff', verb: 'taken by' },
   elite:  { name: 'Elite Knight', a: 'an', hp: 15, atk: 3, mv: 1, col: '#ffcf4a', verb: 'cut down by' },
-  ogre:   { name: 'Ogre', a: 'the', hp: 16, atk: 3, mv: 1, col: '#ff5a5f', verb: 'crushed by', boss: 1, heavy: 1, tip: 'dodge the 3×3 slam · hit it while STUNNED for ×2' },
+  ogre:   { name: 'Ogre', a: 'the', hp: 16, atk: 3, mv: 1, col: '#ff5a5f', verb: 'crushed by', boss: 1, heavy: 1, tip: 'get out of the 3×3 · it lands STUNNED: hit it for ×2' },
   lich:   { name: 'Lich', a: 'the', hp: 12, atk: 3, mv: 1, col: '#c39bff', verb: 'unmade by', boss: 1, tip: 'step off the glowing line · shove it to cancel a beam' },
   mimic:  { name: 'Mimic', a: 'the', hp: 14, atk: 3, mv: 1, col: '#ff3b6b', verb: 'outrolled by', boss: 1, tip: 'only a face HIGHER than its armour hurts it' },
 };
@@ -196,7 +196,7 @@ function newChain() { return { n: 0, mult: 1, last: 0, kind: '', vals: [] }; }
 function newState(seed, opts) {
   opts = opts || {};
   const st = {
-    rng: (seed | 0) || 1, t: 0, score: 0, over: false, cause: null, phase: 'play', floor: 1,
+    rng: (seed | 0) || 1, seed: (seed | 0) || 1, t: 0, score: 0, over: false, cause: null, phase: 'play', floor: 1,
     hp: 10, maxHp: 10, barrier: 0, px: 3, py: 3,
     // faces by id; o = face ids at [Top, Bottom, North, South, East, West]
     die: { f: [{ v: 1, k: '' }, { v: 2, k: '' }, { v: 3, k: '' }, { v: 4, k: '' }, { v: 5, k: '' }, { v: 6, k: '' }], o: [0, 5, 4, 1, 2, 3] },
@@ -356,7 +356,7 @@ function planBoss(e) {
     if (e.rest > 0) { e.int = { type: 'stun', boss: 1, left: e.rest }; return; }
     if (e.wind > 0) { e.int = { type: e.wind === 1 ? 'atk' : 'charge', kind: 'slam', cells: e.zone, wind: e.wind }; return; }
     if (cheb <= 2) {                       // wind up a 3x3 slam centred on your tile: 2 turns to get out
-      e.zone = [];
+      e.zone = []; e.zc = [S.px, S.py];   // it will LEAP onto your tile and slam the 3x3 around it
       for (let yy = -1; yy <= 1; yy++) for (let xx = -1; xx <= 1; xx++) if (inB(S.px + xx, S.py + yy)) e.zone.push([S.px + xx, S.py + yy]);
       e.wind = 2; e.int = { type: 'charge', kind: 'slam', cells: e.zone, wind: 2 };
       if (!QUIET) SND.warn();
@@ -389,8 +389,10 @@ function execBoss(e) {
         ring(ax, ay, C.red, 120, 9); shake(14); SND.slam(); burst(ax, ay, 40, '#c9a27a', 6, { g: 0.2 }); flash(0.15, '#ffb08a');
         if (!hit) { const [px, py] = cellC(S.px, S.py); ftext(px, py - 60, 'DODGED! punish it', C.gold, 16); }
       }
-      e.wind = 0; e.zone = null; e.rest = e.phase === 2 ? 1 : 2;
-      if (hit) hurtPlayer(e.atk + 1, e);
+      const zc = e.zc;
+      e.wind = 0; e.zone = null; e.rest = 2;
+      if (zc && !(zc[0] === S.px && zc[1] === S.py) && !enemyAt(zc[0], zc[1])) { moveE(e, zc[0], zc[1]); e.mt = S.t - 30; }   // lands where you were
+      if (hit) hurtPlayer(e.atk + (e.phase === 2 ? 1 : 0), e);
       return;
     }
     for (let i = 0, n = e.phase === 2 ? 2 : 1; i < n; i++) { if (Math.max(Math.abs(S.px - e.x), Math.abs(S.py - e.y)) <= 2) break; const ox = e.x, oy = e.y; if (!stepToward(e)) break; if (i > 0) { e.ox = ox - (e.x - ox); e.oy = oy - (e.y - oy); } }
@@ -439,7 +441,7 @@ function execBoss(e) {
 function bossPhase2(e) {
   e.phase = 2;
   if (!QUIET) { const [x, y] = cellC(e.x, e.y); flash(0.45, '#ff6a5a'); shake(16); SND.phase(); ring(x, y, ET[e.type].col, 120, 8); }
-  if (e.type === 'ogre') { if (!QUIET) FX.banner = { txt: bossName(e) + ' ENRAGED', sub: 'moves 2 tiles · shorter stun', life: 1, col: C.red, top: 1 }; }
+  if (e.type === 'ogre') { if (!QUIET) FX.banner = { txt: bossName(e) + ' ENRAGED', sub: 'moves 2 tiles a turn · slams harder', life: 1, col: C.red, top: 1 }; }
   else if (e.type === 'lich') {
     for (let i = 0; i < 2; i++) { const s2 = spawnAt('skull', 2); if (s2) { s2.summon = 1; planIntent(s2); } }
     if (!QUIET) FX.banner = { txt: 'THE DEAD RISE', sub: 'the Lich beams every turn now', life: 1, col: '#c39bff', top: 1 };
@@ -1101,6 +1103,23 @@ function dangerMap() {
 }
 function drawDanger(t) {
   const m = dangerMap(), pulse = 0.5 + 0.5 * Math.sin(t / 130);
+  for (const e of S.en) if (!e.dead && e.int && e.int.type === 'charge') {      // Ogre wind-up: get out within 2 moves
+    for (const c of e.int.cells) {
+      const X = BX + c[0] * CELL, Y = BY + c[1] * CELL;
+      cx.fillStyle = 'rgba(255,150,60,' + (0.12 + 0.1 * pulse) + ')'; cx.fillRect(X + 2, Y + 2, CELL - 6 + 2, CELL - 6 + 2);
+      cx.strokeStyle = 'rgba(255,160,70,' + (0.5 + 0.4 * pulse) + ')'; cx.lineWidth = 2; cx.setLineDash([5, 4]); cx.strokeRect(X + 4, Y + 4, CELL - 8, CELL - 8); cx.setLineDash([]);
+    }
+    if (e.zc) { const [zx, zy] = cellC(e.zc[0], e.zc[1]); cx.strokeStyle = 'rgba(255,120,60,' + (0.6 + 0.3 * pulse) + ')'; cx.lineWidth = 3; cx.beginPath(); cx.arc(zx, zy + 6, 20 + 4 * pulse, 0, 6.283); cx.moveTo(zx - 28, zy + 6); cx.lineTo(zx + 28, zy + 6); cx.moveTo(zx, zy - 22); cx.lineTo(zx, zy + 34); cx.stroke(); }
+    let mnx = 99, mny = 99; for (const c of e.int.cells) { mnx = Math.min(mnx, c[0]); mny = Math.min(mny, c[1]); }
+    const lx = BX + mnx * CELL + 16, ly = BY + mny * CELL + 18;
+    rr(lx - 12, ly - 13, 24, 26, 7); cx.fillStyle = 'rgba(232,119,46,' + (0.75 + 0.2 * pulse) + ')'; cx.fill();
+    txt(String(e.int.wind), lx, ly + 1, F(18, '900'), '#fff');
+  }
+  for (const e of S.en) if (!e.dead && e.type === 'lich' && e.int && e.int.type === 'atk') {
+    const r = e.int.row, c0 = e.int.cells[0];
+    cx.save(); cx.shadowColor = '#b07cff'; cx.shadowBlur = 14; cx.strokeStyle = 'rgba(195,155,255,' + (0.35 + 0.35 * pulse) + ')'; cx.lineWidth = 6;
+    cx.beginPath(); if (r) { const y = BY + (c0[1] + 0.5) * CELL; cx.moveTo(BX, y); cx.lineTo(BX + GN * CELL, y); } else { const x = BX + (c0[0] + 0.5) * CELL; cx.moveTo(x, BY); cx.lineTo(x, BY + GN * CELL); } cx.stroke(); cx.restore();
+  }
   for (const k in m) {
     const x = k % GN, y = (k / GN) | 0, X = BX + x * CELL, Y = BY + y * CELL;
     cx.fillStyle = 'rgba(255,60,80,' + (0.22 + 0.12 * pulse) + ')'; cx.fillRect(X + 2, Y + 2, CELL - 4, CELL - 4);
@@ -1144,17 +1163,18 @@ function drawBumpPreview(t) {
     const e = inB(nx, ny) ? enemyAt(nx, ny) : null; if (!e) continue;
     const [ecx, ecy] = cellC(nx, ny);
     const x = ecx - 13, y = ecy - 40;
-    const pinned = pinnedAt(e, d[0], d[1]), dmg = hit.dmg * (pinned ? 2 : 1);
-    const kill = dmg >= e.hp, pulse = 1 + 0.06 * Math.sin(t / 90);
+    const bi = bumpInfo(e, d[0], d[1], hit), pinned = bi.pinned, dmg = bi.dmg;
+    const kill = !bi.blocked && dmg >= e.hp, pulse = 1 + 0.06 * Math.sin(t / 90);
     cx.save(); cx.translate(x, y); cx.scale(pulse, pulse);
     const label = String(dmg), w = Math.max(34, 16 + label.length * 10);
-    rr(-w / 2, -11, w, 22, 11); cx.fillStyle = kill ? C.gold : '#2b1e2f'; cx.fill();
-    cx.lineWidth = 2; cx.strokeStyle = kill ? '#fff6d0' : pinned ? C.orange : '#f7f0e2'; cx.stroke();
+    rr(-w / 2, -11, w, 22, 11); cx.fillStyle = bi.blocked ? '#555' : kill ? C.gold : '#2b1e2f'; cx.fill();
+    cx.lineWidth = 2; cx.strokeStyle = kill ? '#fff6d0' : bi.punish ? C.gold : pinned ? C.orange : '#f7f0e2'; cx.stroke();
     icon('sword', -w / 2 + 11, 0, 7, kill ? '#5a3d00' : '#f7f0e2');
-    txt(label, 6, 1, F(15), kill ? '#3a2600' : '#fff');
+    txt(bi.blocked ? '✕' : label, 6, 1, F(15), kill ? '#3a2600' : '#fff');
     cx.restore();
-    const sub = kill ? 'KILL' : pinned ? 'CRUSH ×2' : e.type === 'boss' ? 'heavy' : 'push';
-    txt(sub, x, y + 19, F(10), kill ? C.gold : pinned ? C.orange : '#ddd', 'center', 3);
+    let sub = bi.blocked ? 'CLANG ≤ ' + mimicArmor(e) : kill ? 'KILL' : bi.punish ? 'PUNISH ×2' : pinned ? 'CRUSH ×2' : ET[e.type].heavy ? 'heavy' : e.type === 'mimic' ? 'push: it rolls' : 'push';
+    if (bi.arc && !bi.blocked) sub += ' +arc ' + bi.arc;
+    txt(sub, x, y + 19, F(10), bi.blocked ? '#bbb' : kill || bi.punish ? C.gold : pinned ? C.orange : '#ddd', 'center', 3);
   }
 }
 function drawActors(t) {
@@ -1183,17 +1203,23 @@ function drawActors(t) {
   list.push({ y: dy + (rot && A && A.k === 'roll' ? Math.max(0, A.dy) * 0.5 : 0), k: 'd', dx, dy, o, rot, sq, lift });
   list.sort((a, b) => a.y - b.y);
   for (const it of list) {
+    if (it.k === 'e' && it.e.type === 'mimic') { drawMimic(it.e, it.ex, it.ey, t); continue; }
     if (it.k === 'e') {
       const e = it.e, [sx, sy] = [BX + (it.ex + 0.5) * CELL, BY + (it.ey + 0.5) * CELL];
       const sp = clamp01((S.t - e.st) / 320);
       const drop = sp < 1 ? (1 - easeOut(sp)) * -120 : 0;
       drawEnemy(e, sx, sy + drop, t, FX.hit[e.id] || 0, sp < 1 ? { scale: 0.6 + 0.4 * sp } : null);
+    } else if (it.k === 'c' && it.c.type === 'mimic') { continue;
     } else if (it.k === 'c') {
       const c = it.c, [sx, sy] = cellC(c.x, c.y);
       drawEnemy({ type: c.type, id: c.id, x: c.x, y: c.y, int: null }, sx, sy, t, 1, { scale: 1 + (1 - c.life) * 0.6 });
     } else {
       const hA = clamp01(1 - (S.t - S.hurtT) / 250);
       drawDie3D(it.dx + 0.5, it.dy + 0.5, it.o, it.rot, it.sq, it.lift, hA);
+      if (S.reflect) {
+        const [x, y] = cellC(it.dx, it.dy), a = 0.5 + 0.3 * Math.sin(t / 110);
+        cx.strokeStyle = 'rgba(88,242,194,' + a + ')'; cx.lineWidth = 2.5; cx.beginPath(); cx.moveTo(x - 4, y - 58); cx.lineTo(x + 30, y - 16); cx.lineTo(x - 4, y + 26); cx.lineTo(x - 38, y - 16); cx.closePath(); cx.stroke();
+      }
       if (S.barrier) {
         const [x, y] = cellC(it.dx, it.dy);
         cx.strokeStyle = 'rgba(111,220,255,' + (0.55 + 0.25 * Math.sin(t / 150)) + ')'; cx.lineWidth = 3;
@@ -1203,11 +1229,43 @@ function drawActors(t) {
     }
   }
 }
+const MIMIC_PAL = { base: [150, 34, 62], edge: [70, 12, 30], ink: '#ffd166' };
+function drawMimic(e, ex, ey, t) {
+  let x = ex, y = ey, o = e.md.o, rot = null, sq = 0, lift = 0;
+  const A = e.anim;
+  if (A) {
+    const p = (S.t - A.t0) / 130;
+    if (p < 1) { const q = p * p * (3 - 2 * p); o = A.o; rot = { dx: A.dx, dy: A.dy, ang: q * Math.PI / 2 }; x = A.x0 + A.dx * (1 - DS) * q; y = A.y0 + A.dy * (1 - DS) * q; lift = Math.sin(p * Math.PI) * 0.08; }
+    else if (p < 2.2) sq = Math.max(0, 1 - (p - 1) / 1.2) * Math.cos((p - 1) * 4);
+  }
+  const L = FX.lunge[e.id]; if (L && !rot) rot = { dx: Math.sign(L.dx), dy: Math.sign(L.dy), ang: Math.sin(L.life * Math.PI) * 0.4 };
+  const sp = clamp01((S.t - e.st) / 320);
+  drawDie3D(x + 0.5, y + 0.5, o, rot, sq, lift + (sp < 1 ? (1 - sp) * 1.5 : 0), FX.hit[e.id] || 0, { faces: e.md.f.map(v => ({ v, k: '' })), base: MIMIC_PAL.base, edge: MIMIC_PAL.edge, ink: MIMIC_PAL.ink });
+  if (!rot) {   // teeth along the front-bottom edge: it is a die that bites
+    const a = proj([x + 0.5 - DS / 2, y + 0.5 + DS / 2, 0.42]), b = proj([x + 0.5 + DS / 2, y + 0.5 + DS / 2, 0.42]);
+    cx.fillStyle = '#fff4e0';
+    for (let i = 0; i < 6; i++) { const u0 = i / 6, u1 = (i + 0.5) / 6, u2 = (i + 1) / 6; cx.beginPath(); cx.moveTo(a[0] + (b[0] - a[0]) * u0, a[1] - 1); cx.lineTo(a[0] + (b[0] - a[0]) * u1, a[1] - 8); cx.lineTo(a[0] + (b[0] - a[0]) * u2, a[1] - 1); cx.closePath(); cx.fill(); }
+    if (e.phase === 2) { cx.fillStyle = 'rgba(255,60,90,' + (0.4 + 0.3 * Math.sin(t / 90)) + ')'; cx.beginPath(); cx.ellipse(a[0] + (b[0] - a[0]) / 2, a[1] + 4, 30, 8, 0, 0, 6.283); cx.fill(); }
+  }
+}
+function drawBossBar(t) {
+  const b = S.en.find(e => !e.dead && isBoss(e)); if (!b) return;
+  const x0 = BX - 10, w = GN * CELL + 20, y0 = BY - 15, h = 13, fr = Math.max(0, b.hp / b.maxHp);
+  rr(x0, y0, w, h, 6); cx.fillStyle = 'rgba(20,8,10,0.9)'; cx.fill();
+  rr(x0 + 2, y0 + 2, Math.max(4, (w - 4) * fr), h - 4, 4); cx.fillStyle = ET[b.type].col; cx.fill();
+  cx.fillStyle = 'rgba(255,255,255,0.5)'; cx.fillRect(x0 + w / 2 - 1, y0 + 1, 2, h - 2);     // the 50% phase line
+  txt(bossName(b) + (b.phase === 2 ? ' · PHASE 2' : '') + '   ' + b.hp + ' / ' + b.maxHp + (b.type === 'mimic' ? '   ·   ARMOUR ' + mimicArmor(b) : ''), W / 2, y0 + h / 2 + 0.5, F(10, '900'), '#fff', 'center', 3);
+}
 function drawEnemyHUD(t) {
   for (const e of S.en) if (!e.dead) {
     const p = clamp01((S.t - e.mt) / 90), q = easeOut(p);
     const ex = e.ox + (e.x - e.ox) * q, ey = e.oy + (e.y - e.oy) * q;
     const [sx, sy] = [BX + (ex + 0.5) * CELL, BY + (ey + 0.5) * CELL];
+    if (e.type === 'mimic') {   // its armour is always shown
+      const ar = mimicArmor(e), ax = sx - 34, ay = sy - 4;
+      icon('ward', ax, ay, 14, '#ffd166'); txt(String(ar), ax, ay + 1, F(14, '900'), '#5a1020');
+      txt('ARMOUR', ax, ay + 20, F(8, '900'), '#ffd166', 'center', 2);
+    }
     // HP pill
     const hs = String(e.hp), w = 14 + hs.length * 7.5;
     rr(sx - w / 2, sy + 17, w, 15, 7.5); cx.fillStyle = 'rgba(20,10,20,0.85)'; cx.fill();
@@ -1217,6 +1275,27 @@ function drawEnemyHUD(t) {
     // intent bubble
     const it = e.int; if (!it) continue;
     const bx = sx + 19, by = sy - 38 + Math.sin(t / 200 + e.id) * 2;
+    if (isBoss(e)) {
+      if (it.type === 'charge' || (it.type === 'atk' && it.kind === 'slam')) {
+        rr(bx - 17, by - 12, 34, 24, 9); cx.fillStyle = it.type === 'atk' ? C.red : '#e8772e'; cx.fill(); cx.strokeStyle = '#fff'; cx.lineWidth = 1.5; cx.stroke();
+        icon('fist', bx - 6, by, 7, '#fff'); txt(it.type === 'atk' ? '!' : String(it.wind), bx + 9, by + 1, F(14, '900'), '#fff');
+      } else if (it.type === 'stun' && e.type === 'ogre') {
+        for (let i = 0; i < 3; i++) { const a = t / 160 + i * 2.094; icon('wild', sx + Math.cos(a) * 18, sy - 58 + Math.sin(a) * 5, 5, C.yellow); }
+        rr(sx - 56, sy - 80, 112, 18, 9); cx.fillStyle = C.gold; cx.fill(); txt('STUNNED · ×2 DMG', sx, sy - 70.5, F(10, '900'), '#3a2600');
+      } else if (it.type === 'atk') {
+        rr(bx - 15, by - 11, 30, 22, 8); cx.fillStyle = e.type === 'lich' ? '#8a4dff' : C.red; cx.fill(); cx.strokeStyle = '#fff'; cx.lineWidth = 1.5; cx.stroke();
+        txt(String(e.atk), bx, by + 1, F(13, '900'), '#fff');
+      } else if (it.type === 'move' && it.kind === 'roll' && it.dir) {
+        const ax = sx + it.dir[0] * 30, ay = sy + it.dir[1] * 30 - 10;
+        cx.fillStyle = 'rgba(255,209,102,0.9)'; cx.beginPath(); cx.moveTo(ax + it.dir[0] * 7, ay + it.dir[1] * 7); cx.lineTo(ax - it.dir[1] * 6, ay + it.dir[0] * 6); cx.lineTo(ax + it.dir[1] * 6, ay - it.dir[0] * 6); cx.closePath(); cx.fill();
+        txt('next ' + it.next, sx + 24, sy - 70, F(10, '900'), '#ffd166', 'center', 3);
+      } else if (it.type === 'move' && it.kind === 'drift') {
+        txt('…', bx, by, F(16, '900'), '#c39bff', 'center', 3);
+      } else if (it.type === 'stun') {
+        for (let i = 0; i < 3; i++) { const a = t / 180 + i * 2.094; icon('wild', sx + Math.cos(a) * 14, sy - 44 + Math.sin(a) * 4, 4.5, C.yellow); }
+      }
+      continue;
+    }
     if (it.type === 'atk') {
       rr(bx - 13, by - 10, 26, 20, 8); cx.fillStyle = C.red; cx.fill();
       cx.strokeStyle = '#fff'; cx.lineWidth = 1.5; cx.stroke();
@@ -1241,8 +1320,10 @@ function drawFXLayer() {
     cx.fillStyle = 'rgba(255,209,102,0.18)'; cx.fillRect(X + 3, Y + 3, CELL - 6, CELL - 6); cx.globalAlpha = 1;
   }
   for (const b of FX.beams) {
-    cx.strokeStyle = b.col; cx.globalAlpha = b.life; cx.lineWidth = 6 * b.life; cx.lineCap = 'round';
-    cx.beginPath(); cx.moveTo(b.x0, b.y0); cx.lineTo(b.x1, b.y1); cx.stroke();
+    cx.strokeStyle = b.col; cx.globalAlpha = Math.min(1, b.life); cx.lineWidth = (b.w || 6) * Math.min(1, b.life); cx.lineCap = 'round';
+    cx.beginPath(); cx.moveTo(b.x0, b.y0);
+    if (b.zig) { for (let i = 1; i < 6; i++) { const u = i / 6, j = (i % 2 ? 1 : -1) * 7; cx.lineTo(b.x0 + (b.x1 - b.x0) * u - (b.y1 - b.y0) / 60 * j, b.y0 + (b.y1 - b.y0) * u + (b.x1 - b.x0) / 60 * j); } }
+    cx.lineTo(b.x1, b.y1); cx.stroke();
     cx.strokeStyle = '#fff'; cx.lineWidth = 2 * b.life; cx.stroke(); cx.globalAlpha = 1; cx.lineCap = 'butt';
   }
   for (const r of FX.rings) { cx.globalAlpha = r.life; cx.strokeStyle = r.col; cx.lineWidth = r.w * r.life + 1; cx.beginPath(); cx.arc(r.x, r.y, r.r, 0, 6.283); cx.stroke(); }
@@ -1267,8 +1348,11 @@ function drawHUD(t) {
   cx.fillStyle = g; cx.fillRect(0, 0, W, 132);
   txt('SCORE', 18, 18, F(12), C.dim, 'left');
   txt(String(Math.round(FX.disp)), 18, 46, F(32, '900'), C.txt, 'left');
-  txt('BEST', W - 18, 18, F(12), C.dim, 'right');
-  txt(String(Math.max(best, S.score)), W - 18, 46, F(24, '900'), C.gold, 'right');
+  const bshow = S.daily ? Math.max(dailyBest, Math.round(FX.disp)) : Math.max(best, Math.round(FX.disp));
+  txt(S.daily ? 'DAILY BEST' : 'BEST', W - 18, 18, F(12), C.dim, 'right');
+  txt(String(bshow), W - 18, 46, F(24, '900'), C.gold, 'right');
+  const tag = S.daily ? 'DAILY · ' + S.daily : S.dieType !== 'standard' ? DICE[S.dieType].name.toUpperCase() + ' DIE' : '';
+  if (tag) { cx.font = F(10, '900'); const tw = cx.measureText(tag).width + 14; rr(16, 110, tw, 16, 8); cx.fillStyle = S.daily ? 'rgba(255,209,102,0.16)' : 'rgba(255,255,255,0.08)'; cx.fill(); cx.strokeStyle = S.daily ? C.gold : C.dim; cx.lineWidth = 1; cx.stroke(); txt(tag, 16 + tw / 2, 118.5, F(10, '900'), S.daily ? C.gold : C.txt); }
   txt('FLOOR', W / 2, 18, F(12), C.dim);
   txt(String(S.floor), W / 2, 46, F(30, '900'), S.floor % 5 === 0 ? C.red : C.txt);
   // HP
@@ -1326,8 +1410,9 @@ function drawPanel(t) {
   txt('other faces', 334 + 2 * 29, y0 + 62, F(9, '700'), 'rgba(156,195,180,0.6)');
   // relics
   const r = S.relic, rl = [];
-  if (r.twins) rl.push(['MATCH +' + (r.twins * 2), C.cyan]);
-  if (r.stairs) rl.push(['RISE +' + (r.stairs * 2), C.gold]);
+  if (r.twins) rl.push(['MATCH +' + (1 + r.twins) + '/hit', C.cyan]);
+  if (r.stairs) rl.push(['RISE +' + (1 + r.stairs) + '/hit', C.gold]);
+  if (S.reflect) rl.push(['MIRROR READY', KGLOW.reflect]);
   if (r.glass) rl.push(['DMG ×' + Math.pow(2, r.glass), '#9ff']);
   if (r.vamp) rl.push(['VAMP ' + r.vamp, C.pink]);
   if (r.mom) rl.push(['MOMENTUM +' + (S.momentum * r.mom), C.orange]);
@@ -1340,7 +1425,14 @@ function drawPanel(t) {
     rr(rx, y0 + 74, w, 18, 9); cx.fillStyle = 'rgba(255,255,255,0.08)'; cx.fill(); cx.strokeStyle = col; cx.lineWidth = 1.2; cx.stroke();
     txt(s, rx + w / 2, y0 + 83.5, F(11), col); rx += w + 6;
   }
-  if (!rl.length) txt('clear floors to upgrade your die', 18, y0 + 83, F(11, '700'), 'rgba(156,195,180,0.6)', 'left');
+  if (!rl.length && selectorVisible()) {
+    const R = selRect(), dn = DICE[S.dieType].name.toUpperCase();
+    rr(R.x, R.y, R.w, R.h, 9); cx.fillStyle = 'rgba(255,209,102,0.10)'; cx.fill(); cx.strokeStyle = C.gold; cx.lineWidth = 1.2; cx.stroke();
+    txt('DIE', R.x + 10, R.y + 9.5, F(10, '900'), C.dim, 'left');
+    txt('◂', R.x + 46, R.y + 9.5, F(13, '900'), C.gold); txt(dn, R.x + 104, R.y + 9.5, F(11, '900'), C.txt); txt('▸', R.x + 162, R.y + 9.5, F(13, '900'), C.gold);
+    txt(unlocked.length > 1 ? (isTouch ? 'tap to change' : 'Q / E to change') : 'unlock more dice by playing', R.x + 182, R.y + 9.5, F(10, '700'), C.dim, 'left');
+  } else if (!rl.length && S.daily && S.turns === 0) txt('DAILY: same dungeon for everyone today · Standard die', 18, y0 + 83, F(11, '700'), C.gold, 'left');
+  else if (!rl.length) txt('clear floors to upgrade your die', 18, y0 + 83, F(11, '700'), 'rgba(156,195,180,0.6)', 'left');
   // dread
   const dy = y0 + 112, dm = dreadMax(), fr = Math.min(1, S.dread / dm);
   txt('DREAD', 18, dy + 8, F(12), fr > 0.7 ? C.purple : C.dim, 'left');
@@ -1385,14 +1477,22 @@ function cardText(c) {
     case 'mom': return '+1 damage per roll since your last hit. Keep moving.';
     case 'patch': return 'Heal 6 HP and gain +2 max HP.';
     case 'over': return 'Overkill damage leaps to the nearest foe, again and again.';
+    case 'reflect': return 'Your ' + fv + ' face mirrors: rolling it on top bounces the next hit back (' + fv + '×3 damage).';
+    case 'chain': return 'Your ' + fv + ' face arcs: its hits jump to 2 foes next to the target for half damage.';
+    case 'clone': return 'Your ' + fv + ' face clones: it copies the value of your previous hit. Instant MATCH.';
+    case 'gold': return 'Your ' + fv + ' face gains +6 pips.';
+    case 'stairs2': return 'Rising hits add +2 more mult each. Straights go vertical.';
+    case 'twins2': return 'Matching hits add +2 more mult each. Pairs become a weapon.';
+    case 'wind': return '+3 max HP and heal to full.';
+    case 'loaded': return '+1 pip on EVERY face.';
   }
   return '';
 }
 function cardRect(i) { return { x: 36, y: BY + 22 + i * 128, w: W - 72, h: 116 }; }
 function drawCardArt(c, x, y) {
   const f = c.face >= 0 ? S.die.f[c.face] : null;
-  if (c.type === 'plus') { miniFace(x - 22, y, 34, f); txt('→', x, y, F(18), C.gold); miniFace(x + 22, y, 34, { v: f.v + 3, k: f.k }, { glow: C.gold }); return; }
-  if (CARDS[c.type].kind) { miniFace(x - 22, y, 34, f); txt('→', x, y, F(18), C.gold); miniFace(x + 22, y, 34, { v: f.v, k: c.type }, { glow: KGLOW[c.type] }); return; }
+  if (c.type === 'plus' || c.type === 'gold') { const add = c.type === 'gold' ? 6 : 3; miniFace(x - 22, y, 34, f); txt('→', x, y, F(18), C.gold); miniFace(x + 22, y, 34, { v: f.v + add, k: f.k }, { glow: C.gold }); return; }
+  if (cardDef(c).kind) { miniFace(x - 22, y, 34, f); txt('→', x, y, F(18), C.gold); miniFace(x + 22, y, 34, { v: f.v, k: c.type }, { glow: KGLOW[c.type] }); return; }
   const m = (vals, k) => vals.forEach((v, i) => miniFace(x - (vals.length - 1) * 15 + i * 30, y + (k ? (1 - i) * 8 : 0), 26, { v, k: '' }));
   if (c.type === 'odds') { m([1, 3, 5]); txt('+2', x, y + 26, F(14), C.gold, 'center', 3); }
   else if (c.type === 'evens') { m([2, 4, 6]); txt('+2', x, y + 26, F(14), C.gold, 'center', 3); }
@@ -1404,22 +1504,29 @@ function drawCardArt(c, x, y) {
   else if (c.type === 'mom') { txt('»»', x, y, F(40, '900'), C.orange, 'center', 3); }
   else if (c.type === 'patch') { icon('heart', x, y, 22, C.pink); txt('+', x, y - 2, F(22, '900'), '#fff'); }
   else if (c.type === 'over') { icon('quake', x - 12, y, 16, C.orange); icon('quake', x + 12, y, 16, C.yellow); }
+  else if (c.type === 'stairs2') { m([2, 4, 6], true); txt('RISE ++', x, y + 28, F(12), C.gold, 'center', 3); }
+  else if (c.type === 'twins2') { m([5, 5, 5]); txt('MATCH ++', x, y + 26, F(12), C.cyan, 'center', 3); }
+  else if (c.type === 'wind') { icon('heart', x, y, 24, C.pink); txt('FULL', x, y, F(11, '900'), '#fff'); }
+  else if (c.type === 'loaded') { m([2, 3, 4]); txt('+1 ALL', x, y + 26, F(12), C.gold, 'center', 3); }
 }
 function drawCards(t) {
   if (!S.cards) return;
   const p = clamp01((S.t - S.cardT) / 260);
   cx.fillStyle = 'rgba(8,14,12,' + 0.72 * p + ')'; cx.fillRect(BX - 16, BY - 16, GN * CELL + 32, GN * CELL + 32);
-  txt(S.picks > 1 ? 'CHOOSE AN UPGRADE (' + S.picks + ' picks)' : 'CHOOSE AN UPGRADE', W / 2, BY + 4, F(16, '900'), C.gold, 'center', 4);
+  const rare = S.cards[0] && S.cards[0].rare;
+  txt(rare ? 'BOSS REWARD · CHOOSE A RARE' : S.picks > 1 ? 'CHOOSE AN UPGRADE (' + S.picks + ' picks)' : 'CHOOSE AN UPGRADE', W / 2, BY + 4, F(16, '900'), C.gold, 'center', 4);
   for (let i = 0; i < S.cards.length; i++) {
     const c = S.cards[i], r = cardRect(i), q = easeOut(clamp01(p * 1.4 - i * 0.18));
     const sel = i === uiSel && !isTouch;
     cx.save(); cx.translate(0, (1 - q) * 60); cx.globalAlpha = q;
     rr(r.x, r.y, r.w, r.h, 14); cx.fillStyle = sel ? '#2c3b33' : '#1f2b26'; cx.fill();
-    const kcol = CARDS[c.type].kind ? KGLOW[c.type] : c.type === 'glass' ? '#9ff' : c.type === 'patch' || c.type === 'vamp' ? C.pink : C.gold;
-    cx.lineWidth = sel ? 4 : 2; cx.strokeStyle = sel ? C.gold : kcol; cx.stroke();
+    const kcol = cardDef(c).kind ? KGLOW[c.type] : c.type === 'glass' ? '#9ff' : c.type === 'patch' || c.type === 'vamp' || c.type === 'wind' ? C.pink : C.gold;
+    if (c.rare) { const g2 = cx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h); g2.addColorStop(0, '#ffd166'); g2.addColorStop(0.5, '#ff6fa8'); g2.addColorStop(1, '#6fdcff'); cx.lineWidth = sel ? 5 : 3.5; cx.strokeStyle = g2; cx.stroke(); }
+    else { cx.lineWidth = sel ? 4 : 2; cx.strokeStyle = sel ? C.gold : kcol; cx.stroke(); }
+    if (c.rare) { rr(r.x + r.w - 82, r.y + 10, 42, 18, 9); cx.fillStyle = '#ffd166'; cx.fill(); txt('RARE', r.x + r.w - 61, r.y + 19.5, F(10, '900'), '#3a2600'); }
     rr(r.x + 10, r.y + 12, 92, r.h - 24, 10); cx.fillStyle = 'rgba(0,0,0,0.3)'; cx.fill();
     drawCardArt(c, r.x + 56, r.y + r.h / 2);
-    txt(CARDS[c.type].name, r.x + 116, r.y + 24, F(19, '900'), kcol, 'left');
+    txt(cardDef(c).name, r.x + 116, r.y + 24, F(19, '900'), kcol, 'left');
     const lines = wrapText(cardText(c), r.w - 130, F(14, '600'));
     lines.slice(0, 3).forEach((ln, j) => txt(ln, r.x + 116, r.y + 52 + j * 19, F(14, '600'), C.txt, 'left'));
     rr(r.x + r.w - 34, r.y + 10, 24, 24, 6); cx.fillStyle = 'rgba(255,255,255,0.12)'; cx.fill();
@@ -1432,29 +1539,82 @@ function drawBanner() {
   const b = FX.banner; if (!b) return;
   const a = b.life > 0.85 ? (1 - b.life) / 0.15 : b.life < 0.25 ? b.life / 0.25 : 1;
   const sc = b.life > 0.85 ? 0.6 + 0.4 * easeOut((1 - b.life) / 0.15) : 1;
-  cx.save(); cx.globalAlpha = a * (b.top ? 0.92 : 1); cx.translate(W / 2, b.top ? BY + 40 : BY + GN * CELL / 2 - 20); cx.scale(sc, sc);
+  const by0 = b.top ? (S.py <= 2 ? BY + GN * CELL - 74 : BY + 40) : BY + GN * CELL / 2 - 20;   // top banners avoid the half you are in
+  cx.save(); cx.globalAlpha = a * (b.top ? 0.92 : 1); cx.translate(W / 2, by0); cx.scale(sc, sc);
   cx.fillStyle = 'rgba(10,16,14,0.7)'; rr(-200, -36, 400, b.sub ? 78 : 60, 14); cx.fill();
   txt(b.txt, 0, -6, F(34, '900'), b.col || C.txt, 'center', 5);
-  if (b.sub) txt(b.sub, 0, 26, F(14, '700'), C.txt, 'center', 3);
+  if (b.sub) txt(b.sub, 0, 26, F(b.boss ? 15 : 14, b.boss ? '800' : '700'), b.boss ? '#fff6e0' : C.txt, 'center', 3);
   cx.restore(); cx.globalAlpha = 1;
+}
+function runCardText() {
+  const parts = ['PIPWALK' + (S.daily ? ' daily ' + S.daily : '')];
+  if (S.dieType !== 'standard') parts.push(DICE[S.dieType].name + ' die');
+  parts.push('floor ' + S.floor, S.score.toLocaleString('en-US'));
+  if (S.bestChain.mult > 1) parts.push('best ' + S.bestChain.kind + ' ×' + S.bestChain.mult);
+  if (S.bossKills) parts.push(S.bossKills + (S.bossKills > 1 ? ' bosses' : ' boss') + ' down');
+  parts.push((S.cause || '').replace(/ on floor \d+$/, ''));
+  return parts.join(' · ');
+}
+let overUI = [];
+function overBtn(id, label, key, x, y, w, col) {
+  overUI.push({ id, x, y, w, h: 34 });
+  rr(x, y, w, 34, 10); cx.fillStyle = col === C.gold ? 'rgba(255,209,102,0.16)' : 'rgba(255,255,255,0.08)'; cx.fill(); cx.strokeStyle = col; cx.lineWidth = 1.5; cx.stroke();
+  txt(label, x + w / 2 - (key ? 12 : 0), y + 17.5, F(13, '900'), col);
+  if (key) { rr(x + w - 30, y + 8, 20, 18, 5); cx.fillStyle = 'rgba(255,255,255,0.12)'; cx.fill(); txt(key, x + w - 20, y + 17.5, F(10, '900'), C.txt); }
 }
 function drawOver() {
   const a = FX ? FX.overT : 1;
-  cx.fillStyle = 'rgba(6,10,9,' + 0.8 * a + ')'; cx.fillRect(0, 0, W, H);
+  overUI = [];
+  cx.fillStyle = 'rgba(6,10,9,' + 0.86 * a + ')'; cx.fillRect(0, 0, W, H);
   cx.globalAlpha = a;
-  const y = 250;
-  txt('THE DIE IS CAST', W / 2, y, F(36, '900'), C.red, 'center', 5);
-  const lines = wrapText(S.cause ? S.cause.charAt(0).toUpperCase() + S.cause.slice(1) : '', W - 60, F(18, '700'));
-  lines.forEach((l, i) => txt(l, W / 2, y + 44 + i * 22, F(18, '700'), C.txt));
-  const yy = y + 66 + lines.length * 22;
-  txt('SCORE', W / 2 - 90, yy + 14, F(12), C.dim); txt(String(S.score), W / 2 - 90, yy + 44, F(34, '900'), C.txt);
-  txt('BEST', W / 2 + 90, yy + 14, F(12), C.dim); txt(String(best), W / 2 + 90, yy + 44, F(34, '900'), C.gold);
-  if (S.score >= best && S.score > 0) txt('NEW BEST!', W / 2, yy + 84, F(18, '900'), C.gold, 'center', 3);
-  txt('floor ' + S.floor + '  ·  ' + S.kills + ' kills  ·  best hit ' + S.bestHit + '  ·  top mult ×' + S.maxMult, W / 2, yy + 114, F(13, '700'), C.dim);
+  let y = 168;
+  txt('THE DIE IS CAST', W / 2, y, F(34, '900'), C.red, 'center', 5);
+  const lines = wrapText(S.cause ? S.cause.charAt(0).toUpperCase() + S.cause.slice(1) : '', W - 60, F(17, '700'));
+  lines.forEach((l, i) => txt(l, W / 2, y + 40 + i * 21, F(17, '700'), C.txt));
+  y += 52 + lines.length * 21;
+  const bv = S.daily ? Math.max(dailyPrev, S.score) : best;
+  txt('SCORE', W / 2 - 90, y + 10, F(12), C.dim); txt(String(S.score), W / 2 - 90, y + 38, F(32, '900'), C.txt);
+  txt(S.daily ? 'DAILY BEST' : 'BEST', W / 2 + 90, y + 10, F(12), C.dim); txt(String(bv), W / 2 + 90, y + 38, F(32, '900'), C.gold);
+  if (S.score >= bv && S.score > 0) txt(S.daily ? 'NEW DAILY BEST!' : 'NEW BEST!', W / 2, y + 70, F(16, '900'), C.gold, 'center', 3);
+  y += 92;
+  // the shareable run card
+  const card = runCardText(), cl = wrapText(card, W - 92, F(13, '800'));
+  const ch = 20 + cl.length * 18;
+  rr(30, y, W - 60, ch, 10); cx.fillStyle = 'rgba(255,255,255,0.06)'; cx.fill(); cx.strokeStyle = 'rgba(255,209,102,0.5)'; cx.lineWidth = 1.2; cx.setLineDash([5, 4]); cx.stroke(); cx.setLineDash([]);
+  cl.forEach((l, i) => txt(l, W / 2, y + 19 + i * 18, F(13, '800'), '#f3e7c8'));
+  txt(copyState === 'copied' ? 'COPIED!' : 'RUN CARD', W - 44, y - 1, F(9, '900'), copyState === 'copied' ? C.gold : C.dim, 'right', 3);
+  y += ch + 16;
+  // buttons
+  overBtn('retry', 'RETRY', 'SPC', 30, y, 136, C.txt);
+  overBtn('daily', S.daily ? 'FREE PLAY' : 'DAILY', 'T', 172, y, 136, C.gold);
+  overBtn('copy', copyState === 'copied' ? 'COPIED' : 'COPY', 'C', 314, y, 136, C.cyan);
+  y += 56;
+  // starting die selector (meta-progression)
+  txt(S.daily ? 'NEXT FREE RUN · STARTING DIE' : 'STARTING DIE', W / 2, y, F(11, '900'), C.dim);
+  y += 14;
+  const sw = 100, sx0 = W / 2 - sw * 2 - 6;
+  DICE_ORDER.forEach((id, i) => {
+    const x = sx0 + i * (sw + 4), un = unlocked.indexOf(id) >= 0, on = chosenDie === id;
+    overUI.push({ id: 'die:' + id, x, y, w: sw, h: 44 });
+    rr(x, y, sw, 44, 9); cx.fillStyle = '#121d19'; cx.fill(); cx.fillStyle = on ? 'rgba(255,209,102,0.2)' : 'rgba(255,255,255,0.05)'; cx.fill();
+    cx.strokeStyle = on ? C.gold : un ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)'; cx.lineWidth = on ? 2.5 : 1; cx.stroke();
+    if (un) { txt(DICE[id].name.toUpperCase(), x + sw / 2, y + 15, F(12, '900'), on ? C.gold : C.txt); txt(DICE[id].desc, x + sw / 2, y + 32, F(9, '700'), C.dim); }
+    else { icon('lock', x + 16, y + 22, 7, 'rgba(255,255,255,0.35)'); txt(DICE[id].name.toUpperCase(), x + sw / 2 + 8, y + 15, F(11, '900'), 'rgba(255,255,255,0.35)'); txt(DICE[id].how, x + sw / 2 + 8, y + 32, F(9, '700'), 'rgba(255,255,255,0.4)'); }
+    if (newUnlocks.indexOf(id) >= 0) { rr(x + sw - 34, y - 8, 34, 14, 7); cx.fillStyle = C.pink; cx.fill(); txt('NEW', x + sw - 17, y - 1, F(8, '900'), '#fff'); }
+  });
+  y += 64;
   const ready = performance.now() - overAt > 400;
   cx.globalAlpha = a * (ready ? 0.75 + 0.25 * Math.sin(performance.now() / 200) : 0.4);
-  txt(isTouch ? 'tap to roll again' : 'press any key to roll again', W / 2, yy + 160, F(18, '800'), C.txt);
+  txt(isTouch ? 'tap anywhere to roll again' : 'any key: roll again  ·  ←/→: starting die', W / 2, y, F(15, '800'), C.txt);
   cx.globalAlpha = 1;
+}
+function drawUnlockToast() {
+  const m = FX.unlockMsg; if (!m || S.over) return;
+  const a = Math.min(1, m.life * 4, (1 - m.life) * 8);
+  cx.save(); cx.globalAlpha = a; cx.translate(W / 2, S.py <= 2 ? BY + GN * CELL - 150 : BY + 122);
+  rr(-170, -24, 340, 48, 12); cx.fillStyle = 'rgba(30,20,6,0.92)'; cx.fill(); cx.strokeStyle = C.gold; cx.lineWidth = 2; cx.stroke();
+  txt(m.txt, 0, -7, F(15, '900'), C.gold); txt(m.sub + ' · pick it on the game-over screen', 0, 12, F(10, '700'), C.txt);
+  cx.restore();
 }
 let SC = 1;
 function render() {
@@ -1465,6 +1625,7 @@ function render() {
   cx.save();
   if (FX.shake > 0.3) cx.translate((Math.random() - 0.5) * FX.shake, (Math.random() - 0.5) * FX.shake);
   drawBoard();
+  drawBossBar(t);
   if (S.phase === 'play' || S.phase === 'over') drawDanger(t);
   const showPrev = S.phase === 'play' && !S.over && S.lock <= 0 && !S.pendEnemy;
   if (showPrev) drawPreviews(t);
@@ -1481,6 +1642,7 @@ function render() {
   drawPanel(t);
   if (S.phase === 'pick') drawCards(t);
   drawBanner();
+  drawUnlockToast();
   if (FX.flash > 0.02) { cx.globalAlpha = FX.flash * 0.6; cx.fillStyle = FX.flashCol; cx.fillRect(0, 0, W, H); cx.globalAlpha = 1; }
   if (S.over) drawOver();
 }
@@ -1507,12 +1669,68 @@ function input(a) {
   S.buf = a;
   if (DIRS[a]) { const d = DIRS[a]; S.bufFree = !(S.lock > 0 || S.pendEnemy) ? false : !enemyAt(S.px + d[0], S.py + d[1]); }
 }
-function humanRestart() { if (S.over && performance.now() - overAt > 400) { reset(Date.now() & 0x7fffffff); return true; } return false; }
+let dailyBest = 0;
+function startRun(daily) {
+  hideCopyBox(); newUnlocks = []; copyState = '';
+  if (daily) { const d = todayUTC(); dailyBest = +loadJSON(dailyKey(d), 0) || 0; reset(dailySeed(d), { die: 'standard', daily: d }); }
+  else reset(Date.now() & 0x7fffffff, { die: chosenDie });
+}
+function humanRestart(daily) { if (S.over && performance.now() - overAt > 400) { startRun(daily == null ? !!S.daily : daily); return true; } return false; }
+function cycleDie(dir) {
+  const un = DICE_ORDER.filter(d => unlocked.indexOf(d) >= 0);
+  const i = Math.max(0, un.indexOf(chosenDie));
+  chosenDie = un[(i + dir + un.length) % un.length]; saveJSON('funlab.' + ID + '.die', chosenDie); SND.ui();
+}
+function selectorVisible() { return !S.over && !S.daily && S.phase === 'play' && S.floor === 1 && S.turns === 0; }
+function selRect() { return { x: 18, y: 667, w: W - 36, h: 19 }; }
+function selectorPick(dir) {          // before your first move only: re-deal the same dungeon with another starting die
+  if (!selectorVisible() || unlocked.length < 2) return;
+  cycleDie(dir); reset(S.seed, { die: chosenDie });
+}
+// clipboard: writeText inside the gesture; sandboxed frames often refuse, so fall back to a selected box
+let copyBox = null;
+function hideCopyBox() { if (copyBox) copyBox.style.display = 'none'; }
+function copyBoxOpen() { return !!copyBox && copyBox.style.display !== 'none'; }
+function showCopyFallback(text) {
+  try {
+    if (!copyBox) {
+      copyBox = document.createElement('div');
+      copyBox.setAttribute('style', 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;width:min(92vw,420px);background:#14231e;border:2px solid #ffd166;border-radius:14px;padding:14px 14px 12px;box-shadow:0 10px 40px rgba(0,0,0,.6);font:700 13px/1.35 Inter,system-ui,sans-serif;color:#f7f0e2;text-align:center');
+      copyBox.innerHTML = '<div style="color:#ffd166;font-weight:900;letter-spacing:.04em;margin-bottom:8px">YOUR RUN CARD</div><textarea readonly rows="3" style="width:100%;box-sizing:border-box;resize:none;background:#0b1512;color:#f3e7c8;border:1px solid #3c5a4f;border-radius:8px;padding:8px;font:700 13px/1.4 Inter,system-ui,sans-serif"></textarea><div style="margin-top:8px;color:#9cc3b4">Selected: press <b style="color:#fff">Ctrl/Cmd+C</b> to copy · <b style="color:#fff">Esc</b> to close</div>';
+      copyBox.addEventListener('pointerdown', ev => ev.stopPropagation());
+      document.body.appendChild(copyBox);
+    }
+    const ta = copyBox.querySelector('textarea'); ta.value = text; copyBox.style.display = 'block'; ta.focus(); ta.select();
+  } catch (e) {}
+}
+function doCopy() {
+  const text = runCardText();
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => { copyState = 'copied'; SND.ui(); }, () => { copyState = 'manual'; showCopyFallback(text); });
+    else { copyState = 'manual'; showCopyFallback(text); }
+  } catch (e) { copyState = 'manual'; showCopyFallback(text); }
+}
+function overAction(id) {
+  if (id === 'retry') humanRestart();
+  else if (id === 'daily') humanRestart(!S.daily);
+  else if (id === 'copy') doCopy();
+  else if (id.startsWith('die:')) { const d = id.slice(4); if (unlocked.indexOf(d) >= 0) { chosenDie = d; saveJSON('funlab.' + ID + '.die', chosenDie); SND.ui(); } }
+}
 const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
 addEventListener('keydown', e => {
   audioInit();
-  if (S.over) { humanRestart(); e.preventDefault(); return; }
   const k = e.code;
+  if (copyBoxOpen()) { if (k === 'Escape' || k === 'Enter') { hideCopyBox(); e.preventDefault(); } return; }   // let Ctrl/Cmd+C through
+  if (e.ctrlKey || e.metaKey || e.altKey || /^(Shift|Control|Alt|Meta|OS|CapsLock|Tab)/.test(k)) return;
+  if (S.over) {
+    if (k === 'ArrowLeft' || k === 'KeyA') cycleDie(-1);
+    else if (k === 'ArrowRight' || k === 'KeyD') cycleDie(1);
+    else if (k === 'KeyC') doCopy();
+    else if (k === 'KeyT') humanRestart(!S.daily);
+    else humanRestart();
+    e.preventDefault(); return;
+  }
+  if ((k === 'KeyQ' || k === 'KeyE') && selectorVisible()) { selectorPick(k === 'KeyQ' ? -1 : 1); e.preventDefault(); return; }
   if (S.phase === 'pick') {
     if (k === 'Digit1' || k === 'Numpad1') input('pick1');
     else if (k === 'Digit2' || k === 'Numpad2') input('pick2');
@@ -1533,7 +1751,12 @@ function toLogical(e) { const r = cv.getBoundingClientRect(); return { x: (e.cli
 cv.addEventListener('pointerdown', e => {
   e.preventDefault(); audioInit();
   if (e.pointerType === 'touch') isTouch = true;
-  if (S.over) { humanRestart(); ptr = null; return; }
+  if (copyBoxOpen()) { hideCopyBox(); ptr = null; return; }
+  if (S.over) {
+    const p = toLogical(e), b = overUI.find(u => p.x >= u.x && p.x <= u.x + u.w && p.y >= u.y && p.y <= u.y + u.h);
+    if (b) overAction(b.id); else humanRestart();
+    ptr = null; return;
+  }
   ptr = toLogical(e);
 });
 addEventListener('pointerup', e => {
@@ -1544,6 +1767,7 @@ addEventListener('pointerup', e => {
     return;
   }
   if (S.phase !== 'play') return;
+  if (selectorVisible()) { const R = selRect(); if (start.y >= R.y - 6 && start.y <= R.y + R.h + 6) { selectorPick(start.x < R.x + 104 ? -1 : 1); return; } }
   let dir = null;
   if (Math.hypot(dx, dy) > 24) dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
   else {
@@ -1576,7 +1800,7 @@ function bumpMap() {
   for (const d of DLIST) { const v = DIRS[d], e = inB(S.px + v[0], S.py + v[1]) ? enemyAt(S.px + v[0], S.py + v[1]) : null; if (!e) continue; o[d] = bumpInfo(e, v[0], v[1], h); }
   return o;
 }
-function warnCells() { const out = []; for (const e of S.en) if (!e.dead && e.int && e.int.type === 'charge') for (const c of e.int.cells) out.push([c[0], c[1], e.atk + 1, e.int.wind]); return out; }
+function warnCells() { const out = []; for (const e of S.en) if (!e.dead && e.int && e.int.type === 'charge') for (const c of e.int.cells) out.push([c[0], c[1], e.atk, e.int.wind]); return out; }
 window.__game = {
   reset(seed) { manual = true; reset(seed); },
   getState() {
@@ -1607,7 +1831,8 @@ window.__game = {
   debugFloor(n) { S.floor = Math.max(1, (n | 0) - 1); S.phase = 'play'; S.cards = null; S.over = false; S.pendEnemy = false; S.buf = null; nextFloor(); },
 };
 
-reset(Date.now() & 0x7fffffff);
+startRun(location.hash === '#daily');
+addEventListener('hashchange', () => { if (S.over || S.turns === 0) startRun(location.hash === '#daily'); });
 requestAnimationFrame(frame);
 })();
 </script>

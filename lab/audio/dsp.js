@@ -253,7 +253,7 @@ function spectrogram(x, sr, cols, rows, fmin = 40, fmax = 11000) {
       img[(rows - 1 - r) * cols + f] = Math.round(u * 255);
     }
   });
-  return { img: Buffer.from(img).toString('base64'), rows, cols, fmin, fmax };
+  return { img: Buffer.from(img).toString('base64'), rows, cols, fmin, fmax, hopS: hop / sr };
 }
 
 function quantile(a, p) { const s = a.slice().sort((x, y) => x - y); if (!s.length) return null; const i = (s.length - 1) * p, lo = Math.floor(i), hi = Math.ceil(i); return s[lo] + (s[hi] - s[lo]) * (i - lo); }

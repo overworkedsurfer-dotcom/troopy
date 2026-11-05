@@ -121,6 +121,17 @@ module.exports = function installAudioTap(opt) {
     return res;
   };
 
+  // 2b) optional schedule probe: log every AudioParam.setValueAtTime(probeFreq, when) call. UPTEMPO starts each kick with
+  //     frequency.setValueAtTime(165, at), so this records the time the game *asked* for each kick.
+  LAB.probe = [];
+  if (opt.probeValue != null && window.AudioParam) {
+    const origSet = AudioParam.prototype.setValueAtTime;
+    AudioParam.prototype.setValueAtTime = function (v, when) {
+      try { if (v === opt.probeValue && LAB.probe.length < 20000) { const c = LAB.ctxs[0]; LAB.probe.push([when, c ? c.ctx.currentTime : null, performance.now()]); } } catch (_) {}
+      return origSet.apply(this, arguments);
+    };
+  }
+
   // 3) input log (capture phase, before the game's own listeners)
   const keyLog = e => {
     const c = LAB.ctxs[0];

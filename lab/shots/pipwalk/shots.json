@@ -2,9 +2,9 @@
  "id": "pipwalk",
  "bot": "smart",
  "seed": 1,
- "lengthMs": 125625,
- "finalScore": 111805,
- "cause": "shot by an Archer on floor 19",
+ "lengthMs": 95250,
+ "finalScore": 22059,
+ "cause": "bonked by a Skull on floor 12",
  "replayMatches": true,
  "shots": [
   {
@@ -16,22 +16,22 @@
   },
   {
    "name": "2-mid",
-   "t": 62875,
-   "score": 15973,
+   "t": 47700,
+   "score": 7081,
    "over": false,
    "file": "lab/shots/pipwalk/2-mid.png"
   },
   {
    "name": "3-intense",
-   "t": 124125,
-   "score": 111393,
+   "t": 93750,
+   "score": 21099,
    "over": false,
    "file": "lab/shots/pipwalk/3-intense.png"
   },
   {
    "name": "4-gameover",
-   "t": 125625,
-   "score": 111805,
+   "t": 95250,
+   "score": 22059,
    "over": true,
    "file": "lab/shots/pipwalk/4-gameover.png"
   }
