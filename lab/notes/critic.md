@@ -144,3 +144,49 @@ pop on the next drop.
 - **Would I play a 4th run?** Yes. The tilt is a fresh twist on a familiar genre, and I want to try chaining off a tilt on purpose.
 - **Bugs / friction:** No console errors. ArrowUp maps to tilt but isn't shown in the controls line. Pieces fall on their own (gravity), which isn't obvious until level 2 speeds it up. The LEVEL 2 banner briefly covers the middle of the board while a piece is falling. The first-look screen showed a different starting pair (red/green) than the one I actually got after my first keypress (red/red), which is a little disorienting.
 
+---
+
+## 4. Spellsnake
+
+**What it is:** Snake where the food is Scrabble tiles. The letters you eat line up in your body, and the HUD
+reads them as a word. When the body forms a valid word, it glows gold ("WORD!") and SPACE casts it for points
+(more letters, much more points). If it isn't a word, SPACE spits your last letter out, and it becomes a rock
+obstacle. Ringed tiles "finish a word". A fuse bar runs down while you carry letters, and it ends in "starving".
+
+**Runs**
+| Run | Seed | Score | Length | Cause |
+|---|---|---|---|---|
+| 1 | 101 | 0 | 2.6 s | crashed into the wall |
+| 2 | 102 | 400 | 16.6 s | crashed into the wall (after casting ARC +50 and MEANS +350) |
+| 3 | 103 | 0 | 17 s | crashed into a rock while starving (blind probe of the fuse) |
+
+Improved? **Yes, from run 1 to run 2** (0 → 400). Run 3 was a deliberate blind loop to see what the fuse does,
+not a skill attempt. Most of my learning was about the snake's speed (~4–5 cells/s, much faster than I
+assumed) and turn timing. The word game on top was immediately fun.
+
+| # | Principle | Score | Justification |
+|---|---|---|---|
+| 1 | Readable in 5 s | 2 | "YOUR BODY IS THE WORD — press an arrow key to start", with controls and rules under the board. The HUD's contextual hint is excellent ("no word yet · SPACE spits the S (it becomes a rock)" → "SPACE casts ARC for +50"). |
+| 2 | Clear goal, visible score | 2 | Score, level, combo and best are always shown, plus a live word tray. Goal: "eat letters in an order that spells a word, then cast it". |
+| 3 | Juicy feedback | 2 | A valid word lights the tray and body gold with a "WORD!" pop. Casting gives a huge "ARC! +50 / 3 letters ×1" and the letters fly off the snake, with particles on every eat. Ringed tiles pulse, and the board border turns red when you near a wall. |
+| 4 | Forgiving input | 1 | Turns seem to queue for the next cell (a form of buffering), and the red-border warning helps. But the snake is fast and turns are cell-quantised, so I overshot target tiles three times, ate letters I didn't want (A-O, A-R-U), and hit a wall twice. |
+| 5 | Fair, legible failure | 1 | "crashed into the wall" is clear. "crashed into a rock while starving" isn't: nothing explained what starving was or where that rock came from. |
+| 6 | Instant retry | 2 | "press any key to slither again". |
+| 7 | Interesting decisions | 2 | Route planning *is* spelling. Which letter to take next, whether to spit (which leaves a permanent rock), and whether to detour for a ringed letter are all real choices. |
+| 8 | Pattern to learn | 1 | Improvement came mainly from learning the speed. There's clearly a deep layer (vocabulary plus routing), but the controls are a steep first cliff. |
+| 9 | Escalation / flow | 1 | Combo climbs (×1.25 after one word), and spat letters become permanent rocks that clutter the board. I never reached level 2, so I couldn't see the main difficulty ramp. |
+| 10 | Not solved | 2 | Rocks accumulate and the fuse forces commitment. There's no safe idle strategy (my blind loop starved). |
+| 11 | Risk and reward | 2 | The best tension in the set so far. "SPACE casts MEAN for +150", with a ringed S eight cells away while the fuse burns, and taking the detour made it **MEANS for +350**. |
+| 12 | Few verbs, deep use | 2 | Four turns and one action. SPACE is both cast and spit, and your body is your word, your score and your hazard at once. |
+| 13 | Variety | 2 | Every seed deals completely different letters, so the possible words differ each run. |
+| 14 | Reward cadence / compounding | 2 | Length scales steeply (3 letters 50, 4 letters 150, 5 letters 350), and the combo multiplier carries between words. |
+| 15 | One more go | 2 | Best is shown at game over. The MEANS cash-in made me want another go right away. |
+
+**Total: 26 / 30 → Fun score 9**
+
+- **MDA aesthetic felt:** Challenge, with Expression (you choose which word to make).
+- **Best moment:** Seeing the tray read "MEAN +150", gambling on the ringed S, and getting "WORD! 5 — MEANS +350" just before the fuse ran out.
+- **Worst moment:** Overshooting an A by one cell, eating an O I didn't want, and being stuck with the non-word "AO" while heading for a wall.
+- **Would I play a 4th run?** Yes. The Snake + Scrabble fusion is genuinely clever, and I want to plan a 6-letter word.
+- **Bugs / friction:** No console errors. The first-look screenshot showed a different letter layout than the one actually dealt after my first keypress. Two-letter words like "AS" don't count, and nothing says the minimum is 3. Spat letters fly to a seemingly random spot before becoming rocks (one landed far across the board), which is hard to track. "Starving" is never explained. Speed is high for a first-time player, so the first 30 seconds are mostly wall deaths.
+
