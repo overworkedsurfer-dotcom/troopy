@@ -137,3 +137,4 @@ I loaded tiltwell, spellsnake, junkorbit and magsumo in real time and pressed on
 - 250 points in 15 s across two ghosts, with ORB CHAIN ×3. Two orbs on the board and the first ghost arriving at about 5 s remove the round-1 dead time: something is happening from second one. Taps now carry the dot properly.
 - I tried to PHASE through ghost #2 but it had moved on, so the dash went past it. That was my timing, not the game. The one-time PHASE hint needs a ghost within about 60 px while dash is ready, and I never got that close before dashing, so I didn't see it.
 - Still the most original idea in the set, and still "one more go". Gut score moves to **8.5**.
+- **Round-2 critic fix:** the critic died 50 ms after phasing through a ghost, killed by that same ghost. A phased ghost now can't kill you for about 250 ms after the dash ends (`g.safe`). Bot targets still hold: smart median 257 s, 0 cap hits.

@@ -196,3 +196,51 @@ Setup: `lab/play.js` stepped-time server on port 8844, at most 15 screenshots pe
 - Turning is very fast (about 450°/s), which makes small aim corrections hard.
 - The heat "LOCKED" state happened without my noticing it building.
 - The ship has friction, so drifting to the rim to skim takes more shots than the text suggests.
+
+---
+
+## 5. loopback
+
+**What it is (as I understood it):** a dot in a walled rectangle. Arrows/WASD move and Space dashes. Every few seconds a numbered ghost spawns at your start point and replays your *entire path from t=0*, so ghost #k is always where you were D_k seconds ago. The delays I measured were about 5, 12.8, 20.5, 28.1 and 35.3 s. Touching a ghost kills you. Brushing past one builds a multiplier, and dashing *through* one is a PHASE (+96). Green orbs score in a growing ORB CHAIN (+20, +40 … +140), and gold orbs are worth far more (+268, +480). Before each ghost spawns, its upcoming route is drawn as a dotted line.
+
+| Run | Score | Length | Cause | Mode |
+|---|---|---|---|---|
+| 1 (seed 205) | 1874 | ~39 s | "hit by ghost #1 (you, 5s ago)" | Deliberate. I logged my own path with timestamps and predicted where every ghost would be. That let me collect 12 orbs (chain up to ×7), two gold orbs (+268 and +480, the second grabbed right beside ghost #4's spawn ring) and two PHASE dashes. With no screenshots left I ran a pre-planned perimeter route. The opening dash phased through ghost #1 (+96), but it clipped me 50 ms after the dash ended. |
+| 2 (restart) | 16 | ~9 s | "hit by ghost #1 (you, 5s ago)" | **Blind probe**: random moves and dashes. |
+| 3 (restart) | 332 | ~22 s | "hit by ghost #3 (you, 21s ago)" | **Blind probe #2**, to check variance. |
+
+**Did I improve?** I had only one deliberate run, so I have no run-to-run evidence. Within run 1, though, I went from reacting to *forecasting*, and the gap over random is huge (1874 vs 16 and 332, at least 5.6×).
+
+| # | Principle | Score | Why |
+|---|---|---|---|
+| 1 | Readable in 5 s | 2 | The first frame says "your ghost appears here and replays this path", with "ARROWS/WASD move · SPACE dash · your past self returns as ghosts · dash THROUGH one = PHASE". Instantly understood. |
+| 2 | Clear goal, visible score | 2 | Score, best, brush multiplier, chain banner, "GHOSTS n · next 4.0s". Goal: "collect orbs without touching any replay of your own past." |
+| 3 | Juicy feedback | 2 | Floating "+80", the "ORB CHAIN ×4" banner, pickup bursts, a "PHASE! +96" stamp, motion trails, ghost spawn rings with countdowns, and dotted previews of each ghost's route. |
+| 4 | Forgiving input | 1 | Strong telegraphing (path previews, spawn timers) and a dash with i-frames. But my one deliberate death came 50 ms *after* a successful phase through the same ghost, which felt partly unfair. |
+| 5 | Fair, legible failure | 2 | "hit by ghost #3 (you, 21s ago)" is perfect: it tells you exactly which past decision killed you. |
+| 6 | Instant retry | 2 | Any key restarts. |
+| 7 | Interesting decisions | 2 | Deliberate 1874 vs random 16 and 332. Every route choice is also a choice about where future ghosts will be. |
+| 8 | Pattern to learn | 1 | A beautiful, fully deterministic pattern ("never be where you were 5 / 13 / 20 s ago", "unvisited edges are safe"). I only managed one deliberate run, so improvement is unproven. |
+| 9 | Escalation | 1 | A new ghost about every 7.5 s, so the arena fills with your own history. My session was 39 s. |
+| 10 | Not solved | 2 | Accumulating ghosts make any fixed loop fatal (a loop whose period divides a ghost delay collides by construction). |
+| 11 | Risk and reward | 2 | Brushing ghosts for a multiplier, phasing through them, and gold orbs placed right beside ghost spawns. Greed is constantly tempting. |
+| 12 | Few verbs, deep use | 2 | Move plus dash. The dash is both escape and scoring (phase), and every move you make is also a future obstacle. |
+| 13 | Variety | 2 | Orb placements differ per seed, and the obstacles are *your own path*, so no two runs can match. |
+| 14 | Reward cadence / compounding | 2 | An orb every 1–3 s, an ORB CHAIN that grows the payout (+20 … +140), gold orbs, and a brush multiplier. |
+| 15 | One more go | 2 | Best is in the HUD. I want another run right now. |
+
+**Total 27/30, so total/3 = 9.0 and Fun score = 9.**
+
+**Primary MDA aesthetic felt:** Challenge, with a strong dose of Discovery from working out how my own past would come back.
+
+**Best moment:** realising I could forecast every ghost from a log of my own moves, then threading the gold orb right next to ghost #4's spawn ring (+480) and slipping out along an edge I had never touched. It felt like outwitting myself.
+
+**Worst moment:** dashing through ghost #1 for "PHASE! +96" and being killed by that same ghost one tick after the dash ended.
+
+**Would I play a 4th run?** Yes, eagerly. This was the most original idea in the set.
+
+**Bugs, glitches, confusion:** no console errors.
+- After a phase, the dash can end while you still overlap the ghost, giving phase-then-death in one move.
+- Ghost spawn intervals are not constant (5 s, then about 7.5 s), and only the "next" timer reveals this.
+- The ORB CHAIN resets after a short timeout that nothing on screen visualises.
+- I did not get to see the game-over panel (I ran out of screenshots), so I can't comment on it.

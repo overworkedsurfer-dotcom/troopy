@@ -236,6 +236,7 @@ function brush(g) {
 
 function phase(g) {
   g.ph = S.dashId; S.phases++; S.phaseChain++;
+  g.safe = S.n + S.dash + 15;   // forgiveness: a ghost you just phased can't kill you for ~250 ms after the dash ends
   if (!QUIET) phasedEver = true;
   S.mult = Math.min(MULT_MAX, S.mult + 0.6); S.multHold = MULT_HOLD; S.peakMult = Math.max(S.peakMult, S.mult);
   const pts = Math.round(60 * S.mult * S.phaseChain); S.score += pts;
@@ -336,6 +337,7 @@ function step() {
     if (g.x < S.ax0 - 4 || g.x > S.ax1 + 4 || g.y < S.ay0 - 4 || g.y > S.ay1 + 4) continue;   // outside the loop: dormant
     const dx = S.x - g.x, dy = S.y - g.y, dd = Math.hypot(dx, dy);
     if (invuln) { if (dd < PHASE_D && g.ph !== S.dashId) phase(g); }
+    else if (g.safe > S.n) continue;                 // just phased through this one: grace
     else if (dd < P_HIT + G_HIT) { die(g, m); return; }
     else if (dd < BRUSH_D && g.bc <= 0) brush(g);
   }

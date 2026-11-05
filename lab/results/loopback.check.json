@@ -25,7 +25,7 @@
   {
    "name": "real-time mode advances sim after input",
    "pass": true,
-   "detail": "t 0 -> 2800"
+   "detail": "t 0 -> 2816.666666666667"
   },
   {
    "name": "window.__game has all methods",
@@ -110,7 +110,7 @@
   {
    "name": "bot smart runs 20s without error",
    "pass": true,
-   "detail": "score=351 ms=20000 wall=288ms"
+   "detail": "score=351 ms=20000 wall=290ms"
   },
   {
    "name": "zero console/page errors",
