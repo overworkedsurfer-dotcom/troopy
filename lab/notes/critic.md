@@ -50,3 +50,50 @@ into the rim during the roughly 0.6 s it takes to turn 180°. I never saw wave 2
 - **Would I play a 4th run?** Yes. The loop is tight and the restart is instant, and I want to learn to "orbit" the rim on purpose.
 - **Bugs / friction:** No console errors. The game-over text fades in over the red flash and is briefly hard to read (fine after about 0.8 s). The ship sprite's facing is ambiguous at small size: the notched arrowhead sometimes reads as pointing the wrong way, and I had to rely on the dotted aim line. Runs are very short for a new player. A little drag/friction, or a faster turn, would widen the on-ramp a lot.
 
+---
+
+## 2. Loopback
+
+**What it is:** You're a dot in a box. Every ~8 s (the interval shortens later) a numbered ghost of yourself
+spawns at the start point and replays your exact path from the beginning, dashes included. Touch a ghost and
+you die. Collect green orbs (an ORB CHAIN ×N builds if you grab them quickly) and rarer gold orbs (GOLD ×3).
+"Brushing" close past a ghost raises a ×mult, and dashing *through* a ghost is a "PHASE!" bonus. Around 73 s,
+"THE LOOP TIGHTENS — the walls are closing in" and the arena starts to shrink.
+
+**Runs**
+| Run | Seed | Score | Length | Cause |
+|---|---|---|---|---|
+| 1 | 101 | 216 | 16 s | hit by ghost #1 (you, 8s ago) |
+| 2 | 102 | 3,789 | 88 s | hit by ghost #11 (you, 79s ago) |
+
+Improved? **Yes, hugely** (216 → 3,789). Run 1 taught me the rule ("the ghost is me N seconds ago, dash
+speed and all"). In run 2 I planned routes around my own history, used the dotted "future path" lines, and
+found that dashing through ghosts is rewarded. I didn't play a 3rd run on screenshot budget, but the learning
+curve was obvious.
+
+| # | Principle | Score | Justification |
+|---|---|---|---|
+| 1 | Readable in 5 s | 2 | The first screen says "ARROWS/WASD move · SPACE dash", marks the ghost spawn ("your ghost appears here and replays this path"), and says "press any key". I moved instantly. |
+| 2 | Clear goal, visible score | 2 | Score, best, dash cooldown, brush ×mult, ORB CHAIN, ghost count and "next 6.2s" are always visible. Goal: "grab orbs without touching your past selves". |
+| 3 | Juicy feedback | 2 | Orb pickups burst with a ring, particles and floating +N. Ghost spawns get a countdown ring, a big "GHOST #N" banner, a screen tint and "SURVIVED +N". PHASE and BRUSH get pink floating text, the arena border goes red on "THE LOOP TIGHTENS", and death zooms in rings on the ghost that got you. |
+| 4 | Forgiving input | 2 | Dash-through-ghost (phase) is a real escape hatch. Each ghost shows its upcoming path as a dotted line, and ghosts that replay positions now outside the shrunken arena go dormant. Orb pickup radius is a bit stingy: I slid past one orb and lost a chain. |
+| 5 | Fair, legible failure | 2 | "hit by ghost #11 (you, 79s ago)" is the best death message in the set. It names *which past you* killed you and *when*. |
+| 6 | Instant retry | 2 | Any key or tap retries. The game-over screen has a full stats line (survived, ghosts, orbs, brushes, phases, peak ×). |
+| 7 | Interesting decisions | 2 | Every move is a commitment that comes back later. Orbs tend to spawn near ghost lanes, so you're always weighing a greedy route against a safe one. Corners are "safe now, deadly in 8 s". |
+| 8 | Pattern to learn | 2 | A clean learning slope: run 1 I misjudged a replayed dash, and by run 2 I was predicting ghost positions from my own timeline. 17× improvement. |
+| 9 | Escalation / flow | 2 | Ghosts keep stacking (11 by 80 s), spawn intervals shorten, and at ~73 s the walls start closing in. My 88 s run sat squarely in the 60–300 s window. |
+| 10 | Not solved | 2 | Ghost density plus a shrinking arena guarantees an end. No safe loop exists, because any periodic path collides with its own ghosts. |
+| 11 | Risk and reward | 2 | Three overlapping tensions: brush (pass close for ×mult up to ×2.0), phase (dash *into* a ghost for +96/+120), and orbs placed in ghost traffic. Greed visibly pays and visibly kills. |
+| 12 | Few verbs, deep use | 2 | Move plus dash. Dash is mobility, invulnerable phase, *and* a scoring move. And every movement is also "level design" for your future self. |
+| 13 | Variety | 2 | The start point and orb spawns differ by seed, but the real variety is that your own path *is* the level, so no two runs can match. |
+| 14 | Reward cadence / compounding | 2 | Something pays every 1–3 s: orbs, survive bonuses (+10 → +80, growing per ghost), gold, phase. Orb chain × brush mult × gold ×3 multiply (+431 for one gold). |
+| 15 | One more go | 2 | Best and NEW BEST at game over, plus a stats line. I really wanted another go to play the phase mechanic aggressively. |
+
+**Total: 30 / 30 → Fun score 10**
+
+- **MDA aesthetic felt:** Challenge, with a lot of Discovery (learning your own past as a puzzle).
+- **Best moment:** Dashing straight through ghost #2 for "PHASE! +120" and watching the mult jump to ×2.0, turning an unavoidable death into a payout.
+- **Worst moment:** Run 1's death, where the ghost replayed a dash I'd forgotten and closed a gap faster than walking speed. It's fair in hindsight, but it surprised me.
+- **Would I play a 4th run?** Yes, immediately. It's the most "I can do better" game here.
+- **Bugs / friction:** No console errors. Movement has a short acceleration ramp, so tiny taps travel less than expected, which made precise orb pickups fiddly in stepped mode. Late game (8+ ghosts) gets visually busy: the numbered rings help, but trails overlap a lot. The "phase" mechanic isn't explained on screen. I found it by accident from the "0 phases" stat on the first game-over screen. Ghosts that replay positions outside the shrunken arena are drawn faded, which is a nice touch but not explained.
+
