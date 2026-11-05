@@ -126,7 +126,7 @@ function newFX() {
   return { parts: [], texts: [], rings: [], streaks: [], shake: 0, flash: 0, flashCol: '255,255,255', hintA: 1,
     off: new Array(N * N).fill(0), vel: new Array(N * N).fill(0), sq: new Array(N * N).fill(0),
     banner: null, chainPop: 0, ticks: 0, danger: 0, heartT: 0, pieceSq: 0, chargeFlash: 0, gFlash: 0, deathT: 0,
-    disp: 0, scorePulse: 0, gMsg: null, tMsg: null };
+    disp: 0, scorePulse: 0, gMsg: null, tMsg: null, toast: null, spent: null, lvlPop: 0 };
 }
 function reset(seed) {
   S = newState(seed); FX = newFX(); carry = 0;
@@ -167,7 +167,8 @@ function floatText(x, y, txt, col, size, life) { if (!QUIET) FX.texts.push({ x, 
 function shake(a) { if (!QUIET) FX.shake = Math.max(FX.shake, a); }
 function flash(a, col) { if (!QUIET) { FX.flash = Math.max(FX.flash, a); FX.flashCol = col || '255,255,255'; } }
 function ring(x, y, col, r) { if (!QUIET) FX.rings.push({ x, y, col, r: r || 10, life: 1 }); }
-function banner(txt, col, sub) { if (!QUIET) FX.banner = { txt, col, sub: sub || '', life: 1 }; }
+function banner(txt, col, sub) { if (!QUIET) FX.toast = { txt, col, sub: sub || '', life: 1, dec: 0.012 }; }
+function toast(txt, col, dec) { if (!QUIET) FX.toast = { txt, col, sub: '', life: 1, dec: dec || 0.011 }; }
 function cellXY(i) { return [BX + (i % N) * CELL + CELL / 2, BY + Math.floor(i / N) * CELL + CELL / 2]; }
 
 // ---------- simulation ----------
@@ -185,7 +186,9 @@ function stepFX() {
   if (FX.gMsg && FX.gMsg.life <= 0) FX.gMsg = null; if (FX.tMsg && FX.tMsg.life <= 0) FX.tMsg = null;
   FX.scorePulse *= 0.9;
   FX.shake *= 0.86; FX.flash *= 0.88; FX.chainPop *= 0.9; FX.pieceSq *= 0.82; FX.chargeFlash *= 0.93; FX.gFlash *= 0.95;
-  if (FX.banner) { FX.banner.life -= 0.014; if (FX.banner.life <= 0) FX.banner = null; }
+  if (FX.toast) { FX.toast.life -= FX.toast.dec; if (FX.toast.life <= 0) FX.toast = null; }
+  if (FX.spent) { FX.spent.life -= 0.025; if (FX.spent.life <= 0) FX.spent = null; }
+  FX.lvlPop *= 0.93;
   let landed = 0;
   for (let i = 0; i < N * N; i++) {
     if (FX.off[i] < 0) {
@@ -207,7 +210,7 @@ function step() {
   if (L !== S.level) {
     S.level = L;
     if (!QUIET) {
-      banner('LEVEL ' + L, '#9ff', L === 4 ? 'a 5th colour joins the well' : 'faster · more stones');
+      banner('LEVEL ' + L, '#9ff', L === 4 ? 'a 5th colour joins the well' : 'faster · more stones'); FX.lvlPop = 1;
       SFX.level(); flash(0.25, '120,255,255');
     }
   }
@@ -222,10 +225,8 @@ function step() {
 }
 
 function fallStep() {
-  if (S.inq.length) {
-    const a = S.inq.shift(); doAction(a);
-    if (S.phase !== 'fall' || S.over) return;
-  }
+  while (S.inq.length && S.phase === 'fall' && !S.over) doAction(S.inq.shift());
+  if (S.phase !== 'fall' || S.over) return;
   const p = S.piece;
   if (canPlace(p.x, p.y + 1, p.o)) {
     S.lockT = 0;
@@ -261,6 +262,7 @@ function doAction(a) {
   } else if (a === 'tiltL' || a === 'tiltR') {
     if (S.charges < 1) { if (!QUIET) { SFX.bump(); FX.tMsg = { txt: 'POP TO RECHARGE', col: '#ff8a8a', life: 1 }; } return; }
     S.charges -= 1;
+    if (!QUIET) { FX.toast = null; FX.tMsg = { txt: '−1 TILT', col: '#ffd27a', life: 1 }; FX.spent = { i: clamp(Math.floor(S.charges), 0, 2), life: 1 }; }
     tiltGrid(a === 'tiltL' ? 1 : -1);
   }
 }
@@ -559,7 +561,7 @@ function drawPiece() {
   const p = S.piece; if (!p || S.over) return;
   const c = cellsOf(p.x, p.y, p.o);
   // ghost
-  if (S.phase === 'fall') {
+  if (S.phase === 'fall' && !previewing()) {
     const lr = landingRows(p), cols = [p.a, p.b];
     for (let k = 0; k < 2; k++) {
       const [gx, gy] = lr[k]; if (gy < 0) continue;
@@ -578,6 +580,50 @@ function drawPiece() {
     drawCell(k ? p.b : p.a, px, py, CELL, { sqx: 1 + Math.abs(sq) * 0.1, sqy: 1 - Math.abs(sq) * 0.08, white: lockFrac * 0.35 });
     cx.shadowBlur = 0;
   }
+}
+
+// pure, cosmetic: where every cell would settle after a tilt (and which would pop right away)
+function previewTilt(dir) {
+  const g = S.g, ng = new Array(N * N).fill(0);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const v = g[y * N + x]; if (!v) continue;
+    if (dir > 0) ng[(N - 1 - x) * N + y] = v; else ng[x * N + (N - 1 - y)] = v;
+  }
+  for (let x = 0; x < N; x++) {
+    let w = N - 1;
+    for (let y = N - 1; y >= 0; y--) { const v = ng[y * N + x]; if (!v) continue; ng[y * N + x] = 0; ng[w * N + x] = v; w--; }
+  }
+  const pop = new Uint8Array(N * N), seen = new Uint8Array(N * N);
+  let pops = 0;
+  for (let i = 0; i < N * N; i++) {
+    const v = ng[i]; if (!v || v === STONE || seen[i]) continue;
+    const st = [i], grp = []; seen[i] = 1;
+    while (st.length) {
+      const k = st.pop(); grp.push(k); const x = k % N, y = (k / N) | 0;
+      for (const j of [x > 0 ? k - 1 : -1, x < N - 1 ? k + 1 : -1, y > 0 ? k - N : -1, y < N - 1 ? k + N : -1])
+        if (j >= 0 && !seen[j] && ng[j] === v) { seen[j] = 1; st.push(j); }
+    }
+    if (grp.length >= 4) { pops += grp.length; for (const k of grp) pop[k] = 1; }
+  }
+  return { g: ng, pop, pops };
+}
+function drawPreview(dir) {
+  const pv = previewTilt(dir), t = performance.now();
+  cx.fillStyle = 'rgba(6,8,26,0.62)'; rr(BX - 3, BY - 3, BS + 6, BS + 6, 10); cx.fill();
+  for (let i = 0; i < N * N; i++) {
+    const v = pv.g[i]; if (!v) continue;
+    const px = BX + (i % N) * CELL, py = BY + ((i / N) | 0) * CELL;
+    cx.globalAlpha = 0.62;
+    drawCell(v, px, py, CELL, pv.pop[i] ? { white: 0.25 + 0.3 * Math.abs(Math.sin(t / 130)) } : null);
+    cx.globalAlpha = 1;
+    if (pv.pop[i]) { cx.strokeStyle = '#fff6b0'; cx.lineWidth = 2.5; rr(px + 3, py + 3, CELL - 6, CELL - 6, 11); cx.stroke(); }
+  }
+  curvedArrow(BX + BS / 2, BY + BS / 2, 70, dir, 'rgba(150,185,255,0.35)', 10);
+  const msg = (pv.pops ? 'pops ' + pv.pops + '!  ·  ' : '') + 'release to tilt · other key cancels';
+  cx.font = '800 15px ' + FONT; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  const w = cx.measureText(msg).width + 28;
+  cx.fillStyle = 'rgba(10,14,44,0.92)'; rr(W / 2 - w / 2, BY + 10, w, 30, 15); cx.fill();
+  cx.fillStyle = pv.pops ? '#fff27a' : '#cfe0ff'; cx.fillText(msg, W / 2, BY + 25);
 }
 
 function drawMini(pc, x, y, s) {
@@ -635,6 +681,13 @@ function render() {
     drawWell(ang + d, sc, 0.22, true);
   }
   drawWell(ang, sc, 1, false);
+  if (S.phase === 'tilt') {      // big direction sweep: the tilt always reads, even on an empty well
+    const p = clamp(1 - S.timer / TILT_MS, 0, 1);
+    cx.save(); cx.translate(BX + BS / 2, BY + BS / 2); cx.rotate(S.tiltDir * (Math.PI / 2) * (1 - easeOutCubic(p)) * 0.5);
+    curvedArrow(0, 0, 92, S.tiltDir, 'rgba(150,185,255,' + (0.55 * (1 - p * 0.7)) + ')', 14);
+    cx.restore();
+  }
+  if (previewing() && !S.over) drawPreview(tiltHold.a === 'tiltL' ? 1 : -1);
   if (FX.danger > 0.02 && !S.over) {
     const pulse = 0.5 + 0.5 * Math.sin(S.t / 110);
     const gr = cx.createLinearGradient(0, BY, 0, BY + CELL * 2);
@@ -677,14 +730,6 @@ function render() {
     cx.fillStyle = FX.chainCol; cx.fillText(FX.chainTxt, W / 2, BY + BS * 0.42);
     cx.globalAlpha = 1;
   }
-  if (FX.banner) {
-    const b = FX.banner, a = Math.min(1, b.life * 3), k = 1 + Math.max(0, b.life - 0.85) * 3;
-    cx.globalAlpha = a;
-    cx.fillStyle = 'rgba(6,8,28,0.65)'; cx.fillRect(0, BY + BS * 0.62 - 34, W, 74);
-    cx.font = '900 ' + Math.round(38 * k) + 'px ' + FONT; cx.fillStyle = b.col; cx.fillText(b.txt, W / 2, BY + BS * 0.62 - 6);
-    cx.font = '600 16px ' + FONT; cx.fillStyle = '#cfd6ff'; cx.fillText(b.sub, W / 2, BY + BS * 0.62 + 24);
-    cx.globalAlpha = 1;
-  }
   cx.restore();
   drawHUD();
   if (FX.flash > 0.02) { cx.fillStyle = 'rgba(' + FX.flashCol + ',' + FX.flash * 0.5 + ')'; cx.fillRect(0, 0, W, H); }
@@ -700,7 +745,7 @@ function drawHUD() {
   cx.textAlign = 'right'; cx.fillStyle = '#8f9bd6'; cx.font = '700 13px ' + FONT; cx.fillText('BEST', W - 26, 24);
   cx.fillStyle = '#ffe28a'; cx.font = '900 26px ' + FONT; cx.fillText(String(Math.max(best, S.score)), W - 24, 54);
   cx.textAlign = 'center'; cx.fillStyle = '#8f9bd6'; cx.font = '700 13px ' + FONT; cx.fillText('LEVEL', W / 2, 24);
-  cx.fillStyle = '#9ff'; cx.font = '900 26px ' + FONT; cx.fillText(String(S.level), W / 2, 54);
+  cx.fillStyle = FX.lvlPop > 0.2 ? '#ffffff' : '#9ff'; cx.font = '900 ' + Math.round(26 + FX.lvlPop * 14) + 'px ' + FONT; cx.fillText(String(S.level), W / 2, 54 + FX.lvlPop * 4);
   // second row: next / tilts / stones
   const ry = 72;
   cx.fillStyle = 'rgba(20,26,70,0.75)';
@@ -721,6 +766,11 @@ function drawHUD() {
     } else if (f > 0) {
       cx.fillStyle = 'rgba(65,217,255,0.55)'; cx.beginPath(); cx.moveTo(px, py); cx.arc(px, py, 13, -Math.PI / 2, -Math.PI / 2 + f * 6.283); cx.closePath(); cx.fill();
     }
+    if (FX.spent && FX.spent.i === i) {
+      const l = FX.spent.life;
+      cx.fillStyle = 'rgba(255,210,122,' + (0.8 * l) + ')'; cx.beginPath(); cx.arc(px, py, 13, 0, 6.283); cx.fill();
+      cx.strokeStyle = 'rgba(255,210,122,' + l + ')'; cx.lineWidth = 3; cx.beginPath(); cx.arc(px, py, 13 + (1 - l) * 16, 0, 6.283); cx.stroke();
+    }
   }
   // stones meter
   if (FX.gFlash > 0.05) { cx.strokeStyle = 'rgba(158,255,168,' + FX.gFlash + ')'; cx.lineWidth = 3; rr(W - 136, ry, 112, 50, 12); cx.stroke(); }
@@ -731,13 +781,26 @@ function drawHUD() {
   cx.font = '900 19px ' + FONT;
   cx.fillStyle = S.gCount === 0 ? '#9effa8' : warn ? (Math.sin(S.t / 80) > 0 ? '#ff6b6b' : '#ffd0d0') : '#d6dcf5';
   cx.fillText(S.gCount === 0 ? 'none' : ('▲' + S.gCount + ' in ' + Math.max(0, S.gIn)), W - 80, ry + 39);
+  if (FX.toast) {   // banners and hints live above the well, never over the falling piece
+    const tt = FX.toast, a = Math.min(1, tt.life * 4), k = 1 + Math.max(0, tt.life - 0.9) * 2.5;
+    cx.globalAlpha = a; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.fillStyle = '#0a0d28'; rr(20, ry - 2, W - 40, 54, 14); cx.fill();
+    cx.strokeStyle = tt.col; cx.globalAlpha = a * 0.7; cx.lineWidth = 2; cx.stroke(); cx.globalAlpha = a;
+    if (tt.sub) {
+      cx.font = '900 ' + Math.round(24 * k) + 'px ' + FONT; cx.fillStyle = tt.col; cx.fillText(tt.txt, W / 2, ry + 15);
+      cx.font = '600 14px ' + FONT; cx.fillStyle = '#cfd6ff'; cx.fillText(tt.sub, W / 2, ry + 38);
+    } else { cx.font = '800 ' + Math.round(17 * k) + 'px ' + FONT; cx.fillStyle = tt.col; cx.fillText(tt.txt, W / 2, ry + 25); }
+    cx.globalAlpha = 1; cx.textBaseline = 'alphabetic';
+  }
 
   cx.restore();
   // bottom: controls hint or touch buttons
   cx.textAlign = 'center'; cx.textBaseline = 'middle';
   if (touchUI) {
     cx.globalAlpha = 0.6 + 0.4 * FX.hintA; cx.fillStyle = '#aab4e8'; cx.font = '600 15px ' + FONT;
-    cx.fillText('swipe or ← → to move · ↓ drop · ⟲ ⟳ tilt the well', W / 2, BTN_Y - 18); cx.globalAlpha = 1;
+    cx.fillText('pieces fall on their own · ← → move · ↓ drop · ⟲ ⟳ tilt', W / 2, BTN_Y - 18);
+    if (BTN_Y - BY - BS > 90) { cx.font = '500 13px ' + FONT; cx.fillText('hold ⟲ / ⟳ to preview a tilt · match 4+ of a colour', W / 2, BTN_Y - 40); }
+    cx.globalAlpha = 1;
     for (const b of BTN) {
       const down = btnDown === b.a, tilt = b.a === 'tiltL' || b.a === 'tiltR', off = tilt && S.charges < 1;
       cx.fillStyle = down ? 'rgba(120,150,255,0.55)' : tilt ? 'rgba(40,120,170,0.45)' : 'rgba(40,50,110,0.6)';
@@ -750,10 +813,10 @@ function drawHUD() {
   } else {
     cx.globalAlpha = 0.5 + 0.5 * FX.hintA;
     cx.fillStyle = '#dfe4ff'; cx.font = '700 17px ' + FONT;
-    cx.fillText('← →  move     ↓ / Space  drop     Q / E  tilt the well', W / 2, BY + BS + 70);
+    cx.fillText('← →  move     ↓ / Space  drop     Q / E  tilt the WELL', W / 2, BY + BS + 70);
     cx.fillStyle = '#9aa5dc'; cx.font = '500 14px ' + FONT;
-    cx.fillText('match 4+ of a colour · tilts recharge by popping', W / 2, BY + BS + 98);
-    cx.fillText('chains multiply your score and block the rising stones', W / 2, BY + BS + 120);
+    cx.fillText('pieces fall on their own · match 4+ of a colour to pop', W / 2, BY + BS + 98);
+    cx.fillText('hold Q / E to preview a tilt · chains multiply & block stones', W / 2, BY + BS + 120);
     cx.globalAlpha = 1;
   }
   cx.textBaseline = 'alphabetic';
@@ -796,7 +859,7 @@ fit();
 function queueAction(a) {
   if (!S || S.over) return;
   if (getActions().indexOf(a) < 0 || a === 'none') return;
-  if (S.inq.length < 2) S.inq.push(a);
+  if (S.inq.length < 8) S.inq.push(a);
 }
 function getActions() {
   if (S.over) return ['none'];
@@ -807,15 +870,38 @@ function getActions() {
 function humanRestart() { if (S.over && performance.now() - overAt > 400) { reset(Date.now() & 0x7fffffff); return true; } return false; }
 function firstInput() { FX.hinted = true; }
 const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowDown: 'drop', KeyS: 'drop', Space: 'drop',
-  KeyQ: 'tiltL', KeyZ: 'tiltL', KeyE: 'tiltR', KeyX: 'tiltR', ArrowUp: 'tiltR', KeyW: 'tiltR' };
+  KeyQ: 'tiltL', KeyZ: 'tiltL', KeyE: 'tiltR', KeyX: 'tiltR' };
+// tilt keys: a tap tilts on release; holding >= 250 ms shows a preview, release commits, any other key cancels
+const PREVIEW_MS = 250;
+let tiltHold = null;
+function previewing() { return !!tiltHold && !S.over && performance.now() - tiltHold.t0 >= PREVIEW_MS; }
+function startTilt(a, id) {
+  if (S.charges < 1) { SFX.bump(); FX.tMsg = { txt: 'POP TO RECHARGE', col: '#ff8a8a', life: 1 }; FX.chargeFlash = 1; return; }
+  tiltHold = { a, id, t0: performance.now() };
+}
+function commitTilt() { if (tiltHold) { queueAction(tiltHold.a); tiltHold = null; } }
+function cancelTilt() { if (tiltHold) { tiltHold = null; toast('tilt cancelled', '#aab4e8', 0.03); SFX.move(); } }
+function isMove(a) { return a === 'left' || a === 'right'; }
 addEventListener('keydown', e => {
   audioInit();
   if (S.over) { if (!e.repeat) humanRestart(); e.preventDefault(); return; }
+  if (e.code === 'ArrowUp' || e.code === 'KeyW') {
+    e.preventDefault(); if (e.repeat) return; firstInput();
+    if (previewing()) { cancelTilt(); return; }
+    toast("pieces don't rotate: Q / E tilts the WELL", '#ffd27a', 0.009); SFX.bump(); return;
+  }
   const a = KEYMAP[e.code]; if (!a) return;
   e.preventDefault();
-  if (e.repeat && a !== 'left' && a !== 'right') return;
-  firstInput(); queueAction(a);
+  if (tiltHold && e.code === tiltHold.id) return;                 // auto-repeat of the held tilt key
+  if (previewing()) { cancelTilt(); return; }                      // any other key cancels a previewed tilt
+  if (tiltHold) commitTilt();                                      // quick tap followed by another key: tilt now
+  if (e.repeat && !isMove(a)) return;
+  if (e.repeat && S.inq.some(isMove)) return;                      // auto-repeat never piles up moves
+  firstInput();
+  if (a === 'tiltL' || a === 'tiltR') startTilt(a, e.code); else queueAction(a);
 });
+addEventListener('keyup', e => { if (tiltHold && e.code === tiltHold.id) commitTilt(); });
+addEventListener('blur', () => { tiltHold = null; });
 function toLogical(e) { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H]; }
 let swipe = null, rep = null;
 cv.addEventListener('pointerdown', e => {
@@ -826,7 +912,9 @@ cv.addEventListener('pointerdown', e => {
   const [lx, ly] = toLogical(e);
   if (touchUI && ly >= BTN_Y - 8) {
     for (const b of BTN) if (lx >= b.x - 4 && lx <= b.x + BTN_W + 4) {
-      btnDown = b.a; queueAction(b.a);
+      btnDown = b.a;
+      if (b.a === 'tiltL' || b.a === 'tiltR') { if (tiltHold && previewing()) cancelTilt(); else { commitTilt(); startTilt(b.a, 'p' + e.pointerId); } }
+      else { if (previewing()) { cancelTilt(); break; } commitTilt(); queueAction(b.a); }
       if (b.a === 'left' || b.a === 'right') rep = { a: b.a, t: performance.now() + 220 };
       break;
     }
@@ -843,7 +931,13 @@ cv.addEventListener('pointermove', e => {
   if (!swipe.dropped && dy > 70 && Math.abs(dy) > Math.abs(dx) * 1.4 && performance.now() - swipe.t < 350) { swipe.dropped = true; queueAction('drop'); }
   if (!swipe.dropped && dy < -70 && Math.abs(dy) > Math.abs(dx) * 1.4 && performance.now() - swipe.t < 350) { swipe.dropped = true; }
 });
-function up() { swipe = null; btnDown = null; rep = null; }
+function up(e) {
+  if (tiltHold && e && tiltHold.id === 'p' + e.pointerId) {
+    const [lx, ly] = toLogical(e), b = BTN.find(q => q.a === tiltHold.a);
+    if (e.type === 'pointerup' && b && ly >= BTN_Y - 8 && lx >= b.x - 4 && lx <= b.x + BTN_W + 4) commitTilt(); else cancelTilt();
+  }
+  swipe = null; btnDown = null; rep = null;
+}
 addEventListener('pointerup', up); addEventListener('pointercancel', up);
 // ---------- main loop ----------
 let last = performance.now();
