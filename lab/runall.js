@@ -9,7 +9,7 @@ const path = require('path');
 const argv = process.argv.slice(2);
 const opt = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d; };
 const N = opt('n', '50'), PAR = +opt('par', 2), TAG = opt('tag', ''), ONLY = opt('only', '');
-const GAMES = ['kickback', 'loopback', 'tiltwell', 'spellsnake', 'pipwalk', 'mazewright', 'uptempo', 'compound', 'junkorbit', 'magsumo']
+const GAMES = ['kickback', 'loopback', 'tiltwell', 'spellsnake', 'pipwalk', 'mazewright', 'uptempo', 'compound', 'junkorbit', 'magsumo', 'emberdeep']
   .filter(g => !ONLY || ONLY.split(',').includes(g))
   .filter(g => fs.existsSync(path.join(__dirname, '..', 'games', g + '.html')));
 

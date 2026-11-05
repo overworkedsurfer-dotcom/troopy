@@ -1,7 +1,7 @@
 {
  "meta": {
-  "date": "2026-11-05T05:41:11.002Z",
-  "argv": "all --secs 25",
+  "date": "2026-11-05T05:55:24.297Z",
+  "argv": "emberdeep --secs 25",
   "secs": 25,
   "unmuted": false,
   "browser": "153.0.8010.12",
@@ -24,7 +24,7 @@
    0.272,
    -0.119,
    0.103,
-   -0.13,
+   -0.107,
    0.001,
    -0.095,
    -0.069,
@@ -42,9 +42,9 @@
    5.89,
    5.884
   ],
-  "detectorBiasMs": -0.026,
-  "detectorJitterMs": 0.298,
-  "chainDelayMs": 5.931,
+  "detectorBiasMs": -0.024,
+  "detectorJitterMs": 0.296,
+  "chainDelayMs": 5.928,
   "detected": {
    "dry": "9/9",
    "wet": "9/9"
@@ -917,6 +917,55 @@
     "bytes": 1115930
    },
    "png": "lab/results/audio/magsumo.png"
+  },
+  "emberdeep": {
+   "id": "emberdeep",
+   "captured": true,
+   "captureMode": "worklet",
+   "contexts": 1,
+   "sampleRate": 44100,
+   "durationS": 25.35,
+   "wallS": 25.8,
+   "peakDb": -6.25,
+   "rmsDb": -29.58,
+   "activeRmsDb": -29.58,
+   "clipPct": 0,
+   "over1Samples": 0,
+   "silencePct": 0,
+   "longestSilenceS": 0,
+   "longestSilenceAtS": 0,
+   "crestDb": 23.33,
+   "activeCrestDb": 23.33,
+   "dc": -0.000207,
+   "dcMax1s": 0.0008,
+   "events": 263,
+   "eventsPerMin": 622.4,
+   "nan": 0,
+   "inf": 0,
+   "nonFinite": false,
+   "holesFrames": 0,
+   "staleFrameReads": 6,
+   "resyncs": 0,
+   "teedConnections": 1,
+   "keyPresses": 70,
+   "play": {
+    "overs": 0,
+    "restarts": 0,
+    "causes": [],
+    "presses": 69,
+    "carelessAt": 13.8
+   },
+   "pageErrors": [],
+   "tapErrors": [],
+   "gameAudioErrors": null,
+   "flags": [],
+   "wav": {
+    "file": "lab/results/audio/emberdeep.wav",
+    "sr": 22050,
+    "seconds": 25.35,
+    "bytes": 1118106
+   },
+   "png": "lab/results/audio/emberdeep.png"
   }
  }
 }

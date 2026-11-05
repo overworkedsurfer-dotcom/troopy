@@ -17,7 +17,7 @@ const dsp = require('./audio/dsp');
 const drawAudioPlot = require('./audio/plot');
 const { POLICIES } = require('./audio/players');
 
-const ALL = ['kickback', 'loopback', 'tiltwell', 'spellsnake', 'pipwalk', 'mazewright', 'uptempo', 'compound', 'junkorbit', 'magsumo'];
+const ALL = ['kickback', 'loopback', 'tiltwell', 'spellsnake', 'pipwalk', 'mazewright', 'uptempo', 'compound', 'junkorbit', 'magsumo', 'emberdeep'];
 const OUT = path.join(ROOT, 'lab', 'results');
 const OUT_A = path.join(OUT, 'audio');
 const DELAY = 0.25;          // s of DelayNode pre-buffer in the tap (covers the AudioWorklet's async load)

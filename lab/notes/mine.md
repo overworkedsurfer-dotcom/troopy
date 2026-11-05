@@ -138,3 +138,9 @@ I loaded tiltwell, spellsnake, junkorbit and magsumo in real time and pressed on
 - I tried to PHASE through ghost #2 but it had moved on, so the dash went past it. That was my timing, not the game. The one-time PHASE hint needs a ghost within about 60 px while dash is ready, and I never got that close before dashing, so I didn't see it.
 - Still the most original idea in the set, and still "one more go". Gut score moves to **8.5**.
 - **Round-2 critic fix:** the critic died 50 ms after phasing through a ghost, killed by that same ghost. A phased ghost now can't kill you for about 250 ms after the dash ends (`g.safe`). Bot targets still hold: smart median 257 s, 0 cap hits.
+
+## EMBERDEEP (bonus roguelike, built on request)
+- Run 1, about 11 s of game time: cleared depth 1 with 77 points and reached the relic draft. I swatted a moth, got hit by the moth and then a Husk, flared, killed the Husk, and found the stairs.
+- **Felt good:** the twist landed physically. Two Husk hits took my light from 6 tiles to 3, and the room around me *went dark*. I didn't need to read a number to know I was in trouble. The flare bloom and shockwave are the best single "juice" moment in the arcade. The contextual tips teach the rules exactly when they first matter: "Moths are drawn to bright light… Bump to swat", "Bumping a wall waits one turn". So does the "DEPTH 1 SURVIVED — take one into the deeper dark" draft.
+- **Got bad:** I lost a few turns bumping walls in remembered darkness while hunting for the corridor to the visible stairs. That's the builder's own "boring part", and it's still there a little. The opening "DEPTH 1" banner lingers over the room for a couple of seconds.
+- Gut score: **8.0**. It's a real roguelike: readable intents, a resource that is also your vision, and greedy choices (braziers, flares). I'd play it again tonight.

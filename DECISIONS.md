@@ -151,3 +151,8 @@ Provisional final = 0.30 × bot (v2, round-1 data) + 0.35 × blind critic + 0.35
   - **UPTEMPO kick ~22 ms late, with a random per-session phase.** Causes: compressor look-ahead (~6 ms), a one-shot clock anchor, and an assumed rather than measured output latency. Fix: a zero-latency soft-clipper, plus continuous `getOutputTimestamp` mapping. Now median 0.0 ms, p95 ≤ 7 ms across 3 runs, and drift < 1.3 ms/min even under −1601 ppm clock skew.
   - **19 dB loudness spread across the arcade.** JUNK ORBIT and SPELLSNAKE were barely audible next to UPTEMPO. Fix: a per-game output trim targeting −30 dBFS active RMS, with peaks capped at −3 dBFS. Now ~2 dB spread, 0 clipping.
 - **The audio lab still can't tell whether a sound is *good*.** That stays a question for humans, and it's why the playtest asks "did the sound make it better?".
+
+## D15. EMBERDEEP, the bonus roguelike (user request mid-follow-up)
+- **Twist chosen:** HP = light radius, because it turns the roguelike's core resource into your field of view, so damage is *felt* without a number. Like PIPWALK it's turn-based, which the lab now shows keeps most of the bot ceiling under human limits.
+- **Not added to the ranked ten.** It hasn't had a blind critic pass, and adding it would mean comparing a game measured two ways against games measured three ways. It is fully lab-measured and listed as a bonus.
+- **Builder deviations I accepted:** a portrait grid (it fits phones); stairs always visible, which turns the doom clock into a greed decision rather than an exit search; Shades spawned by the rising dark give no score, which closed a farming loop that hit the 15-minute cap.

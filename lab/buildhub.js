@@ -27,7 +27,15 @@ for (const g of scores.games) {
   });
 }
 games.sort((a, b) => a.rank - b.rank);
-const DATA = { generated: summary.date, winner: scores.winner, games };
+// bonus game(s): built after the competition at the user's request; lab-measured, not ranked (no critic pass)
+const bonus = [];
+for (const b of (scores.bonus || [])) {
+  const s = summary.games[b.id];
+  const shotSrc = path.join(__dirname, 'shots', b.id, (b.shot || '2-mid') + '.png');
+  if (fs.existsSync(shotSrc)) fs.copyFileSync(shotSrc, path.join(ROOT, 'assets', 'shots', b.id + '.png'));
+  bonus.push({ ...b, signals: s ? s.signals : null });
+}
+const DATA = { generated: summary.date, winner: scores.winner, games, bonus, links: scores.links || {} };
 
 const html = `<!doctype html>
 <html lang="en">
@@ -35,7 +43,7 @@ const html = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>The Fun Lab</title>
-<meta name="description" content="10 small browser games, 3,000 seeded bot sessions, two blind critics, and one winner.">
+<meta name="description" content="10 small browser games and a bonus roguelike, 6,000+ seeded bot sessions, two blind critics, an audio lab, and one winner.">
 <style>
 :root{
   --bg:#0c0d14; --surface:#14151f; --surface-2:#1c1e2b; --line:#2a2c3b; --ink:#f0efec; --ink-2:#c3c2b7; --muted:#8d8b98;
@@ -88,6 +96,13 @@ h3.sec{font-size:22px;margin:38px 0 6px}
 .play{background:var(--ink);color:#111;text-decoration:none;font-weight:800;border-radius:9px;padding:7px 14px;font-size:14px}
 .play:hover{background:var(--accent)}
 /* charts */
+.extras{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:-14px 0 8px}
+.extra{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;text-decoration:none}
+.extra:hover{border-color:#44475c}
+.extra b{font-size:15px;color:var(--ink)}
+.extra span{font-size:13px;color:var(--ink-2)}
+.extra i{font-style:normal;font:600 11px/1 ui-monospace,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.tag{display:inline-block;font:700 11px/1 ui-monospace,Menlo,monospace;letter-spacing:.08em;padding:4px 7px;border-radius:6px;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}
 .legend{display:flex;gap:18px;flex-wrap:wrap;margin:0 0 12px;color:var(--ink-2);font-size:14px}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
 .charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
@@ -124,13 +139,17 @@ footer{color:var(--muted);font-size:13px;padding:40px 0 60px}
 <header class="top">
   <div class="kicker">The Fun Lab · ${new Date(summary.date).toISOString().slice(0, 10)}</div>
   <h1>Ten games. <span>One winner.</span></h1>
-  <p class="lede">I researched what makes games fun and turned it into a 15-point rubric. I built 10 one-file browser games and played them all myself. Random, heuristic and lookahead bots played 3,000 seeded sessions across two rounds, and two blind critics that never saw the code scored the games. Then I reworked the weakest games and measured everything again. Every tile below is playable with keyboard or touch.</p>
-  <nav class="nav"><a href="#games">Games</a><a href="#iterate">Before → after</a><a href="#charts">Score distributions</a><a href="https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/REPORT.md">Full report</a><a href="https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/research/FUN.md">The rubric (FUN.md)</a><a href="https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/DECISIONS.md">Decisions</a><a href="https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/lab/notes/critic.md">Critic notes</a></nav>
+  <p class="lede">I researched what makes games fun and turned it into a 15-point rubric. I built 10 one-file browser games and played them all myself. Over 6,000 seeded bot sessions were played by random, heuristic, lookahead, button-masher and human-limited bots. Two blind critics that never saw the code scored the games. I reworked the weakest games, measured everything again, and recorded each game's actual sound. Every tile below is playable with keyboard or touch.</p>
+  <nav class="nav"><a href="#games">Games</a><a href="#bonus">Bonus roguelike</a><a href="#iterate">Before → after</a><a href="#charts">Score distributions</a><a href="https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/REPORT.md">Full report</a><a href="https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/research/FUN.md">The rubric (FUN.md)</a><a href="https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/DECISIONS.md">Decisions</a><a href="https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/lab/notes/critic.md">Critic notes</a></nav>
 </header>
 <section id="winner"></section>
+<section class="extras" id="extras"></section>
 <h3 class="sec" id="games">The arcade, ranked</h3>
 <p class="sec-sub">Final = 0.30 × bot + 0.35 × blind critic + 0.35 × my own play (all out of 10). Your best scores are stored locally in your browser.</p>
 <div class="grid" id="grid"></div>
+<h3 class="sec" id="bonus">Bonus: a roguelike, on request</h3>
+<p class="sec-sub">Built after the competition, so it isn't ranked: no critic has played it. It went through the same lab (contract, determinism, 150 bot sessions, masher and human-model bots, audio).</p>
+<div class="grid" id="bonusgrid"></div>
 <h3 class="sec" id="iterate">Round 1 → Round 2: what iteration bought</h3>
 <p class="sec-sub">The final score for each game before and after Phase 4. Hollow dot: round 1 (first build). Filled dot: round 2 (after bug fixes, a hard rework of the bottom 4, and a polish pass on the top 3). The final score combines the bots, the blind critic and me.</p>
 <div class="chart wide" id="dumbbell"></div>
@@ -168,6 +187,31 @@ if (W) {
       el('a', { class: 'btn ghost', href: 'https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/REPORT.md', text: 'Read the receipts' }),
     ]),
   ]));
+}
+// follow-up extras strip
+{
+  const ex = document.getElementById('extras');
+  const items = [
+    ['games/pipwalk.html#daily', 'New', 'PIPWALK daily dungeon', "Today's seed is the same for everyone. Ogre, Lich and Mimic bosses, new faces and unlockable dice."],
+    ['games/emberdeep.html', 'Bonus', 'EMBERDEEP', 'A roguelike where your health is your light. Get hit and the world goes dark.'],
+  ];
+  if (D.links.playtest) items.push([D.links.playtest, 'For testers', 'Human playtest', 'Twelve minutes with sound on. Your runs and ratings calibrate the bots.']);
+  for (const [href, k, t, d] of items) ex.append(el('a', { class: 'extra', href }, [el('i', { text: k }), el('b', { text: t }), el('span', { text: d })]));
+}
+// bonus tiles
+{
+  const bg = document.getElementById('bonusgrid');
+  for (const g of D.bonus) {
+    const b = best(g.id), sg = g.signals || {};
+    bg.append(el('article', { class: 'tile' }, [
+      el('a', { class: 'thumb', href: 'games/' + g.id + '.html', 'aria-label': 'Play ' + g.name }, [el('img', { src: 'assets/shots/' + g.id + '.png', alt: g.name + ' screenshot', loading: 'lazy' }), el('span', { class: 'rank', text: 'BONUS' })]),
+      el('div', { class: 'info' }, [
+        el('div', { class: 'genre', text: g.genre }), el('h4', { text: g.name }), el('p', { text: g.pitch }),
+        el('div', { class: 'row' }, [el('span', { class: 'tag', text: 'skill gap ×' + fmt(sg.skillRatio || 0) }), el('span', { class: 'tag', text: 'smart ' + Math.round(sg.smartMedianLenS || 0) + ' s' }), el('span', { class: 'tag', text: 'mine ' + f1(g.mine) })]),
+        el('div', { class: 'row' }, [el('span', { class: 'hs' }, [document.createTextNode('your best '), el('b', { text: b ? String(b) : '—' })]), el('a', { class: 'play', href: 'games/' + g.id + '.html', text: 'Play ▶' })]),
+      ]),
+    ]));
+  }
 }
 // tiles
 const grid = document.getElementById('grid');

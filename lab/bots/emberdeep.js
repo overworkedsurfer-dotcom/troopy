@@ -157,7 +157,7 @@ module.exports = {
             v -= e.hp * (e.type === 'warden' ? 450 : 100);
           }
           v += (s.kills - s0.kills) * 300;
-          if (s.dim) v -= 500;
+          if (s.dim) v -= 150;
           return v;
         }
         const acts = G.getActions().filter(a => a !== 'none');

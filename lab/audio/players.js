@@ -201,4 +201,24 @@ P.magsumo = {
 // crosses the hit line). This entry only supplies the unlock key.
 P.uptempo = { unlock: 'Space', every: 0, read: null, step: null };
 
+
+// EMBERDEEP: walk toward the nearest visible enemy (bump = attack), else toward the stairs; flare when 2+ foes are adjacent.
+P.emberdeep = {
+  unlock: 'ArrowRight', every: 120,
+  read: () => { const s = __game.getState(); return { over: s.over, phase: s.phase, px: s.px, py: s.py, st: s.stairs, en: s.enemies.filter(e => e.visible).map(e => [e.x, e.y]), canFlare: s.canFlare }; },
+  step(st, ms, mem, cx) {
+    if (st.phase === 'pick' || st.phase === 'draft') return every(mem, 'pick', 600, ms) ? [['press', 'Digit1']] : [];
+    if (!every(mem, 'step', 260, ms)) return [];
+    const adj = (st.en || []).filter(e => Math.abs(e[0] - st.px) + Math.abs(e[1] - st.py) === 1).length;
+    if (adj >= 2 && st.canFlare && every(mem, 'flare', 1500, ms)) return [['press', 'Space']];
+    let t = null, bd = 1e9;
+    for (const e of st.en || []) { const d = Math.abs(e[0] - st.px) + Math.abs(e[1] - st.py); if (d < bd) { bd = d; t = e; } }
+    if (!t && st.st) t = st.st;
+    mem.n = (mem.n || 0) + 1;
+    if (!t || cx.careless || mem.n % 4 === 0) return [['press', ['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft'][(mem.n >> 2) % 4]]];
+    const dx = t[0] - st.px, dy = t[1] - st.py;
+    return [['press', Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'ArrowRight' : 'ArrowLeft') : (dy > 0 ? 'ArrowDown' : 'ArrowUp')]];
+  },
+};
+
 module.exports = { POLICIES: P };

@@ -7,7 +7,7 @@
  },
  "winner": {
   "id": "pipwalk",
-  "why": "Why it won: it is the only game every judge put at or near the top. The bots gave it the only perfect graded score (10.0: a ~98× skill gap, a smooth mastery slope, ~100 s runs, high seed variety). Two independent blind critics gave it 10/10 ('the deepest and best-explained game here', 'the game I'd most like to keep playing'), and I gave it 8.5. Every roll is both movement and weapon choice, and the game shows you exactly what each choice will do."
+  "why": "Why it won: it is the only game every judge put at or near the top. The bots gave it the only perfect graded score (10.0: a ~166× skill gap, a smooth mastery slope, ~2-minute runs, high seed variety). Two independent blind critics gave it 10/10 ('the deepest and best-explained game here', 'the game I'd most like to keep playing'), and I gave it 8.5. It also keeps 79% of its bot score under human reaction limits, while the twitch games keep 1–16%. Since winning it has added a daily dungeon, three bosses and unlockable dice."
  },
  "shots": {
   "kickback": "3-intense",
@@ -160,14 +160,14 @@
    "genre": "Arcade action",
    "aesthetic": "Challenge",
    "pitch": "An Asteroids-style arena with no engine: every shot kicks you backward, so your gun is your only thruster.",
-   "bot": 9.7,
+   "bot": 10,
    "critic": 8,
    "criticRound": 2,
    "criticR1": 8,
    "mine": 7,
    "mineR1": 5.5,
    "myRubric30": 23,
-   "final": 8.16,
+   "final": 8.25,
    "bot1": 9.5,
    "final1": 7.58,
    "bugFree": true,
@@ -242,5 +242,18 @@
    "rank1": 9,
    "shot": "2-mid"
   }
- ]
+ ],
+ "bonus": [
+  {
+   "id": "emberdeep",
+   "name": "EMBERDEEP",
+   "genre": "Roguelike (bonus)",
+   "pitch": "A turn-based dungeon crawl where your health is your light radius. Get hit and the world goes dark. FLARE spends light to burn and reveal, and braziers heal you but wake the room.",
+   "shot": "2-mid",
+   "mine": 8
+  }
+ ],
+ "links": {
+  "playtest": "https://claude.ai/artifact/Uht5bambvyZccpv3QptTm3"
+ }
 }

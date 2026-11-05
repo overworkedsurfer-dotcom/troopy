@@ -2,9 +2,9 @@
  "id": "emberdeep",
  "bot": "smart",
  "seed": 1,
- "lengthMs": 137000,
- "finalScore": 18188,
- "cause": "swallowed by the rising dark, 30 turns after it rose, on depth 10 (your light was 1 tile)",
+ "lengthMs": 109300,
+ "finalScore": 21708,
+ "cause": "swallowed by the rising dark, 44 turns after it rose, on depth 9 (your light was 1 tile)",
  "replayMatches": true,
  "shots": [
   {
@@ -16,22 +16,22 @@
   },
   {
    "name": "2-mid",
-   "t": 68500,
-   "score": 3658,
+   "t": 54700,
+   "score": 3907,
    "over": false,
    "file": "lab/shots/emberdeep/2-mid.png"
   },
   {
    "name": "3-intense",
-   "t": 135500,
-   "score": 18088,
+   "t": 107800,
+   "score": 21708,
    "over": false,
    "file": "lab/shots/emberdeep/3-intense.png"
   },
   {
    "name": "4-gameover",
-   "t": 137000,
-   "score": 18188,
+   "t": 109300,
+   "score": 21708,
    "over": true,
    "file": "lab/shots/emberdeep/4-gameover.png"
   }

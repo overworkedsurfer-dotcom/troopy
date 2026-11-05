@@ -1,18 +1,18 @@
 {
  "kickback": {
-  "score10": 9.7,
+  "score10": 10,
   "components": {
    "legible": 1,
    "skill": 1,
-   "slope": 0.75,
+   "slope": 1,
    "pacing": 1,
    "solved": 1,
    "variety": 1,
    "cadence": 1,
    "flail": 1
   },
-  "heuristicLadderPos": 0.23,
-  "flailRatio": 0.199,
+  "heuristicLadderPos": 0.33,
+  "flailRatio": 0.189,
   "bugFree": true
  },
  "loopback": {
@@ -75,8 +75,8 @@
    "cadence": 1,
    "flail": 1
   },
-  "heuristicLadderPos": 0.44,
-  "flailRatio": 0.212,
+  "heuristicLadderPos": 0.42,
+  "flailRatio": 0.192,
   "bugFree": true
  },
  "mazewright": {
@@ -157,6 +157,22 @@
   },
   "heuristicLadderPos": 0.87,
   "flailRatio": 0.168,
+  "bugFree": true
+ },
+ "emberdeep": {
+  "score10": 8.8,
+  "components": {
+   "legible": 1,
+   "skill": 1,
+   "slope": 0.11,
+   "pacing": 1,
+   "solved": 1,
+   "variety": 1,
+   "cadence": 1,
+   "flail": 1
+  },
+  "heuristicLadderPos": 0.97,
+  "flailRatio": 0.124,
   "bugFree": true
  }
 }

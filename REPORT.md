@@ -31,7 +31,7 @@ All 10 games are bug-free by the lab's definition: **0 console or page errors ac
 | 4 | **SPELLSNAKE** | Word | 9.3 | 8 ² | 9.0 | **8.7** | 8.9 (#3) |
 | 5 | **JUNK ORBIT** | Physics | 9.6 | 9 ² | 7.5 | **8.7** | 7.3 (#10) |
 | 6 | **COMPOUND** | Idle / incremental | 9.5 | 9 ² | 7.5 | **8.6** | 7.8 (#7) |
-| 7 | **KICKBACK** | Arcade action | 9.7 | 8 ² | 7.0 | **8.2** | 7.6 (#8) |
+| 7 | **KICKBACK** | Arcade action | 10.0 | 8 ² | 7.0 | **8.3** | 7.6 (#8) |
 | 8 | **TILTWELL** | Puzzle | 8.3 | 9 | 7.0 | **8.1** | 8.1 (#5) |
 | 9 | **UPTEMPO** | Rhythm | 7.7 | 9 | 7.0 | **7.9** | 7.9 (#6) |
 | 10 | **MAGSUMO** | 2-player local | 8.6 | 7 ² | 7.0 | **7.5** | 7.5 (#9) |
@@ -63,12 +63,12 @@ All 10 games are bug-free by the lab's definition: **0 console or page errors ac
 | SPELLSNAKE | 31k× → 27k× | 4.6 s → 6.9 s | 167 s → 169 s | 9.1 → 9.3 |
 | JUNK ORBIT | 5.5× → 63.0× | 55.9 s → 29.9 s | 171 s → 206 s | 9.3 → 9.6 |
 | COMPOUND | 18.3× → 56.6× | 57.5 s → 26.4 s | 213 s → 240 s | 9.1 → 9.5 |
-| KICKBACK | 138k× → 315× | 3.6 s → 19.3 s | 93 s → 102 s | 9.5 → 9.7 |
+| KICKBACK | 138k× → 315× | 3.6 s → 19.3 s | 93 s → 102 s | 9.5 → 10.0 |
 | TILTWELL | 220× → 220× | 6.5 s → 5.9 s | 157 s → 157 s | 8.3 → 8.3 |
 | UPTEMPO | 99k× → 17k× | 1.4 s → 2.7 s | 196 s → 196 s | 7.6 → 7.7 |
 | MAGSUMO | 459× → 154× | 18.6 s → 22.9 s | 167 s → 136 s | 9.1 → 8.6 |
 
-Sessions: 1500 in round 1 and 1500 in round 2. Console or session errors: 0 and 0. No bot in any session survived the 15-minute cap.
+Sessions: 1500 in round 1 and 1650 in round 2. Console or session errors: 0 and 0. No bot in any session survived the 15-minute cap.
 
 ### Does the winner survive other weightings?
 
@@ -76,7 +76,7 @@ Sessions: 1500 in round 1 and 1500 in round 2. Console or session errors: 0 and 
 |---|---|---|---|
 | Official (0.30 bot, 0.35 critic, 0.35 me) | PIPWALK (9.47) | LOOPBACK (8.88) | MAZEWRIGHT (8.85) |
 | Equal thirds | PIPWALK (9.50) | LOOPBACK (8.90) | MAZEWRIGHT (8.83) |
-| Bots only | PIPWALK (10.00) | KICKBACK (9.70) | JUNK ORBIT (9.60) |
+| Bots only | PIPWALK (10.00) | KICKBACK (10.00) | JUNK ORBIT (9.60) |
 | Blind critic only | PIPWALK (10.00) | MAZEWRIGHT (10.00) | LOOPBACK (9.00) |
 | My score only | SPELLSNAKE (9.00) | PIPWALK (8.50) | LOOPBACK (8.50) |
 | Humans only (critic + me) | PIPWALK (9.25) | MAZEWRIGHT (9.00) | LOOPBACK (8.75) |
@@ -190,7 +190,23 @@ I can't recruit testers. I built the instrument and fixed everything the machine
   - **Still open:** whether the games *sound good*. Only the playtest can answer that.
 
 ### Bonus: EMBERDEEP
-_In progress._
+You said you love a good roguelike, so I built one on the side: **EMBERDEEP** ([`games/emberdeep.html`](games/emberdeep.html)). It's a classic turn-based dungeon crawl with one twist: **your health is your light.**
+
+- **Light is life.** Your light radius is `1 + ceil(HP/2)` tiles, minus a depth penalty. Every hit shrinks the world you can see. **FLARE** spends 2 light to burn everything next to you, then lights a radius of 7 for 3 turns.
+- **Monsters that care about light:**
+  - Moths hunt you when you're bright.
+  - Husks are slow but tough, and take a "clean hit" bonus while they rest.
+  - Shades can only hurt you while you're dim.
+  - A Warden boss guards every 4th depth: move, move, CHARGE, SLAM, then it rages below 50%.
+- **Greed:** braziers fully rekindle you but wake the whole room. "The dark rises" on a per-floor clock, which turns every floor into "greed or go". Between floors you draft 1 of 3 relics that stack, and flare multi-kills chain into combos.
+- **Lab results** (50 seeds per bot, 0 errors, 0 cap hits, every death names its killer and your light level):
+  - Medians: random 14 (15 s), heuristic 17.4k (141 s), smart 22.0k (123 s). Skill gap ×1.6k, seed variety CV 0.69, graded bot score 8.8/10.
+  - The best masher scores 10, so there's no spam exploit. The human model keeps 16.8k, a reflex tax of about 0.76: like PIPWALK, it's a game where a human can reach the bot's ceiling.
+  - Weak spot: the heuristic bot sits 97% of the way up the ladder to the smart bot. Good rules of thumb already play it nearly as well as lookahead, so its "mastery slope" score is low.
+  - Most deep runs end as "swallowed by the rising dark … (your light was 1 tile)". The doom clock does its job, but a human should probably feel monsters more often than the clock.
+- **Audio** is trimmed to the arcade's loudness (−29.6 dBFS active, 0 clipping).
+- **My play** (8.0): two hits took my light from 6 tiles to 3, and the room *went dark*. That's the twist landing physically, with no number needed. The flare bloom is the best single juice moment in the arcade. Weakest moment: bumping walls in remembered darkness while hunting for the corridor to stairs I could already see.
+- **Not ranked:** no blind critic has played it yet, so it sits in the hub as a bonus. It's included in the playtest kit's lab tooling but not in the human study.
 
 ## What I'd build next (now)
 1. **Run the playtest with real people,** then compare the human "learning ×" and fun ratings with the human-model bot and both critics. That's the calibration this whole lab is missing.

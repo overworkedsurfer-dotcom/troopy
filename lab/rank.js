@@ -33,7 +33,7 @@ r1sorted.forEach((r, i) => { r.rank1 = i + 1; });
 const prev = fs.existsSync(path.join(__dirname, 'scores.json')) ? rd('scores.json') : {};
 const shots = prev.shots || {};
 for (const r of rows) r.shot = shots[r.id] || '2-mid';
-const out = { tag: TAG, weights: W, winner: { id: rows[0].id, why: (prev.winner && prev.winner.id === rows[0].id && prev.winner.why) || '' }, shots, games: rows };
+const out = { tag: TAG, weights: W, winner: { id: rows[0].id, why: (prev.winner && prev.winner.id === rows[0].id && prev.winner.why) || '' }, shots, games: rows, bonus: prev.bonus || [], links: prev.links || {} };
 fs.writeFileSync(path.join(__dirname, 'scores.json'), JSON.stringify(out, null, 1));
 console.log('rank game         bot   critic(rd) mine  final | r1: rank final');
 for (const r of rows) console.log(String(r.rank).padEnd(4), r.name.padEnd(12), String(r.bot).padEnd(5), (r.critic + '(' + r.criticRound + ')').padEnd(10), String(r.mine).padEnd(5), String(r.final).padEnd(5), '|', r.rank1, r.final1);
