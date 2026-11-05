@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Run the whole lab: check + 50-seed bot runs + screenshots for every game, then aggregate.
-// usage: node lab/runall.js [--n 50] [--par 2] [--tag v1] [--only id1,id2] [--skip-shots]
+// usage: node lab/runall.js [--n 50] [--par 2] [--tag v1] [--only id1,id2] [--skip-shots] [--aggregate-only]
 'use strict';
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -38,7 +38,7 @@ function sh(args, logFile) {
       console.log(`${id}: check=${c1 === 0 ? 'PASS' : 'FAIL'} run=${c2} shoot=${c3}  (${Math.round((Date.now() - t0) / 1000)}s)`);
     }
   }
-  await Promise.all(Array.from({ length: PAR }, worker));
+  if (!argv.includes('--aggregate-only')) await Promise.all(Array.from({ length: PAR }, worker));   // --aggregate-only: rebuild summary from existing per-game results
 
   // aggregate
   const summary = { date: new Date().toISOString(), tag: TAG, games: {} };

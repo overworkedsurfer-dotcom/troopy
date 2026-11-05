@@ -113,3 +113,18 @@ Provisional final = 0.30 × bot (v2, round-1 data) + 0.35 × blind critic + 0.35
 - **The 3 games with only bug fixes keep their round-1 critic score:** MAZEWRIGHT, TILTWELL, UPTEMPO. Their fixes removed specific friction the critic named, so their round-1 critic score is if anything conservative. I accept that asymmetry rather than spend another ~1 hour of critic time.
 - **Critic scores used in the final ranking:** round 2 where it exists, otherwise round 1. Both are reported.
 - **"Mine":** my post-change gut score (`gut2`) where I re-played, otherwise my round-1 gut. Both are reported.
+
+## D11. Final fixes after critic round 2, and the final measurement
+- **Small friction fixes from the fresh critic:**
+  - LOOPBACK: grace after phasing a ghost.
+  - COMPOUND: builds at the advertised ★ cell.
+  - SPELLSNAKE: says why a cast became a SPIT, and the suggestion tracks your progress.
+  - MAGSUMO: correct ring-out attribution.
+  - KICKBACK: POINT-BLANK and RIM SKIM taught in play.
+- These five games were re-measured (50 seeds × 3 bots) so the published v2 data matches the shipped builds exactly. `lab/runall.js --aggregate-only` rebuilds the 10-game summary.
+- The round-2 critic scored builds from *before* these fixes. I did not run a third critic pass: the fixes address that critic's own complaints, so its scores are, if anything, conservative.
+- PIPWALK's arrow keys navigating the upgrade draft was **not** changed. Arrows only move the highlight and never pick or roll, so moves queued at floor-clear are simply dropped, which is harmless.
+
+## D12. Choosing the winner
+- PIPWALK has the highest final score (0.30 bot + 0.35 critic + 0.35 me). It is also the only game that every judge places at or near the top: a graded bot score of 10.0, 10/10 from both independent blind critics, and 8.5 from me.
+- **Sensitivity check:** PIPWALK is 1st under 6 of 7 alternative weightings. The exception is "my score only", which favours SPELLSNAKE (9.0 vs 8.5). I didn't let my own favourite override two blind judges and the bots.
