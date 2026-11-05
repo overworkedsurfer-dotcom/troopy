@@ -1,0 +1,40 @@
+{
+ "id": "emberdeep",
+ "bot": "smart",
+ "seed": 1,
+ "lengthMs": 80600,
+ "finalScore": 4267,
+ "cause": "swallowed by the rising dark on depth 4 (your light was 1 tile)",
+ "replayMatches": true,
+ "shots": [
+  {
+   "name": "1-start",
+   "t": 1500,
+   "score": 14,
+   "over": false,
+   "file": "lab/shots/emberdeep/1-start.png"
+  },
+  {
+   "name": "2-mid",
+   "t": 40300,
+   "score": 580,
+   "over": false,
+   "file": "lab/shots/emberdeep/2-mid.png"
+  },
+  {
+   "name": "3-intense",
+   "t": 79100,
+   "score": 3787,
+   "over": false,
+   "file": "lab/shots/emberdeep/3-intense.png"
+  },
+  {
+   "name": "4-gameover",
+   "t": 80600,
+   "score": 4267,
+   "over": true,
+   "file": "lab/shots/emberdeep/4-gameover.png"
+  }
+ ],
+ "errors": []
+}
