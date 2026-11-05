@@ -2,9 +2,9 @@
  "id": "junkorbit",
  "bot": "smart",
  "seed": 1,
- "lengthMs": 79000,
- "finalScore": 13296,
- "cause": "comet #4 came back around (fired 1:14 ago)",
+ "lengthMs": 136450,
+ "finalScore": 19482,
+ "cause": "the wreck of a star you let burn out (it came back for you)",
  "replayMatches": true,
  "shots": [
   {
@@ -16,22 +16,22 @@
   },
   {
    "name": "2-mid",
-   "t": 39500,
-   "score": 6965,
+   "t": 68250,
+   "score": 7497,
    "over": false,
    "file": "lab/shots/junkorbit/2-mid.png"
   },
   {
    "name": "3-intense",
-   "t": 77500,
-   "score": 11408,
+   "t": 134950,
+   "score": 19219,
    "over": false,
    "file": "lab/shots/junkorbit/3-intense.png"
   },
   {
    "name": "4-gameover",
-   "t": 79000,
-   "score": 13296,
+   "t": 136450,
+   "score": 19482,
    "over": true,
    "file": "lab/shots/junkorbit/4-gameover.png"
   }

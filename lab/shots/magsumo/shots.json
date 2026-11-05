@@ -1,0 +1,40 @@
+{
+ "id": "magsumo",
+ "bot": "smart",
+ "seed": 1,
+ "lengthMs": 231600,
+ "finalScore": 13972,
+ "cause": "magnet-slammed off the ice by PERMAFROST (round 13)",
+ "replayMatches": true,
+ "shots": [
+  {
+   "name": "1-start",
+   "t": 1500,
+   "score": 0,
+   "over": false,
+   "file": "lab/shots/magsumo/1-start.png"
+  },
+  {
+   "name": "2-mid",
+   "t": 115800,
+   "score": 8260,
+   "over": false,
+   "file": "lab/shots/magsumo/2-mid.png"
+  },
+  {
+   "name": "3-intense",
+   "t": 230100,
+   "score": 13972,
+   "over": false,
+   "file": "lab/shots/magsumo/3-intense.png"
+  },
+  {
+   "name": "4-gameover",
+   "t": 231600,
+   "score": 13972,
+   "over": true,
+   "file": "lab/shots/magsumo/4-gameover.png"
+  }
+ ],
+ "errors": []
+}

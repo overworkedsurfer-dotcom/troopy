@@ -830,7 +830,7 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(100, now - last); last = now;
   if (!manual) { carry += dt; while (carry >= STEP) { step(); carry -= STEP; } }
-  if (FX.hintA < 1 && S.t > 2500) FX.hintA = Math.max(0, FX.hintA - dt / 2500);
+  if ((FX.hintA < 1 && S.t > 2500) || S.t > 25000) FX.hintA = Math.max(0, FX.hintA - dt / 2500);
   render();
   requestAnimationFrame(frame);
 }
