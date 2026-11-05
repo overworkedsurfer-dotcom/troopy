@@ -2,9 +2,9 @@
  "id": "mazewright",
  "bot": "smart",
  "seed": 1,
- "lengthMs": 294150,
- "finalScore": 381898,
- "cause": "a Swift broke the core on wave 18",
+ "lengthMs": 127950,
+ "finalScore": 88059,
+ "cause": "the Behemoth broke the core on wave 10 (4 leaks this wave)",
  "replayMatches": true,
  "shots": [
   {
@@ -16,22 +16,22 @@
   },
   {
    "name": "2-mid",
-   "t": 147150,
-   "score": 103624,
+   "t": 64050,
+   "score": 26241,
    "over": false,
    "file": "lab/shots/mazewright/2-mid.png"
   },
   {
    "name": "3-intense",
-   "t": 292650,
-   "score": 379502,
+   "t": 126450,
+   "score": 87325,
    "over": false,
    "file": "lab/shots/mazewright/3-intense.png"
   },
   {
    "name": "4-gameover",
-   "t": 294150,
-   "score": 381898,
+   "t": 127950,
+   "score": 88059,
    "over": true,
    "file": "lab/shots/mazewright/4-gameover.png"
   }

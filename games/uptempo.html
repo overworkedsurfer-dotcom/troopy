@@ -21,10 +21,11 @@ const STEP = 1000 / 60;
 const cv = document.getElementById('c'), cx = cv.getContext('2d');
 
 // ---------- layout ----------
-const CXM = 240, HOR = 252, HITY = 700, BW = 440, TW = 70, VB = 4, KP = 1.25;
+const CXM = 240, HOR = 252, HITY = 700, BW = 440, TW = 104, VB = 4, KP = 0.8;
 const VPY = HOR - (HITY - HOR) * TW / (BW - TW);     // vanishing point of the highway edges
 const LOCK = 90;                                      // per-lane re-trigger lockout (ms)
 const START_BPM = 90;
+const COUNTIN = 1.6;                                  // beats of count-in during which every input is swallowed (first note: beat 2)
 const COL = ['#ff3d8b', '#ffb627', '#2de2e6', '#a875ff'];
 const COLRGB = ['255,61,139', '255,182,39', '45,226,230', '168,117,255'];
 const KEYLBL = ['D', 'F', 'J', 'K'];
@@ -90,7 +91,7 @@ function newState(seed) {
     beat: 0, bpm: START_BPM, floor: 80, hp: 100, combo: 0, maxCombo: 0,
     notes: [], nid: 0, genBar: 0, lastLane: 1, laneLast: [-99, -99, -99, -99], stairL: 0, stairD: 1,
     lock: [-1e6, -1e6, -1e6, -1e6], q: [], freeze: 0, brakeCD: 0, gear: 9, groove: 0, key: 0, topBpm: START_BPM,
-    perfects: 0, goods: 0, misses: 0, ghosts: 0, brakes: 0, hurt: null,
+    perfects: 0, goods: 0, misses: 0, ghosts: 0, brakes: 0, hurt: null, gh: 0, pinT: -1e9, catchT: -1e9,
     surge: 0, surgeGoal: 0, surgeAt: 0, surgeAmt: 0, surgeWarned: false,
     prog: 0, root: 0, style: 3, title: '',
   };
@@ -98,7 +99,7 @@ function newState(seed) {
 function newFX() {
   return { parts: [], texts: [], rings: [], streaks: [], lane: [0, 0, 0, 0], laneMiss: [0, 0, 0, 0], shake: 0, flash: 0, flashCol: '255,255,255',
     zoom: 0, pulse: 0, barPulse: 0, needle: START_BPM, nv: 0, disp: 0, judge: null, multPop: 0, comboPop: 0, hintA: 1, dull: 0, brake: 0,
-    overT: 0, gauge: 0, floorPush: 0, newBest: false, hpDisp: 100, jolt: 0, gearTxt: null, surgeTxt: null, surgeWarn: 0 };
+    overT: 0, gauge: 0, floorPush: 0, newBest: false, hpDisp: 100, jolt: 0, gearTxt: null, surgeTxt: null, surgeWarn: 0, floorTxt: null };
 }
 function reset(seed) {
   S = newState(seed); FX = newFX(); carry = 0; audK = -1; if (AU) AU.ok = false;
@@ -325,10 +326,15 @@ function press(l, w, mpb) {
     if (!QUIET) { FX.lane[l] = Math.max(FX.lane[l], 0.4); floatText(laneX(l, 1), HITY - 70, 'early', '#99a', 13, -1); }
     return;
   }
-  S.lock[l] = S.t;                                     // ghost tap: costs combo + a little HP
+  S.lock[l] = S.t;                                     // ghost tap (pressed on a rest)
+  S.gh += 1;                                           // ghost heat: decays ~1.5/s, so only repeated ghosting (mashing) is punished
+  if (S.gh <= (S.t < 30000 ? 3 : 1.2)) {               // an isolated slip is forgiven (generously during the first 30 s)
+    if (!QUIET) { FX.lane[l] = Math.max(FX.lane[l], 0.35); floatText(laneX(l, 1), HITY - 50, 'slip', '#aab', 13, -1.2); sfx(() => noise(AC.currentTime, 0.04, 'lowpass', 900, 1, 0.12, AU.m)); }
+    return;
+  }
   S.ghosts++; const had = S.combo; S.combo = 0; S.hp -= 3; S.hurt = { k: 'ghost', bpm: S.bpm, t: S.t };
   if (!QUIET) {
-    FX.laneMiss[l] = 0.7; shake(3); floatText(laneX(l, 1), HITY - 50, 'ghost', '#f68', 15, -1.5);
+    FX.laneMiss[l] = 0.7; shake(3); floatText(laneX(l, 1), HITY - 50, 'ghost!', '#f68', 15, -1.5);
     if (had >= 12) judge('COMBO LOST', '#f68');
     sfx(() => { noise(AC.currentTime, 0.05, 'lowpass', 700, 1, 0.22, AU.m); osc(AC.currentTime, 'square', 98, 0.06, 0.05, AU.m); });
   }
@@ -405,6 +411,7 @@ function die() {
   S.cause = h.k === 'miss' ? 'missed a ' + h.kind + ' at ' + b + ' BPM — out of HP'
     : h.k === 'ghost' ? 'ghost-tapped your last HP away at ' + b + ' BPM'
     : 'HP drained out at ' + b + ' BPM — too few PERFECTs to heal';
+  if (S.t - S.pinT < 3000) S.cause += ' (the rising floor had your tempo pinned)';
   if (QUIET) return;
   shake(24); flash(0.8, '255,60,90'); FX.zoom = 0.08;
   for (let l = 0; l < 4; l++) burst(laneX(l, 1), HITY, 30, COL[l], 8, 0.12);
@@ -430,7 +437,17 @@ function step() {
   }
   S.surge += (S.surgeGoal - S.surge) * 0.02;
   S.floor = floorAt(S.t) + S.surge;
-  if (S.bpm < S.floor) { S.bpm = S.floor; if (!QUIET) FX.floorPush = Math.max(FX.floorPush, 0.5); }
+  if (S.bpm < S.floor) {
+    if (S.t - S.pinT > 4000 && S.t - S.catchT > 15000) {               // the floor has caught up with your tempo
+      S.catchT = S.t;
+      if (!QUIET) {
+        FX.floorTxt = { life: 1 }; FX.floorPush = 1; shake(14); flash(0.35, '255,40,70'); FX.zoom = 0.05; FX.gauge = 1;
+        burst(CXM, 150, 50, '#ff4d6d', 7, 0.05);
+        sfx(() => { const t = AC.currentTime; osc(t, 'sawtooth', 70, 0.7, 0.2, AU.m, 140); osc(t + 0.05, 'square', 440, 0.12, 0.06, AU.m); osc(t + 0.2, 'square', 330, 0.25, 0.06, AU.m); dullMusic(600, 0.3); });
+      }
+    }
+    S.bpm = S.floor; S.pinT = S.t; if (!QUIET) FX.floorPush = Math.max(FX.floorPush, 0.5);
+  }
   const mpb = 60000 / S.bpm;
   if (S.freeze > 0) S.freeze -= STEP;                   // brake hitstop: the song itself holds its breath
   else {
@@ -441,9 +458,11 @@ function step() {
   }
   while (S.genBar * 4 < S.beat + VB + 1.5) genBar();
   const w = wins(S.bpm);
+  if (S.gh > 0) S.gh = Math.max(0, S.gh - 1.5 * STEP / 1000);
   if (S.q.length) {
     const q = S.q; S.q = [];
-    for (const a of q) { if (a === 'brake') brake(); else press(+a[1], w, mpb); if (S.over) return; }
+    if (S.beat < COUNTIN) { if (!QUIET) for (const a of q) if (a !== 'brake') FX.lane[+a[1]] = Math.max(FX.lane[+a[1]], 0.5); }   // count-in: inputs only light up
+    else for (const a of q) { if (a === 'brake') brake(); else press(+a[1], w, mpb); if (S.over) return; }
   }
   let judged = false;
   for (const n of S.notes) {
@@ -469,6 +488,7 @@ function fxStep() {
   if (FX.judge) { FX.judge.life -= 0.022; FX.judge.age++; if (FX.judge.life <= 0) FX.judge = null; }
   if (FX.gearTxt) { FX.gearTxt.life -= 0.012; if (FX.gearTxt.life <= 0) FX.gearTxt = null; }
   if (FX.surgeTxt) { FX.surgeTxt.life -= 0.01; if (FX.surgeTxt.life <= 0) FX.surgeTxt = null; }
+  if (FX.floorTxt) { FX.floorTxt.life -= 0.007; if (FX.floorTxt.life <= 0) FX.floorTxt = null; }
   if (FX.surgeWarn > 0) FX.surgeWarn = S.surgeWarned && S.t < S.surgeAt ? 1 : FX.surgeWarn * 0.9;
   FX.nv += (S.bpm - FX.needle) * 0.09; FX.nv *= 0.72; FX.needle += FX.nv;           // needle spring
   const d = S.score - FX.disp; FX.disp = d > 0 ? FX.disp + Math.max(1, Math.ceil(d * 0.14)) : S.score;   // odometer roll-up
@@ -585,9 +605,9 @@ function drawNotes() {
     const n = list[i], d = n.b - S.beat;
     if (d > VB || d < -0.45) continue;
     const f = pf(d), y = yAt(f), lw = halfW(f) / 2, x = laneX(n.l, f);
-    const w = lw * 0.84, h = Math.max(3, 24 * f + 2);
-    const al = clamp((VB - d) * 1.4, 0, 1) * (d < 0 ? clamp(1 + d * 2.4, 0, 1) : 1);
-    cx.globalAlpha = al * 0.35; cx.fillStyle = COL[n.l]; rrect(x - w / 2 - 4 * f, y - h / 2 - 4 * f, w + 8 * f, h + 8 * f, 6 * f + 1); cx.fill();
+    const w = lw * 0.88, h = Math.max(6, 22 * f + 5);
+    const al = clamp((VB - d) * 3, 0, 1) * (d < 0 ? clamp(1 + d * 2.4, 0, 1) : 1);
+    cx.globalAlpha = al * (0.35 + 0.25 * (1 - f)); cx.fillStyle = COL[n.l]; rrect(x - w / 2 - 2 - 3 * f, y - h / 2 - 2 - 3 * f, w + 4 + 6 * f, h + 4 + 6 * f, 6 * f + 2); cx.fill();
     cx.globalAlpha = al; rrect(x - w / 2, y - h / 2, w, h, 5 * f + 1); cx.fill();
     cx.fillStyle = 'rgba(255,255,255,0.75)'; cx.fillRect(x - w / 2 + 3 * f, y - h / 2 + 2 * f, w - 6 * f, Math.max(1, 4 * f));
     if (n.k === 'j' && f > 0.2) { cx.fillStyle = 'rgba(20,0,30,0.55)'; cx.fillRect(x - w * 0.3, y - 1.5 * f, w * 0.6, 3 * f); }
@@ -661,7 +681,9 @@ function drawGauge() {
   cx.fillStyle = lv >= 5 ? '#ffe066' : lv >= 3 ? '#ff7ad1' : '#8fe9ff';
   cx.fillText(LVL_NAMES[lv], gx, gy + 20);
   cx.font = '11px ' + FONT; cx.fillStyle = 'rgba(255,110,130,' + (0.75 + FX.floorPush * 0.25) + ')';
-  cx.fillText('FLOOR ' + Math.round(S.floor), gx, gy + 35);
+  const pinned = S.t - S.pinT < 600 && !S.over;
+  if (pinned) { cx.font = 'bold 11px ' + FONT; cx.fillStyle = Math.floor(S.t / 250) % 2 ? '#ff4d6d' : '#ffb3c0'; cx.fillText('▲ FLOOR PINNED ▲', gx, gy + 35); }
+  else cx.fillText('FLOOR ' + Math.round(S.floor), gx, gy + 35);
   if (FX.gearTxt) {
     const t = FX.gearTxt, a = Math.min(1, t.life * 2), s = 1 + (1 - t.life) * 0.4;
     cx.save(); cx.globalAlpha = a; cx.translate(gx, 282); cx.scale(s, s);
@@ -673,6 +695,13 @@ function drawGauge() {
     cx.globalAlpha = FX.surgeWarn * (blink ? 1 : 0.55);
     cx.fillStyle = 'rgba(30,0,12,0.85)'; rrect(gx - 112, 227, 224, 20, 10); cx.fill();
     cx.font = 'bold 13px ' + FONT; cx.fillStyle = '#ff6b84'; cx.fillText('⚠ TEMPO SURGE INCOMING', gx, 242); cx.globalAlpha = 1;
+  }
+  if (FX.floorTxt && !S.over) {
+    const t = FX.floorTxt, s = 1 + Math.max(0, t.life - 0.85) * 3;
+    cx.save(); cx.globalAlpha = Math.min(1, t.life * 2.5); cx.translate(CXM, 318); cx.scale(s, s); cx.textAlign = 'center';
+    cx.fillStyle = 'rgba(30,0,10,0.82)'; rrect(-200, -32, 400, 62, 14); cx.fill(); cx.strokeStyle = '#ff4d6d'; cx.lineWidth = 2; cx.stroke();
+    cx.font = 'bold 26px ' + FONT; cx.fillStyle = '#ff4d6d'; cx.fillText('THE FLOOR CAUGHT YOU', 0, -4);
+    cx.font = 'bold 13px ' + FONT; cx.fillStyle = '#ffd1dc'; cx.fillText('it now drags your tempo up · braking can’t go below it', 0, 18); cx.restore();
   }
   if (FX.surgeTxt) {
     const t = FX.surgeTxt, s = 1 + (1 - t.life) * 0.25;
@@ -697,9 +726,9 @@ function drawHUD() {
   if (mult < 8) { const p = (S.combo % 12) / 12; cx.fillStyle = 'rgba(255,255,255,0.15)'; cx.fillRect(62, 96, 72, 4); cx.fillStyle = '#ff7ad1'; cx.fillRect(62, 96, 72 * p, 4); }
   // best (right)
   cx.textAlign = 'right'; cx.fillStyle = 'rgba(255,255,255,0.6)'; cx.font = 'bold 12px ' + FONT; cx.fillText('BEST', W - 16, 26);
-  cx.fillStyle = '#ffe066'; cx.font = 'bold 22px ' + MONO; cx.fillText(String(Math.max(best, S.score)), W - 16, 52);
+  cx.fillStyle = '#ffe066'; cx.font = 'bold 22px ' + MONO; cx.fillText(String(Math.max(best, Math.floor(FX.disp))), W - 16, 52);
   // brake button (right)
-  const canB = S.brakeCD <= 0 && S.bpm > S.floor + 0.5 && !S.over;
+  const canB = canBrake() && !S.over;
   const bx = W - 112, by = 70, bw = 96, bh = 40;
   cx.fillStyle = canB ? 'rgba(90,200,255,' + (0.16 + FX.brake * 0.5) + ')' : 'rgba(255,255,255,0.05)';
   rrect(bx, by, bw, bh, 10); cx.fill(); cx.strokeStyle = canB ? '#7fe3ff' : 'rgba(255,255,255,0.2)'; cx.lineWidth = 2; cx.stroke();
@@ -735,11 +764,10 @@ function render() {
     cx.globalAlpha = 0.22 + FX.comboPop * 0.2; cx.fillStyle = '#fff'; cx.font = 'bold 64px ' + MONO; cx.fillText(String(S.combo), 0, 0);
     cx.globalAlpha = 0.35; cx.font = 'bold 14px ' + FONT; cx.fillText('COMBO', 0, 24); cx.restore();
   }
-  if (S.t < 7000 && !S.over && !(waiting && !manual)) {
-    const a = Math.min(1, (7000 - S.t) / 1500) * Math.min(1, S.t / 300 + 0.3);
-    cx.globalAlpha = a; cx.textAlign = 'center'; cx.fillStyle = '#ffd1f0'; cx.font = 'bold 13px ' + FONT;
-    cx.fillText('NOW PLAYING', CXM, 318); cx.font = 'bold 26px ' + FONT; cx.fillStyle = '#fff'; cx.fillText('“' + S.title + '”', CXM, 348);
-    cx.font = 'bold 12px ' + FONT; cx.fillStyle = '#c9a8ff'; cx.fillText(STYLES[S.style], CXM, 368); cx.globalAlpha = 1;
+  if (S.beat < 2 && !S.over && !(waiting && !manual)) {
+    const p = 1 - (S.beat % 1);
+    cx.globalAlpha = 0.6 + 0.4 * p; cx.textAlign = 'center'; cx.font = 'bold 30px ' + FONT; cx.fillStyle = '#fff';
+    cx.fillText(S.beat < 1 ? 'GET READY' : 'HERE IT COMES', CXM, 560); cx.globalAlpha = 1;
   }
   // rings + particles
   for (const r of FX.rings) { cx.globalAlpha = r.life; cx.strokeStyle = r.col; cx.lineWidth = r.w * r.life; cx.beginPath(); cx.ellipse(r.x, r.y, r.r, r.r * 0.45, 0, 0, 6.283); cx.stroke(); }
@@ -769,6 +797,14 @@ function render() {
   }
   drawGauge();
   drawHUD();
+  if (S.t < 6500 && !S.over && !(waiting && !manual)) {          // song title, above the highway (never over the notes)
+    const a = Math.min(1, (6500 - S.t) / 1200);
+    const txt = '♪ “' + S.title + '” · ' + STYLES[S.style];
+    cx.globalAlpha = a; cx.font = 'bold 13px ' + FONT; cx.textAlign = 'center';
+    const tw = cx.measureText(txt).width + 24;
+    cx.fillStyle = 'rgba(20,4,36,0.88)'; rrect(CXM - tw / 2, 229, tw, 20, 10); cx.fill();
+    cx.fillStyle = '#ffd1f0'; cx.fillText(txt, CXM, 243); cx.globalAlpha = 1;
+  }
   if (FX.flash > 0.02) { cx.fillStyle = 'rgba(' + FX.flashCol + ',' + FX.flash * 0.5 + ')'; cx.fillRect(0, 0, W, H); }
   // hint
   if (FX.hintA > 0.01 && !S.over) {
@@ -861,7 +897,8 @@ function frame(now) {
 }
 
 // ---------- bot API ----------
-function actions() { if (S.over) return ['none']; const a = ['none', 'l0', 'l1', 'l2', 'l3']; if (S.brakeCD <= 0 && S.bpm > S.floor + 0.5) a.push('brake'); return a; }
+function canBrake() { return S.brakeCD <= 0 && S.bpm > S.floor + 0.5 && S.beat >= COUNTIN; }
+function actions() { if (S.over) return ['none']; const a = ['none', 'l0', 'l1', 'l2', 'l3']; if (canBrake()) a.push('brake'); return a; }
 window.__game = {
   reset(seed) { manual = true; waiting = false; reset(seed); },
   getState() {
@@ -869,7 +906,7 @@ window.__game = {
     return {
       t: S.t, score: S.score, over: S.over, cause: S.cause, difficulty: S.bpm,
       bpm: S.bpm, floor: S.floor, hp: S.hp, combo: S.combo, mult: multOf(S.combo), beat: S.beat, mpb, freeze: S.freeze,
-      brakeCD: S.brakeCD, canBrake: S.brakeCD <= 0 && S.bpm > S.floor + 0.5, level: levelOf(S.bpm), step: STEP, lockMs: LOCK,
+      brakeCD: S.brakeCD, canBrake: canBrake(), level: levelOf(S.bpm), step: STEP, lockMs: LOCK,
       win: { perfect: w.p, early: w.early, late: w.late, grace: w.grace },
       locks: S.lock.map(x => Math.max(0, LOCK - (S.t - x))),
       style: S.style, surgeIn: S.surgeAt - S.t, surgeAmt: S.surgeWarned ? S.surgeAmt : 0, surgePending: S.surgeGoal - S.surge,

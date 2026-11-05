@@ -1,5 +1,6 @@
 // Bots for games/mazewright.html. decide() functions are stringified and run inside the page.
-// Actions: build/wave = none/up/down/left/right/place (cursor moves are one-shot; place = wall / undo / start on core / pulse in wave)
+// Actions: build/wave = none/up/down/left/right/place (cursor moves are one-shot; place = wall / undo / pulse in wave;
+//          on the core, two 'place' within 600 ms start the wave)
 //          pick = none/left/right/place
 module.exports = {
   bots: {
@@ -116,7 +117,7 @@ module.exports = {
           while (todo.length && guard++ < 300 && st.phase === 'build') {
             const a = nav(st, todo[0]);
             G.input(a); G.tick(a === 'place' ? 120 : 0);
-            if (a === 'place') todo.shift();
+            if (a === 'place' && todo[0] !== CI) todo.shift();     // GO needs a second 'place' on the core (loop exits when the wave starts)
             st = G.getState();
           }
           let t = 0;

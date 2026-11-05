@@ -21,6 +21,7 @@ const STEP = 1000 / 60;
 const GN = 9, CELL = 48, BX = 24, BY = 138;
 const CX = 4, CY = 4, CI = CX + CY * GN;                  // core cell
 const BUILD_MS = 30000;                                    // build phase auto-starts after this
+const GO_MS = 600;                                         // second Space/tap on the core within this starts the wave
 const GATES = [[4, 0], [8, 4], [4, 8], [0, 4]];           // N E S W
 const GDIR = [[0, 1], [-1, 0], [0, -1], [1, 0]];          // inward direction per gate
 const GNAME = ['NORTH', 'EAST', 'SOUTH', 'WEST'];
@@ -136,7 +137,7 @@ function newState(seed) {
     dist: null, lenF: [1, 1, 1, 1],
     tur: { dmg: 5, rate: 2.5, range: 3.5, pierce: 0, splash: 0, slow: 0, crit: 0, twin: 0, cd: 0, ang: -Math.PI / 2, glass: 0, bounty: 0 },
     pulse: 1, pulseMax: 1, pulseMul: 6, en: [], nid: 1, spawnQ: [], waveT: 0, bank: 1, combo: 0, comboT: 0,
-    wk: 0, wl: 0, ws: 0, wsBank: 1, lastLeak: '', lock: 0, freeze: 0, buf: null, cards: null, sel: 0, cardT: 0, tallyT: 0, perfect: 0,
+    wk: 0, wl: 0, ws: 0, wsBank: 1, lastLeak: '', lock: 0, freeze: 0, buf: null, bufCell: null, goT: 0, cards: null, sel: 0, cardT: 0, tallyT: 0, perfect: 0,
     kills: 0, leaks: 0, bestCombo: 0, placedT: {}, flyWave: false, buildT: 0,
   };
 }
@@ -190,7 +191,7 @@ function chooseGates(w) {
   for (let i = 3; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = all[i]; all[i] = all[j]; all[j] = t; }
   return all.slice(0, n).sort();
 }
-function hpMul(w) { return Math.pow(1.2, w - 1) * (w > 10 ? Math.pow(1.12, w - 10) : 1); }   // steeper after wave 10: the hard ceiling
+function hpMul(w) { return Math.pow(1.2, w - 1) * Math.pow(1.12, Math.max(0, w - 10)) * Math.pow(1.15, Math.max(0, w - 14)); }   // steeper after waves 10 and 14: the hard ceiling
 function spdMul(w) { return Math.min(1.6, 1 + 0.035 * (w - 1)); }
 
 // ---------- waves ----------
@@ -215,7 +216,7 @@ function planWave() {
   if (w >= 3) pool.push(['swift', 1.8]);
   if (w >= 7) pool.push(['flyer', 1.2 + w * 0.12]);
   S.spawnQ = [];
-  for (let k = 0; k < n; k++) S.spawnQ.push({ type: wpick(pool), gate: S.gates[Math.floor(rnd() * S.gates.length)], at: k * iv });
+  for (let k = 0; k < n; k++) S.spawnQ.push({ type: wpick(pool), gate: S.gates[Math.floor(rnd() * S.gates.length)], at: Math.max(0, Math.round(k * iv + (rnd() - 0.5) * iv * 0.3)) });
   if (w % 5 === 0) { const nb = 1 + Math.floor(w / 15); for (let b = 0; b < nb; b++) S.spawnQ.push({ type: 'boss', gate: S.gates[b % S.gates.length], at: n * iv * 0.5 + b * 900 }); S.spawnQ.sort((a, b) => a.at - b.at); }
 }
 function spawn(q) {
@@ -408,7 +409,7 @@ function nextWave() {
 }
 
 // ---------- player actions ----------
-function act(a) {
+function act(a, cell) {
   const P = S.phase;
   if (P === 'build' || P === 'wave') {
     if (a === 'up' || a === 'down' || a === 'left' || a === 'right') {
@@ -419,13 +420,17 @@ function act(a) {
     }
     if (a === 'place') {
       if (P === 'wave') { if (S.pulse > 0 && S.en.length) doPulse(); return; }
-      const i = S.cur[0] + S.cur[1] * GN;
-      if (i === CI) { startWave(); if (!QUIET) FX.acts += 3; return; }
-      if (S.walls[i] === 2) { S.walls[i] = 0; S.wallsLeft++; S.dist = computeDist(S.walls); if (!QUIET) { SND.undo(); const [x, y] = cc(S.cur[0], S.cur[1]); burst(x, y, 10, C.wallT, 2.5); } return; }
+      const pc = cell || S.cur, i = pc[0] + pc[1] * GN;
+      if (i === CI) {
+        if (S.goT > 0) { S.goT = 0; startWave(); if (!QUIET) FX.acts += 3; }
+        else { S.goT = GO_MS; if (!QUIET) { const [x, y] = cc(CX, CY); ftext(x, y - 46, isTouch ? 'tap again to GO' : 'press again to GO', C.gold, 15, { dec: 0.03 }); SND.sel(); } }
+        return;
+      }
+      if (S.walls[i] === 2) { S.walls[i] = 0; S.wallsLeft++; S.dist = computeDist(S.walls); if (!QUIET) { SND.undo(); const [x, y] = cc(pc[0], pc[1]); burst(x, y, 10, C.wallT, 2.5); } return; }
       if (S.wallsLeft > 0 && canPlace(i)) {
         S.walls[i] = 2; S.wallsLeft--; S.dist = computeDist(S.walls); S.placedT[i] = S.t; S.lock = 110;
-        if (!QUIET) { SND.place(); const [x, y] = cc(S.cur[0], S.cur[1]); burst(x, y + 10, 14, C.wallT, 3, { g: 0.2 }); shake(3); FX.squash[i] = 1; FX.acts++; }
-      } else if (!QUIET) { SND.bad(); const [x, y] = cc(S.cur[0], S.cur[1]); ftext(x, y - 20, S.wallsLeft > 0 ? (S.walls[i] || isGate(i) ? 'no room' : 'blocks the path!') : 'no walls left', C.red, 14); shake(2); }
+        if (!QUIET) { SND.place(); const [x, y] = cc(pc[0], pc[1]); burst(x, y + 10, 14, C.wallT, 3, { g: 0.2 }); shake(3); FX.squash[i] = 1; FX.acts++; }
+      } else if (!QUIET) { SND.bad(); const [x, y] = cc(pc[0], pc[1]); ftext(x, y - 20, S.wallsLeft > 0 ? (S.walls[i] || isGate(i) ? 'no room' : 'blocks the path!') : 'no walls left', C.red, 14); shake(2); }
     }
     return;
   }
@@ -444,12 +449,12 @@ function step() {
   S.t += STEP;
   if (S.lock > 0) { S.lock -= STEP; if (S.lock < 0) S.lock = 0; }
   if (S.phase === 'tally') {
-    if (S.lock <= 0) { S.phase = 'pick'; genCards(); S.lock = 300; }
+    if (S.lock <= 0) { S.phase = 'pick'; genCards(); S.lock = 250; }
     return;
   }
-  if (S.buf && S.lock <= 0) { const a = S.buf; S.buf = null; act(a); }
+  if (S.buf && S.lock <= 0) { const a = S.buf, c = S.bufCell; S.buf = null; S.bufCell = null; act(a, c); }
   if (S.phase === 'build') {
-    S.buildT += STEP;
+    S.buildT += STEP; if (S.goT > 0) S.goT -= STEP;
     if (S.buildT >= BUILD_MS) { if (!QUIET) { const [x, y] = cc(CX, CY); ftext(x, y - 60, 'AUTO-START', C.gold, 18); } startWave(); }
   }
   if (S.phase === 'wave') {
@@ -521,7 +526,21 @@ function makeBG() {
   for (let i = 0; i <= GN; i++) { g.beginPath(); g.moveTo(i * CELL + 0.5, 0); g.lineTo(i * CELL + 0.5, GN * CELL); g.moveTo(0, i * CELL + 0.5); g.lineTo(GN * CELL, i * CELL + 0.5); g.stroke(); }
   for (let y = 0; y < GN; y++) for (let x = 0; x < GN; x++) { g.fillStyle = 'rgba(120,190,255,0.12)'; g.fillRect(x * CELL + CELL / 2 - 1, y * CELL + CELL / 2 - 1, 2, 2); }
 }
-let validCache = { key: '', ok: null };
+let validCache = { key: '', ok: null }, deltaCache = { key: '', d: null };
+function deltaMap(paths, vm) {
+  const key = S.walls.join('') + '|' + S.gates.join(',');
+  if (deltaCache.key !== key) {
+    const d = new Array(GN * GN).fill(0); let base = 0; for (const gi of S.gates) base += paths[gi].length;
+    for (let i = 0; i < GN * GN; i++) {
+      if (!vm[i] || S.walls[i]) continue;
+      S.walls[i] = 1; const d2 = computeDist(S.walls); S.walls[i] = 0;
+      let L = 0; for (const gi of S.gates) L += tracePath(d2, gi).length;
+      d[i] = L - base;
+    }
+    deltaCache = { key, d };
+  }
+  return deltaCache.d;
+}
 function validMap() {
   const key = S.walls.join('');
   if (validCache.key !== key) {
@@ -625,10 +644,15 @@ function drawCore(t) {
   if (S.phase === 'build') {
     const on = S.cur[0] === CX && S.cur[1] === CY;
     rr(x - 30, y + 24, 60, 18, 9); cx.fillStyle = on ? C.gold : 'rgba(255,209,102,0.25)'; cx.fill();
-    txt(on ? 'GO! ⏎' : 'START', x, y + 33.5, F(11, '900'), on ? '#3a2600' : C.gold);
+    const armed = S.goT > 0;
+    if (armed) { rr(x - 34, y + 24, 68, 18, 9); cx.fillStyle = C.gold; cx.fill(); }
+    txt(armed ? (isTouch ? 'TAP = GO' : 'AGAIN = GO') : on ? (isTouch ? 'TAP ×2' : 'SPACE ×2') : 'ENTER: GO', x, y + 33.5, F(armed ? 11 : 10, '900'), on || armed ? '#3a2600' : C.gold);
+    if (armed) { cx.strokeStyle = C.gold; cx.lineWidth = 3; cx.beginPath(); cx.arc(x, y, 30, -Math.PI / 2, -Math.PI / 2 + 6.283 * S.goT / GO_MS); cx.stroke(); }
     const left = (BUILD_MS - S.buildT) / 1000;
     if (left < 10) { cx.strokeStyle = C.gold; cx.lineWidth = 3; cx.beginPath(); cx.arc(x, y, 31, -Math.PI / 2, -Math.PI / 2 + 6.283 * left / 10); cx.stroke(); txt('auto ' + Math.ceil(left), x, y - 36, F(11, '900'), C.gold, 'center', 3); }
   } else if (S.phase === 'wave' && S.pulse > 0) {
+    cx.save(); cx.shadowColor = C.core; cx.shadowBlur = 16 + 10 * pul; cx.strokeStyle = 'rgba(255,95,162,' + (0.55 + 0.4 * pul) + ')'; cx.lineWidth = 3;
+    cx.beginPath(); cx.arc(x, y, 31 + 3 * pul, 0, 6.283); cx.stroke(); cx.restore();
     rr(x - 30, y + 24, 60, 18, 9); cx.fillStyle = 'rgba(255,79,139,' + (0.35 + 0.3 * pul) + ')'; cx.fill();
     txt('PULSE ×' + S.pulse, x, y + 33.5, F(11, '900'), '#fff');
   }
@@ -641,11 +665,15 @@ function drawGates(t, paths) {
     cx.translate(ox, oy); cx.rotate(Math.atan2(d[1], d[0]));
     cx.fillStyle = active ? 'rgba(77,227,255,0.9)' : 'rgba(120,140,200,0.25)';
     rr(-4, -CELL * 0.42, 8, CELL * 0.84, 4); cx.fill();
+    cx.fillStyle = active ? '#dff9ff' : 'rgba(150,170,230,0.45)';
+    cx.beginPath(); cx.moveTo(3, -7); cx.lineTo(11, 0); cx.lineTo(3, 7); cx.closePath(); cx.fill();      // notch: points into the maze
     if (active) {
       const p = (t / 500) % 1;
-      cx.globalAlpha = 1 - p; cx.fillStyle = C.cyan; cx.beginPath(); cx.moveTo(8 + p * 12, -8); cx.lineTo(18 + p * 12, 0); cx.lineTo(8 + p * 12, 8); cx.closePath(); cx.fill(); cx.globalAlpha = 1;
+      cx.globalAlpha = 1 - p; cx.fillStyle = C.cyan; cx.beginPath(); cx.moveTo(12 + p * 12, -8); cx.lineTo(22 + p * 12, 0); cx.lineTo(12 + p * 12, 8); cx.closePath(); cx.fill(); cx.globalAlpha = 1;
     }
     cx.restore();
+    const gl = gi === 0 ? [x - 17, y - 14] : gi === 2 ? [x - 17, y + 14] : gi === 1 ? [x + 6, y - 16] : [x - 6, y - 16];
+    txt('GATE', gl[0], gl[1], F(8, '900'), active ? C.cyan : 'rgba(150,170,230,0.55)', 'center', 2);
     if (active && (S.phase === 'build' || S.phase === 'wave')) {
       const len = S.phase === 'build' ? (paths[gi] ? paths[gi].length - 1 : 0) : S.dist[gx + gy * GN];
       const lf = Math.round(len / 4 * 10) / 10;
@@ -683,6 +711,15 @@ function drawScene(t) {
   }
   // paths
   for (const gi of S.gates) { drawPath(paths[gi], 'rgba(77,227,255,0.18)', 12, null, t); drawPath(paths[gi], C.path, 3, [3, 9], t, build ? 0.95 : 0.55); }
+  // cells where a wall would lengthen this wave's paths (subtle gold tint)
+  if (build && S.wallsLeft > 0) {
+    const dm = deltaMap(paths, vm);
+    for (let i = 0; i < GN * GN; i++) if (dm[i] > 0) {
+      const X = BX + (i % GN) * CELL, Y = BY + ((i / GN) | 0) * CELL, a = Math.min(0.2, 0.07 + dm[i] * 0.02);
+      cx.fillStyle = 'rgba(255,209,102,' + a + ')'; cx.fillRect(X + 4, Y + 4, CELL - 8, CELL - 8);
+      cx.fillStyle = 'rgba(255,209,102,0.55)'; cx.beginPath(); cx.arc(X + CELL - 9, Y + 9, 2.5, 0, 6.283); cx.fill();
+    }
+  }
   // ghost path for the cursor cell
   if (build) {
     const i = S.cur[0] + S.cur[1] * GN;
@@ -691,7 +728,9 @@ function drawScene(t) {
       let delta = 0;
       for (const gi of S.gates) { const p2 = tracePath(d2, gi); delta += (p2.length - paths[gi].length); drawPath(p2, 'rgba(255,255,255,0.85)', 2, [6, 6], -t, 0.8); }
       const [x, y] = cc(S.cur[0], S.cur[1]);
-      if (delta) txt((delta > 0 ? '+' : '') + delta, x + 18, y - 20, F(13, '900'), delta > 0 ? C.gold : C.dim, 'center', 3);
+      const lbl = delta > 0 ? '+' + delta + ' path' : delta < 0 ? String(delta) : '+0 no effect', fnt = F(delta ? 13 : 11, '900');
+      cx.font = fnt; const hw = cx.measureText(lbl).width / 2 + 4;
+      txt(lbl, Math.max(BX + hw, Math.min(BX + GN * CELL - hw, x + 14)), y - 21, fnt, delta > 0 ? C.gold : '#c9d2f0', 'center', 3);
     }
   }
   drawGates(t, paths);
@@ -744,7 +783,7 @@ function drawHUD(t) {
   const g = cx.createLinearGradient(0, 0, 0, 124); g.addColorStop(0, '#121b44'); g.addColorStop(1, '#0b1130');
   cx.fillStyle = g; cx.fillRect(0, 0, W, 124);
   txt('SCORE', 18, 18, F(12), C.dim, 'left'); txt(String(Math.round(FX.disp)), 18, 46, F(32, '900'), C.txt, 'left');
-  txt('BEST', W - 18, 18, F(12), C.dim, 'right'); txt(String(Math.max(best, S.score)), W - 18, 46, F(24, '900'), C.gold, 'right');
+  txt('BEST', W - 18, 18, F(12), C.dim, 'right'); txt(String(Math.max(best, Math.round(FX.disp))), W - 18, 46, F(24, '900'), C.gold, 'right');
   txt('WAVE', W / 2, 18, F(12), C.dim); txt(String(S.wave), W / 2, 46, F(30, '900'), S.wave % 5 === 0 ? C.red : C.txt);
   // core hp
   const y = 92, fr = S.coreHp / S.coreMax;
@@ -797,12 +836,12 @@ function drawPanel(t) {
   // hint
   if (FX.hintA > 0.01 && !S.over) {
     cx.globalAlpha = 0.5 + 0.5 * FX.hintA;
-    const h = isTouch ? 'Tap cells to build walls · tap the core to start' : 'Arrows move · Space places a wall · Space on the core: GO';
+    const h = isTouch ? 'Tap cells to build walls · double-tap the core to start' : 'Arrows move · Space places a wall · Enter: GO';
     txt(h, W / 2, H - 50, F(14, '800'), C.txt);
     txt('Longer path = more laser time and a bigger ×path bonus', W / 2, H - 28, F(12, '700'), C.dim);
     cx.globalAlpha = 1;
   } else if (!S.over) {
-    const bh = isTouch ? 'tap: place / undo a wall · tap the core: GO' : 'Space: place / undo · Space on the core (or Enter): GO · Z: undo';
+    const bh = isTouch ? 'tap: place / undo a wall · tap the core twice: GO' : 'Space: place / undo · Enter (or Space twice on the core): GO · Z: undo';
     txt(S.phase === 'wave' && S.pulse > 0 ? (isTouch ? 'tap the core to PULSE' : 'Space: PULSE (hits everything in range)') : S.phase === 'build' ? bh : 'MAZEWRIGHT', W / 2, H - 36, F(S.phase === 'build' ? 12 : 13, '900'), S.phase === 'wave' && S.pulse > 0 ? C.core : S.phase === 'build' ? C.dim : 'rgba(142,160,214,0.35)');
   }
 }
@@ -937,7 +976,8 @@ function actions() {
 }
 function input(a) {
   if (!actions().includes(a) || a === 'none') return;
-  if (S.lock > 0 || S.freeze > 0) { S.buf = a; return; }
+  if (a !== 'place') { act(a); return; }                    // cursor / selection moves are never locked out
+  if (S.lock > 0 || S.freeze > 0) { S.buf = a; S.bufCell = S.phase === 'build' ? S.cur.slice() : null; return; }   // buffered, never dropped
   act(a);
 }
 function humanRestart() { if (S.over && performance.now() - overAt > 400) { reset(Date.now() & 0x7fffffff); return true; } return false; }
@@ -948,14 +988,14 @@ addEventListener('keydown', e => {
   const k = e.code;
   isTouch = false;
   if (S.phase === 'pick' && S.cards) {
-    const n = k === 'Digit1' ? 0 : k === 'Digit2' ? 1 : k === 'Digit3' ? 2 : -1;
-    if (n >= 0 && n < S.cards.length && S.lock <= 0) { S.sel = n; input('place'); e.preventDefault(); return; }
+    const n = (k === 'Digit1' || k === 'Numpad1' || e.key === '1') ? 0 : (k === 'Digit2' || k === 'Numpad2' || e.key === '2') ? 1 : (k === 'Digit3' || k === 'Numpad3' || e.key === '3') ? 2 : -1;
+    if (n >= 0 && n < S.cards.length) { if (!e.repeat) { S.sel = n; input('place'); } e.preventDefault(); return; }   // buffered through the lockout
     if (k === 'ArrowUp' || k === 'KeyW') { input('left'); e.preventDefault(); return; }
     if (k === 'ArrowDown' || k === 'KeyS') { input('right'); e.preventDefault(); return; }
     if ((k === 'Space' || k === 'Enter') && (e.repeat || S.t - S.cardT < 250)) { e.preventDefault(); return; }
     if (k === 'Enter') { input('place'); e.preventDefault(); return; }
   }
-  if (S.phase === 'build' && k === 'Enter') { S.cur = [CX, CY]; input('place'); e.preventDefault(); return; }
+  if (S.phase === 'build' && k === 'Enter') { S.cur = [CX, CY]; S.goT = GO_MS; input('place'); e.preventDefault(); return; }   // Enter = instant GO
   if (S.phase === 'wave' && k === 'Enter') { input('place'); e.preventDefault(); return; }
   if (S.phase === 'build' && (k === 'KeyZ' || k === 'Backspace')) {
     let li = -1, lt = -1; for (const kk in S.placedT) { const i = +kk; if (S.walls[i] === 2 && S.placedT[kk] > lt) { lt = S.placedT[kk]; li = i; } }
@@ -977,7 +1017,7 @@ cv.addEventListener('pointerdown', e => {
   if (S.over) { humanRestart(); return; }
   const p = toLogical(e);
   if (S.phase === 'pick' && S.cards) {
-    for (let i = 0; i < S.cards.length; i++) { const r = cardRect(i); if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) { if (S.t - S.cardT > 250) { S.sel = i; input('place'); } return; } }
+    for (let i = 0; i < S.cards.length; i++) { const r = cardRect(i); if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) { S.sel = i; input('place'); return; } }
     return;
   }
   const c = cellAt(p);
@@ -1005,7 +1045,7 @@ window.__game = {
       gates: S.gates.map(g => GATES[g].slice()), gateIdx: S.gates.slice(), allGates: GATES.map(g => g.slice()), dist: S.dist.slice(),
       tur: Object.assign({}, S.tur), pulse: S.pulse, pulseMax: S.pulseMax, bank: S.bank, combo: S.combo, lock: S.lock,
       enemies: S.en.filter(e => !e.dead).map(e => ({ id: e.id, type: e.type, x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, fly: e.fly, dmg: e.dmg, rem: remaining(e) })),
-      pending: S.spawnQ.length, cards: S.cards ? S.cards.slice() : null, sel: S.sel, kills: S.kills, leaks: S.leaks,
+      pending: S.spawnQ.length, incoming: S.spawnQ.map(q => [q.type, q.gate, q.at]), cards: S.cards ? S.cards.slice() : null, sel: S.sel, kills: S.kills, leaks: S.leaks,
     };
   },
   getActions() { return actions(); },
