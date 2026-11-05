@@ -128,3 +128,13 @@ Provisional final = 0.30 × bot (v2, round-1 data) + 0.35 × blind critic + 0.35
 ## D12. Choosing the winner
 - PIPWALK has the highest final score (0.30 bot + 0.35 critic + 0.35 me). It is also the only game that every judge places at or near the top: a graded bot score of 10.0, 10/10 from both independent blind critics, and 8.5 from me.
 - **Sensitivity check:** PIPWALK is 1st under 6 of the 7 weightings tested, including the official one (see REPORT.md). The exception is "my score only", which favours SPELLSNAKE (9.0 vs 8.5). I didn't let my own favourite override two blind judges and the bots.
+
+## D13. New bot tiers: masher and human-model (follow-up "what I'd build next" #2)
+- **Masher family** (`lab/tiers.js`): bots that never read game state. There is one strategy per action name: "hold or mash X forever", falling back to the first offered button when X isn't available, so menus still advance. A "cycle every button" strategy is added on top. The **best masher** is the spam-exploit detector. If it beats the rule-of-thumb heuristic bot, mindless input outplays a simple deliberate player.
+- **Human model**: each game's own bot, wrapped in human limits that depend on the kind of game:
+  - real-time games: decides from a 100 ms-old snapshot, at most one decision per 100 ms, 3% slips;
+  - rhythm: no perception delay (players anticipate the beat), but 0–33 ms execution jitter and 3% wrong-lane slips;
+  - turn-based: no delay, ≥400 ms of "thinking" per move, 3% slips.
+- **Calibration I rejected:** the first version used 160 ms latency with a 120 ms decision step, which works out to ~240 ms of staleness. It scored *below the masher* in LOOPBACK, which contradicts both blind critics' deliberate play, so I treated it as miscalibrated. Anticipatory tracking (dodging and aiming at things you can see coming) runs well under simple reaction time.
+- **Human estimate = the better of wrapped-smart and wrapped-heuristic.** Wrapping only the smart bot was too pessimistic. Its lookahead threads gaps tighter than its own latency allows, and its aim overshoots. Real players adapt their margins to their limits, so picking the better of the two limited bots is a fairer stand-in.
+- **What these tiers can't do:** they model reflexes, not perception, learning or feel. They are a cheap screen for exploits and difficulty, not a replacement for humans. That is what the playtest kit (D14) is for.
