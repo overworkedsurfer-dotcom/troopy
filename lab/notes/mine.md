@@ -79,3 +79,18 @@ Played through `lab/play.js` (time-stepped, real key events, screenshots between
 - Round 2, run 1 (semi-blind burst/turn/cool loop): 150 pts, 16.5 s. Cause: "clipped by a rock shard" from my own kill, which was fair. In round 1 my runs lasted 4–9 s.
 - The white drift arrow is the key fix: I can finally see where I'm going. The eased turn is snappy (180° in about 0.37 s), so I now *overshoot* aim slightly, which is a much better problem to have. The rim shield saved me twice. The solid nose with its yellow muzzle dot reads instantly.
 - Gut score moves from 5.5 to 7.0. The core (shots are movement) was always good; it just needed an on-ramp.
+
+## Phone layouts (390×844 contact sheet of all 10)
+All ten switch to touch-specific hints and controls:
+- KICKBACK: "HOLD a finger: aim + fire"
+- LOOPBACK: "DRAG to move · TAP 2nd finger to dash"
+- TILTWELL: a 5-button bar
+- SPELLSNAKE: "TAP ANYWHERE TO CAST / SPIT"
+- PIPWALK: swipe or tap beside the die
+- MAZEWRIGHT: tap cells or the core
+- UPTEMPO: TAP lane pads plus tap-sky to brake
+- COMPOUND: tap a cell, then a card
+- JUNK ORBIT: drag to aim, release to fire
+- MAGSUMO: drag steer plus a big FLIP button and a 2P toggle
+
+None of them scrolls horizontally. The smallest text is the KICKBACK and LOOPBACK hint lines, which are readable but small.
