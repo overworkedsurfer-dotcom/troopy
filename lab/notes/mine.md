@@ -63,3 +63,14 @@ Played through `lab/play.js` (time-stepped, real key events, screenshots between
 - **Felt good:** field lines that physically show attraction (blue loops) versus repulsion (red spokes) teach magnetism with zero text. The slam has real impact: pink flash, "MAGNET SLAM!" and "SLAMMED!". A CPU with a named personality that *used my own trick against me* was a great moment. The edge-danger red arc on the ring is readable.
 - **Got bad:** ice momentum plus 4-way steering means I overshoot constantly. Round 1 against an LV 1 CPU should probably be winnable for a newcomer, and I lost it. The flip cooldown ("charging...") isn't visible on the puck itself, only in the corner HUD.
 - **Fix ideas:** make the LV 1 CPU gentler (slower reaction, no slam-counter on round 1), add a cooldown ring on the puck, and slightly more traction early.
+
+## Late-game screenshot review (from the smart bot's "intense" frames)
+- **LOOPBACK** (ghost 64, ×8 brush): the closing box is a dense swarm of numbered ghosts. It's legible, but the late game becomes a tiny-box survival game. That is a different game from the open-arena opening.
+- **SPELLSNAKE** (level 5, combo ×4.75): the board is cluttered with rocks, "THE! +270" lands, and the level banner reads well.
+- **MAZEWRIGHT** (wave 18): a sprawling serpentine maze with ×9.5 path multipliers and +666 pops. This is the best-looking late game in the set, and the maze you built is legible as *yours*.
+- **TILTWELL** (level 9): mostly stone. The colour/shape icons stay readable, and STONES "▲7 in 1" telegraphs well.
+- **PIPWALK** (floor 19): "STRAIGHT ×7", a 12-face die, HP badges in the 400s–2200. Balatro-style number explosion achieved.
+- **UPTEMPO** (193 BPM REDLINE, 996 perfects): the speedometer at redline with dense streams. It looks thrilling.
+- **JUNK ORBIT** (level 7): a beautiful spirograph tangle of captured orbits, plus "BURNT OUT". Busy, but the colour coding holds.
+- **MAGSUMO** (round 13): the ring has shrunk to roughly 1.5 puck diameters. The ceiling works, but at that size the round is a coin-flip, not a contest.
+- **COMPOUND**: wealth shows as **"$18.9DDc"**, and these late-game suffixes (UDc, DDc) are unreadable to normal people. Use scientific-style notation past T (e.g. 1.9e40). The 5×5 grid of ×18/×24/×56 badges is very Balatro, but it is visual noise.
