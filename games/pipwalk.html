@@ -307,7 +307,7 @@ function execIntent(e) {
       else FX.lunge[e.id] = { dx: S.px - e.x, dy: S.py - e.y, life: 1 };
     }
     if (hit) hurtPlayer(e.atk, e);
-    else if (!QUIET && it.kind === 'melee') { const [x, y] = cellC(it.cells[0][0], it.cells[0][1]); ftext(x, y - 6, 'miss', C.dim, 14); SND.whiff(); }
+    else if (!QUIET && it.kind === 'melee' && FX.missT !== S.t) { FX.missT = S.t; const [x, y] = cellC(it.cells[0][0], it.cells[0][1]); ftext(x, y + 8, 'dodged', C.dim, 13); SND.whiff(); }
     if (e.type === 'boss') e.rest = 2;
   } else if (it.type === 'move') {
     if (e.type === 'archer') archerMove(e);
@@ -1203,7 +1203,7 @@ function drawOver() {
 }
 let SC = 1;
 function render() {
-  const t = S.t + (S.phase === 'pick' ? 0 : 0);
+  const t = S.t;
   cx.setTransform(SC, 0, 0, SC, 0, 0);
   const bg = cx.createRadialGradient(W / 2, H * 0.45, 80, W / 2, H * 0.45, H * 0.75);
   bg.addColorStop(0, '#173129'); bg.addColorStop(1, C.bg); cx.fillStyle = bg; cx.fillRect(0, 0, W, H);

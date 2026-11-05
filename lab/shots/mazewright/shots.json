@@ -1,0 +1,40 @@
+{
+ "id": "mazewright",
+ "bot": "smart",
+ "seed": 1,
+ "lengthMs": 294150,
+ "finalScore": 381898,
+ "cause": "a Swift broke the core on wave 18",
+ "replayMatches": true,
+ "shots": [
+  {
+   "name": "1-start",
+   "t": 1500,
+   "score": 0,
+   "over": false,
+   "file": "lab/shots/mazewright/1-start.png"
+  },
+  {
+   "name": "2-mid",
+   "t": 147150,
+   "score": 103624,
+   "over": false,
+   "file": "lab/shots/mazewright/2-mid.png"
+  },
+  {
+   "name": "3-intense",
+   "t": 292650,
+   "score": 379502,
+   "over": false,
+   "file": "lab/shots/mazewright/3-intense.png"
+  },
+  {
+   "name": "4-gameover",
+   "t": 294150,
+   "score": 381898,
+   "over": true,
+   "file": "lab/shots/mazewright/4-gameover.png"
+  }
+ ],
+ "errors": []
+}

@@ -1,37 +1,37 @@
 {
  "id": "pipwalk",
  "bot": "smart",
- "seed": 3,
- "lengthMs": 100625,
- "finalScore": 14671,
- "cause": "mauled by a Wolf on floor 14",
+ "seed": 1,
+ "lengthMs": 125625,
+ "finalScore": 111805,
+ "cause": "shot by an Archer on floor 19",
  "replayMatches": true,
  "shots": [
   {
    "name": "1-start",
    "t": 1500,
-   "score": 36,
+   "score": 0,
    "over": false,
    "file": "lab/shots/pipwalk/1-start.png"
   },
   {
    "name": "2-mid",
-   "t": 50375,
-   "score": 4100,
+   "t": 62875,
+   "score": 15973,
    "over": false,
    "file": "lab/shots/pipwalk/2-mid.png"
   },
   {
    "name": "3-intense",
-   "t": 99125,
-   "score": 14609,
+   "t": 124125,
+   "score": 111393,
    "over": false,
    "file": "lab/shots/pipwalk/3-intense.png"
   },
   {
    "name": "4-gameover",
-   "t": 100625,
-   "score": 14671,
+   "t": 125625,
+   "score": 111805,
    "over": true,
    "file": "lab/shots/pipwalk/4-gameover.png"
   }
