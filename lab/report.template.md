@@ -80,19 +80,44 @@ A close second surprise: the single rule change in JUNK ORBIT ("misses hunt you"
 - My own score is one person's judgement, recorded before I saw the critic's numbers, then updated after re-plays. Both are in `lab/notes/mine-scores.json`.
 - Builders saw the rubric and the v1 thresholds. That's realistic (designers know what fun is) but it inflates structural compliance, which is why the graded v2 metric and blind critics carry the weight.
 
-## What I'd build next
+## Follow-up: building the "what next" list
 
-1. **PIPWALK, full version:**
-   - a daily seed with a shareable run card;
-   - boss floors with readable attack patterns;
-   - more face types (reflect, chain-lightning, clone);
-   - light meta-progression that unlocks starting dice (the Vampire Survivors "even a loss pays" loop);
-   - an audio pass, since nobody has *heard* it yet.
-2. **Fix the lab's blind spot: a "masher" bot tier and a human-latency smart bot.**
-   - The masher hammers the highest-value button with no state reading. If it beats the heuristic, the game has a spam exploit. The critics caught three of those; the bots caught none.
-   - The human-latency smart bot gets the same search with 150–250 ms reaction delay and input noise, to estimate the *skill floor* the testers kept hitting.
-3. **Five real humans at real keyboards, with sound,** on the twitch games (KICKBACK, MAGSUMO, UPTEMPO, SPELLSNAKE). These are the ones where my measurement method is weakest.
-4. **LOOPBACK as a puzzle mode:** hand-authored rooms where your ghosts are *keys*: "be at the switch when ghost #3 arrives." The fresh critic was already doing this in their head ("never be where you were 5/13/20 s ago").
+You asked me to build the three follow-ups. Here's what each one turned up.
+
+### 1. PIPWALK, full version
+- **Daily dungeon** (`games/pipwalk.html#daily`, or press T / [DAILY] after a run). It uses one seed per UTC date and the Standard die, and keeps a separate daily best. A **run card** is copied to the clipboard; if the frame refuses clipboard access, it falls back to a selected-text box.
+- **Boss floors**, each with a name banner, a "how to beat it" tip, a boss HP bar, a phase change at 50%, attacks telegraphed one turn ahead, and a pick of rare upgrades:
+  - Floor 5, **OGRE**: winds up a 3×3 leap, then sits stunned with ×2 damage taken.
+  - Floor 10, **LICH**: telegraphs row and column beams, and summons skeletons below 50% HP. Shoving it cancels the beam.
+  - Floor 15, **MIMIC**: a die duel. Its top face is armour, and you only hurt it with a higher face.
+- **New faces:** Mirror, Arc (lightning to two neighbours) and Clone. **Unlockable starting dice:** Lucky, Glass and Twin.
+- **Bot numbers:** smart median 28.7k → 51.6k, session 98 → 117 s, best masher 544 against a 40k human model. The upgrades deepened the game without opening a spam route. A real-key run beat the Ogre and the Lich.
+
+### 2. Masher and human-model bots
+<!--TIERS-->
+- **The masher caught a real exploit the original bots never saw.** In KICKBACK, holding FIRE without ever turning scored 5,840, 9.5× the heuristic bot. Recoil pinned the ship in a stable hover against the on-ramp rim shield, inside the skim band, farming a ×5–8 multiplier. This was the round-2 critic's "a masher's CHAIN ×7 beat everything I did on purpose", and they were right. Fixed: no skim multiplier while the shield is up, the shield overloads under sustained recoil, and missed shots drain the chain. The masher now scores 160.
+- **The human model quantifies the bot-versus-critic disagreement.** The "reflex tax" column shows how much score survives human limits. Real-time games keep 1–16% of the smart bot's score (LOOPBACK 0.01, JUNK ORBIT 0.03, SPELLSNAKE 0.08, KICKBACK 0.15, TILTWELL 0.16). Turn-based games keep nearly all of it (PIPWALK 0.79, MAZEWRIGHT 1.00, COMPOUND 1.01). That's the same split the critics reported, and why the winner is a turn-based game: it's the one whose bot ceiling a human can actually reach.
+- **Calibration I threw away:** a first model with 160 ms latency scored *below the masher* in LOOPBACK, which contradicts every human-ish run we have. I kept the anticipatory 100 ms model and took the better of the latency-wrapped smart and heuristic bots (D13).
+
+### 3. Real people, real keyboards, with sound
+I can't recruit testers. I built the instrument and fixed everything the machine could hear:
+- **Playtest page** (a private artifact, link in the hub notes). It runs a sound check, then the four games where the AI critics were least reliable (KICKBACK, MAGSUMO, UPTEMPO, SPELLSNAKE) plus PIPWALK as a control, in random order, with real keyboard and touch.
+  - It records every run (score, length, cause of death, inputs, device) and five ratings: fun, fairness, controls, sound, and "another go?".
+  - Each tester can only see their own record; the owner sees everyone's in a live results table. That table includes a per-tester **learning ×** (3rd run ÷ 1st), the floor-steepness measure no bot can give.
+  - **To run the study, share the page with 5+ people at Contributor level and ask them to play with sound on.**
+- **Audio lab** (`node lab/audio.js all`). It records each game's actual WebAudio output while playing it in real time.
+  - **UPTEMPO's kick was ~22 ms late, and by a different amount each session.** Causes: compressor look-ahead, a one-shot clock anchor, and an assumed output latency. Now: median 0.0 ms, p95 ≤ 7 ms, drift < 1.3 ms/min even under heavy clock skew.
+  - **19 dB loudness spread across the arcade** (JUNK ORBIT was barely audible next to UPTEMPO). A per-game output trim now holds every game within ~2 dB of −30 dBFS active RMS, with 0 clipping and no NaN or DC offset.
+  - Files: `lab/results/audio.md`, plus `lab/results/audio/<id>.wav` and `.png` (waveform and spectrogram) per game.
+  - **Still open:** whether the games *sound good*. Only the playtest can answer that.
+
+### Bonus: EMBERDEEP
+<!--EMBER-->
+
+## What I'd build next (now)
+1. **Run the playtest with real people,** then compare the human "learning ×" and fun ratings with the human-model bot and both critics. That's the calibration this whole lab is missing.
+2. **LOOPBACK puzzle mode:** hand-authored rooms where your ghosts are keys ("be at the switch when ghost #3 arrives").
+3. **PIPWALK on a phone,** for real: swipe feel, haptics, and a daily leaderboard (it needs a shared store, which the artifact `db` now makes easy).
 
 ---
 

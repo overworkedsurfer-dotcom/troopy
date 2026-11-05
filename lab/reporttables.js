@@ -43,3 +43,24 @@ for (const [n, [b, c, m]] of schemes) {
   s2 += `| ${n} | ${r[0].n} (${r[0].v.toFixed(2)}) | ${r[1].n} (${r[1].v.toFixed(2)}) | ${r[2].n} (${r[2].v.toFixed(2)}) |\n`;
 }
 process.stdout.write(s2);
+
+// ---- new bot tiers: masher + human model (lab/tiers.js) ----
+{
+  const ids = sc.games.map(g => g.id);
+  let t = '\n### New bot tiers: the masher and the human model\n\n';
+  t += 'The **best masher** is the highest-scoring bot that never looks at the game: it holds or mashes one button, or cycles through all of them. If it beats the rule-of-thumb heuristic bot, button-mashing beats simple thinking. The **human model** is the better of two bots, the game\'s smart bot and its heuristic bot, each run with human limits: a 100 ms reaction lag and one decision every 100 ms in real-time games, 0–33 ms timing slop in the rhythm game, ≥ 400 ms of thinking per move in turn-based games, and a 3% slip rate. The **reflex tax** is how much the smart bot loses once it has to play with those limits.\n\n';
+  t += '| Game | Best masher (median) | Heuristic median | Masher ÷ heuristic | Human-model median | Smart median | Reflex tax (human ÷ smart) | Human-model session |\n|---|---|---:|---:|---:|---:|---:|---:|\n';
+  for (const id of ids) {
+    const f = path.join(__dirname, 'results', id + '.tiers.json');
+    if (!fs.existsSync(f)) continue;
+    const T = JSON.parse(fs.readFileSync(f, 'utf8')), v = v2.games[id];
+    if (!v) continue;
+    const bm = T.tiers[T.bestMasher], hu = T.tiers[T.bestHuman || 'human'];
+    const H = v.bots.heuristic.medianScore, Sm = v.bots.smart.medianScore;
+    const g = sc.games.find(x => x.id === id);
+    const r = H > 0 ? bm.score.median / H : (bm.score.median > 0 ? Infinity : 0);
+    t += `| ${g.name} | ${T.bestMasher.replace('mash:', '')} → ${k(bm.score.median)} | ${k(H)} | ${r === Infinity ? '∞' : r.toFixed(2)}${r >= 1 ? ' ⚠' : ''} | ${k(hu.score.median)} | ${k(Sm)} | ${(hu.score.median / Math.max(1, Sm)).toFixed(2)} | ${Math.round(hu.lengthS.median)} s |\n`;
+  }
+  t += '\n⚠ means the masher beats the heuristic, i.e. a spam exploit. The only one found was KICKBACK (5,840 vs 615): holding fire against the rim shield farmed the skim multiplier. It is fixed, and the table shows the re-measured game.\n';
+  process.stdout.write(t);
+}
