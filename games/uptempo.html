@@ -13,6 +13,8 @@
 <body>
 <canvas id="c"></canvas>
 <script>
+function __trimOut(AC) { /* funlab-trim: loudness normalisation -6.6 dB (lab/results/audio.md); zero-latency gain after the soft-clipper, so beat sync is unaffected */ if (!AC.__trim) { AC.__trim = AC.createGain(); AC.__trim.gain.value = 0.467; AC.__trim.connect(AC.destination); } return AC.__trim; }
+
 (() => {
 'use strict';
 const ID = 'uptempo';
@@ -180,7 +182,7 @@ function audioInit() {
       const sh = AC.createWaveShaper(), cv = new Float32Array(2049);
       for (let i = 0; i < cv.length; i++) { const x = (i / (cv.length - 1)) * 2 - 1; cv[i] = Math.tanh(2 * x); }
       sh.curve = cv; sh.oversample = 'none';
-      m.connect(pre); pre.connect(sh); sh.connect(AC.destination);
+      m.connect(pre); pre.connect(sh); sh.connect(__trimOut(AC));
       const musF = AC.createBiquadFilter(); musF.type = 'lowpass'; musF.frequency.value = 16000; musF.Q.value = 0.8;
       const mus = AC.createGain(); mus.connect(musF); musF.connect(m);
       const lead = AC.createGain(); lead.connect(m);

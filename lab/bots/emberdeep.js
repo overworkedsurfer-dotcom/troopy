@@ -126,7 +126,7 @@ module.exports = {
         const fromMe = field([idx(s0.px, s0.py)]);
         const toStairs = stairsSeen ? field([si]) : null;
         // time budget: every detour must still leave the stairs reachable a few turns after the dark rises
-        const slack = left + 6;
+        const slack = left - 4;
         const fits = i => fromMe[i] + (toStairs ? toStairs[i] : 10) < slack;
         if (s0.hp <= s0.maxHp * 0.45 && unlit.length) goals = unlit.map(b => idx(b.x, b.y)).filter(i => fromMe[i] < 999);
         if (!goals.length && s0.sealed) { const w = s0.enemies.find(e => e.type === 'warden'); if (w && seen(idx(w.x, w.y))) goals = [idx(w.x, w.y)]; }
@@ -148,13 +148,13 @@ module.exports = {
           if (s.over) return -1e9;
           if (s.phase === 'draft' || s.depth > s0.depth) return (wantStairs ? 2e5 : 4000) + s.hp * 1500 + (s.score - s0.score) * 2;
           const i = idx(s.px, s.py);
-          let v = s.hp * 1000 + s.maxHp * 150 + (s.score - s0.score) * 2.5 + s.oil * 600 - s.gloom * 300;
+          let v = s.hp * 1000 + s.maxHp * 150 + (s.score - s0.score) * 10 + s.oil * 600 - s.gloom * 300;
           v -= Math.min(60, dist[i]) * 140;
           if (!noDanger) { let dz = 0; for (const d of s.danger) if (d[0] === s.px && d[1] === s.py) dz += d[2]; v -= dz * 1300; }
           // total foe HP, independent of where you stand or what is awake: only damage dealt moves it
           for (const e of s.enemies) {
             const md = Math.abs(e.x - s.px) + Math.abs(e.y - s.py);
-            v -= e.hp * (e.type === 'warden' ? 450 : 260);
+            v -= e.hp * (e.type === 'warden' ? 450 : 100);
             if (e.type === 'shade' && s.dim && md <= 4) v -= 1200 / md;
           }
           v += (s.kills - s0.kills) * 300;

@@ -138,3 +138,16 @@ Provisional final = 0.30 × bot (v2, round-1 data) + 0.35 × blind critic + 0.35
 - **Calibration I rejected:** the first version used 160 ms latency with a 120 ms decision step, which works out to ~240 ms of staleness. It scored *below the masher* in LOOPBACK, which contradicts both blind critics' deliberate play, so I treated it as miscalibrated. Anticipatory tracking (dodging and aiming at things you can see coming) runs well under simple reaction time.
 - **Human estimate = the better of wrapped-smart and wrapped-heuristic.** Wrapping only the smart bot was too pessimistic. Its lookahead threads gaps tighter than its own latency allows, and its aim overshoots. Real players adapt their margins to their limits, so picking the better of the two limited bots is a fairer stand-in.
 - **What these tiers can't do:** they model reflexes, not perception, learning or feel. They are a cheap screen for exploits and difficulty, not a replacement for humans. That is what the playtest kit (D14) is for.
+
+## D14. Human playtest kit and audio lab (follow-up #3: "real people at real keyboards, with sound")
+- **I can't recruit people,** so I built the two things that make a human study possible and cheap:
+  1. **Playtest artifact** (`lab/playtest/index.html`, published privately).
+     - It shows a sound-check gate, then five games in random order: KICKBACK, MAGSUMO, UPTEMPO and SPELLSNAKE are the four where the AI critics were least reliable, and PIPWALK is a control.
+     - Each game embeds the real file. The page records every run (score, length, cause, inputs, device) from the game's own `__game` API and asks five questions: fun 1–10, fairness 1–5, controls 1–5, sound, and "another go?".
+     - Data goes to the artifact's `db`. Rules: each tester reads and writes only their own record (`testers/{self}`), and only the owner sees everyone's (`testers` read `admin`, write `owner`). I verified that the owner sees a probe record and a contributor-level viewer sees nothing.
+     - The owner gets a live results table, including a per-tester "learning ×" (3rd run ÷ 1st), which is the floor-steepness measure the bots can't give.
+  2. **Audio lab** (`lab/audio.js`). It injects a recorder tap on every connection to `AudioContext.destination` and plays each game in real time with real keys. It measures peak, RMS, clipping, silence, onsets, DC and NaN, and UPTEMPO's kick-versus-beat offset. It also writes a WAV and a waveform/spectrogram PNG per game.
+- **Audio lab findings, all fixed:**
+  - **UPTEMPO kick ~22 ms late, with a random per-session phase.** Causes: compressor look-ahead (~6 ms), a one-shot clock anchor, and an assumed rather than measured output latency. Fix: a zero-latency soft-clipper, plus continuous `getOutputTimestamp` mapping. Now median 0.0 ms, p95 ≤ 7 ms across 3 runs, and drift < 1.3 ms/min even under −1601 ppm clock skew.
+  - **19 dB loudness spread across the arcade.** JUNK ORBIT and SPELLSNAKE were barely audible next to UPTEMPO. Fix: a per-game output trim targeting −30 dBFS active RMS, with peaks capped at −3 dBFS. Now ~2 dB spread, 0 clipping.
+- **The audio lab still can't tell whether a sound is *good*.** That stays a question for humans, and it's why the playtest asks "did the sound make it better?".
