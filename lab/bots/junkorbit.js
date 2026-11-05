@@ -11,19 +11,35 @@ module.exports = {
     },
 
     // Rule of thumb (what a human does with the dotted preview): swing the aim back and forth around the
-    // star closest to burning out, and fire whenever the visible preview line passes through a star.
+    // star closest to burning out and fire whenever the visible preview line passes through a star.
+    // Defence: if a loose (orange) comet is close to the launcher, aim straight at it and fire.
     heuristic: {
       decisionMs: 100,
       decide: function (G, rng, mem) {
         const s = G.getState();
         if (s.over) return 'none';
-        if (s.aimHits > 0 && s.cool <= 0) return 'fire';
-        let tgt = null;
-        for (const st of s.stars) if (!tgt || st.fuse < tgt.fuse) tgt = st;
-        if (!tgt) return 'none';
-        mem.ph = (mem.ph || 0) + 0.25;
-        let want = Math.atan2(tgt.x - s.launcher.x, s.launcher.y - tgt.y) + Math.sin(mem.ph) * 0.45;
-        want = Math.max(-s.aimMax, Math.min(s.aimMax, want));
+        const L = s.launcher;
+        let thr = null, td = 140;
+        for (const b of s.bodies) {
+          if (!b.loose) continue;
+          const d = Math.hypot(b.x - L.x, b.y - L.y);
+          if (d < td && (L.x - b.x) * b.vx + (L.y - b.y) * b.vy > 0) { td = d; thr = b; }
+        }
+        let want;
+        if (thr) {
+          const px = thr.x + thr.vx * 0.25, py = thr.y + thr.vy * 0.25;
+          want = Math.atan2(px - L.x, L.y - Math.min(py, L.y - 5));
+          want = Math.max(-s.aimMax, Math.min(s.aimMax, want));
+          if (Math.abs(want - s.aim) < 0.06 && s.cool <= 0) return 'fire';
+        } else {
+          if (s.aimHits > 0 && s.cool <= 0) return 'fire';
+          let tgt = null;
+          for (const st of s.stars) if (!tgt || st.fuse < tgt.fuse) tgt = st;
+          if (!tgt) return 'none';
+          mem.ph = (mem.ph || 0) + 0.25;
+          want = Math.atan2(tgt.x - L.x, L.y - tgt.y) + Math.sin(mem.ph) * 0.45;
+          want = Math.max(-s.aimMax, Math.min(s.aimMax, want));
+        }
         const d = want - s.aim;
         if (Math.abs(d) > 0.04) return d < 0 ? 'left' : 'right';
         return 'none';
@@ -31,8 +47,8 @@ module.exports = {
     },
 
     // Lookahead: candidate plans "hold left/right for k decisions, then fire", each simulated
-    // through a short horizon. Value = score gained + shields kept - loose junk created.
-    // Compared against not firing at all, so it also takes defensive intercept shots.
+    // through a short horizon. Value = score + hearts kept + streak - loose debris - shots still unscored.
+    // Compared against not firing at all, so it also takes defensive SAVE shots and never spams.
     smart: {
       decisionMs: 50,
       decide: function (G, rng, mem) {
@@ -47,9 +63,9 @@ module.exports = {
         G.quiet(true);
         function value() {
           const st = G.getState();
-          let loose = 0, cap = 0;
-          for (const b of st.bodies) { if (!b.cap) loose++; else cap++; }
-          return (st.over ? -1e6 : 0) + st.score + 3000 * st.hearts - 160 * loose + 20 * cap;
+          let pend = 0;
+          for (const b of st.bodies) if (b.live && !b.hit) pend++;
+          return (st.over ? -1e6 : 0) + st.score + 3000 * st.hearts - 350 * st.loose - 220 * pend + 25 * st.safe + 150 * st.streak;
         }
         // baseline: do nothing
         G.input('none'); G.tick(HZ);

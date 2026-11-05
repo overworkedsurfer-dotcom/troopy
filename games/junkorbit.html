@@ -22,9 +22,8 @@ const CX = 270, CY = 392, RA = 262, RL = 206, LX = CX, LY = CY + RL;   // system
 const TS = 1.25, KREF = 6e5 * TS * TS;   // force ~ k / r^1.5 (spirograph rosettes); planets are soft-cored gas giants
 const HALO = 2.7, DRAG = 5 * TS, CAP_PX = 52, SAFE_PX = 14, LAUNCH_F = 0.45;
 const AIM_MAX = 1.40, AIM_V0 = 0.9, AIM_VMAX = 1.9, AIM_RAMP = 350;
-const COOL = 600, BUF = 260, LIVE = 4500, LHIT = 11, CHIT = 6, SHIT = 18, INV = 2200, SHOCK = 80;
-const MAX_BODIES = 70, LIVE_SAFE = 1200;
-function capacity(level) { return Math.max(8, 26 - 2 * level); }
+const COOL = 600, BUF = 260, LIVE = 3200, LHIT = 11, CHIT = 6, SHIT = 18, INV = 2200, SHOCK = 80;
+const MAX_BODIES = 70, SAFE_MAX = 12, SAFE_FADE = 3000;
 function e2of(p) { return 100 + 0.81 * p.r * p.r; }
 const PCOL = [['#ffb48a', '#ff7a4d', '#7a2a1c'], ['#c5b8ff', '#8a74ff', '#2e2170'], ['#9ff5df', '#2fd6b0', '#0d5246']];
 const cv = document.getElementById('c'), cx = cv.getContext('2d');
@@ -114,11 +113,11 @@ function newState(seed) {
     bodies: [], nextId: 1, fired: 0,
     stars: [], spawnT: 900, starId: 1,
     streak: 0,
-    st: { captured: 0, saved: 0, smashed: 0, burnt: 0, passive: 0, stars: 0, hits: 0 },
+    st: { captured: 0, saved: 0, missed: 0, burnt: 0, passive: 0, stars: 0, hitShots: 0, retired: 0 },
   };
   return s;
 }
-function newFX() { return { streakPop: 0, streakLost: 0, parts: [], texts: [], rings: [], trails: {}, shake: 0, flash: 0, flashCol: '255,255,255', hintA: 1, banner: null, recoil: 0, heartPop: [0, 0, 0], warnT: 0, warn: 0, tick: 0, lastAlign: 0 }; }
+function newFX() { return { threat: null, slowmo: 0, slowDone: false, streakPop: 0, streakLost: 0, parts: [], texts: [], rings: [], trails: {}, shake: 0, flash: 0, flashCol: '255,255,255', hintA: 1, banner: null, recoil: 0, heartPop: [0, 0, 0], warnT: 0, warn: 0, tick: 0, lastAlign: 0 }; }
 
 function reset(seed) {
   S = newState(seed); FX = newFX(); carry = 0;
@@ -270,7 +269,7 @@ function recordTrails() {
     for (const b of S.bodies) {
       let tr = FX.trails[b.id]; if (!tr) tr = FX.trails[b.id] = [];
       tr.push(b.x, b.y);
-      const max = b.live ? 70 : 170;
+      const max = b.live ? 70 : b.cap ? (S.t - b.capT > SAFE_FADE ? 36 : 120) : 130;
       if (tr.length > max) tr.splice(0, tr.length - max);
     }
   }
@@ -318,25 +317,23 @@ function step() {
   // physics
   const pl = S.planets, TH = thresholds(pl);
   for (const b of S.bodies) {
-    const dr = !b.cap && !(b.nodrag > S.t);
+    const dr = b.live && !b.braked;            // only comets in flight are braked by planet glow
     for (let k = 0; k < SUB; k++) sub(b, pl, dr);
     if (rim(b)) { ring(b.x, b.y, '#8a74ff', 2, 16, 2); if (b.live && !QUIET) tone(240, 0.06, 'sine', 0.025); }
   }
   for (const b of S.bodies) {
     if (b.dead) continue;
     const ph = phi(pl, b.x, b.y), E = (b.vx * b.vx + b.vy * b.vy) / 2 + ph;
-    if (!b.cap && E < TH.cap) {
-      const tgt = TH.cap - 400;
-      if (E < tgt) { const v2 = 2 * (tgt - ph), v = Math.sqrt(b.vx * b.vx + b.vy * b.vy); if (v2 > 0 && v > 1e-6) { const f = Math.sqrt(v2) / v; b.vx *= f; b.vy *= f; } }
-      capture(b);
-    } else if (b.cap && E > TH.safe) { b.cap = false; floatText(b.x, b.y - 10, 'UNSTABLE!', '#ffae5e', 16); ring(b.x, b.y, '#ffae5e', 4, 26, 2); }
-    if (b.live && S.t - b.born > LIVE) { b.live = false; if (!b.ok) missed(b); }
+    if (b.live) {
+      if (!b.braked && E < TH.cap) { setEnergy(b, TH.cap - 400, 'up'); b.braked = true; }
+      if (S.t - b.born > LIVE) settle(b, TH);
+    } else if (b.cap && E > TH.cap) setEnergy(b, TH.cap - 400, 'down');   // safe stays safe, even when the planets shift
   }
   // collisions: live comets vs loose junk / wrecks (captured junk rides its own orbit lane)
   for (const a of S.bodies) {
     if (a.dead || !a.live) continue;
     for (const b of S.bodies) {
-      if (b === a || b.dead || b.cap || b.live) continue;
+      if (b === a || b.dead || !b.loose) continue;
       const dx = a.x - b.x, dy = a.y - b.y;
       if (dx * dx + dy * dy < CHIT * CHIT) { collide(a, b); break; }
     }
@@ -345,7 +342,7 @@ function step() {
   for (const st of S.stars) {
     if (st.dr > 0) { st.ph += st.w / 60; st.x = st.ax + Math.cos(st.ph) * st.dr; st.y = st.ay + Math.sin(st.ph) * st.dr; }
     for (const b of S.bodies) {
-      if (b.dead || st.dead) continue;
+      if (b.dead || st.dead || b.loose) continue;     // loose debris doesn't score
       const dx = b.x - st.x, dy = b.y - st.y;
       if (dx * dx + dy * dy < SHIT * SHIT) starHit(st, b);
     }
@@ -354,18 +351,18 @@ function step() {
   S.stars = S.stars.filter(s => !s.dead);
   // launcher
   for (const b of S.bodies) {
-    if (b.dead || (b.live && S.t - b.born < LIVE_SAFE)) continue;
+    if (b.dead || !b.loose) continue;               // only loose debris can hurt you
     const dx = b.x - LX, dy = b.y - LY;
     if (dx * dx + dy * dy < LHIT * LHIT) { launcherHit(b); if (S.over) break; }
   }
   S.bodies = S.bodies.filter(b => !b.dead);
   if (S.over) return;
-  // hard body cap (performance): oldest captured junk decays
+  // hard body cap (performance): the oldest loose debris fizzles
   if (S.bodies.length > MAX_BODIES) {
     let oi = -1;
-    for (let i = 0; i < S.bodies.length; i++) if (S.bodies[i].cap && !S.bodies[i].live) { oi = i; break; }
+    for (let i = 0; i < S.bodies.length; i++) if (S.bodies[i].loose) { oi = i; break; }
     if (oi < 0) oi = 0;
-    const b = S.bodies[oi]; burst(b.x, b.y, 8, '#6d8bff', 1.5); floatText(b.x, b.y, 'decayed', '#6d8bff', 13);
+    const b = S.bodies[oi]; burst(b.x, b.y, 8, '#ff9f43', 1.5); floatText(b.x, b.y, 'fizzled', '#ffae5e', 13);
     S.bodies.splice(oi, 1);
   }
   // spawning
@@ -376,20 +373,37 @@ function step() {
     S.prog = 0; S.level++; S.need = 4 + 2 * S.level;
     const bonus = 250 * (S.level - 1); S.score += bonus;
     startShift();
-    banner('LEVEL ' + S.level, 'the planets shift · orbits hold ' + capacity(S.level) + ' · +' + bonus, '#ffd84a'); SFX.level(); flash(0.35, '255,216,74'); shake(6);
+    banner('LEVEL ' + S.level, 'the planets shift · stars burn faster · +' + bonus, '#ffd84a'); SFX.level(); flash(0.35, '255,216,74'); shake(6);
   }
   if (!QUIET) { recordTrails(); warnings(); }
 }
 
-function warnings() {
-  let w = 0;
+// FX only: find the loose comet that will reach the launcher next (cosmetic prediction, never read by the sim)
+function predictThreat() {
+  if (FX.threat) FX.threat.t -= STEP;
+  if (FX.tick % 6 !== 0) return;
+  const pl = S.planets; let bestS = 151, bid = -1;
   for (const b of S.bodies) {
-    if (b.cap || (b.live && S.t - b.born < LIVE_SAFE)) continue;
-    const dx = LX - b.x, dy = LY - b.y, d = Math.hypot(dx, dy);
-    if (d < 140 && dx * b.vx + dy * b.vy > 0) w = Math.max(w, 1 - d / 140);
+    if (!b.loose || b.dead) continue;
+    const c = { x: b.x, y: b.y, vx: b.vx, vy: b.vy, ax: b.ax, ay: b.ay, live: false };
+    for (let st = 1; st < bestS; st++) {
+      for (let k = 0; k < SUB; k++) sub(c, pl, false);
+      rim(c);
+      const dx = c.x - LX, dy = c.y - LY;
+      if (dx * dx + dy * dy < (LHIT + 5) * (LHIT + 5)) { bestS = st; bid = b.id; break; }
+    }
   }
-  FX.warn = w;
-  if (w > 0) { FX.warnT -= STEP * (0.5 + w * 2.5); if (FX.warnT <= 0) { FX.warnT = 420; if (S.inv <= 0) SFX.warn(); } }
+  FX.threat = bid >= 0 ? { id: bid, t: bestS * STEP } : null;
+}
+function warnings() {
+  predictThreat();
+  const th = FX.threat;
+  FX.warn = th && th.t < 2000 ? 1 - th.t / 2000 : 0;
+  if (th && th.t < 1600 && !FX.slowDone && S.inv <= 0) {
+    FX.slowDone = true; FX.slowmo = 1400;
+    banner('INCOMING!', 'a missed comet is coming back · shoot it to SAVE', '#ff5e7e');
+  }
+  if (FX.warn > 0) { FX.warnT -= STEP * (0.5 + FX.warn * 2.5); if (FX.warnT <= 0) { FX.warnT = 420; if (S.inv <= 0) SFX.warn(); } }
 }
 
 function fire() {
@@ -400,63 +414,74 @@ function fire() {
   S.cool = COOL;
   if (!QUIET) { FX.recoil = 1; burst(LX + sx * 22, LY + sy * 22, 10, '#bff8ff', 2.5); shake(2); SFX.fire(); FX.hintA = Math.min(FX.hintA, 0.999); }
 }
-function success(b) { if (b.live && !b.ok) { b.ok = true; S.streak = Math.min(8, S.streak + 1); if (!QUIET) FX.streakPop = 1; if (S.streak >= 2) tone(880 + S.streak * 90, 0.08, 'sine', 0.035, null, 0.12); } }
-function loseStreak() {
-  if (S.streak > 0 && !QUIET) { FX.streakLost = 1; tone(300, 0.18, 'triangle', 0.035, 0.6); }
+function streakUp(b) {
+  if (!b.live || b.ok) return;
+  b.ok = true; S.st.hitShots++; S.streak = Math.min(8, S.streak + 1);
+  if (!QUIET) { FX.streakPop = 1; floatText(LX, LY - 50, 'STREAK ×' + mult().toFixed(1) + (S.streak >= 8 ? ' MAX!' : '!'), '#7df9ff', 19 + S.streak * 1.5); tone(880 + S.streak * 90, 0.1, 'sine', 0.045, null, 0.1); }
+}
+function loseStreak(why) {
+  if (S.streak > 0 && !QUIET) { FX.streakLost = 1; floatText(LX, LY - 50, 'STREAK BROKEN', '#ff5e7e', 24); tone(300, 0.25, 'triangle', 0.05, 0.5); }
   S.streak = 0;
 }
-function missed(b) { loseStreak(); }
-function capture(b) {
-  b.cap = true; b.capT = S.t; S.st.captured++;
-  // the system only holds so many stable orbits: overflow knocks the oldest captured junk loose
-  let n = 0, old = null;
-  for (const o of S.bodies) if (o.cap && !o.dead) { n++; if (o !== b && (!old || o.capT < old.capT)) old = o; }
-  if (n > capacity(S.level) && old) kickLoose(old);
-  const pts = 30; S.score += pts;
-  ring(b.x, b.y, '#8fa6ff', 4, 40, 3); burst(b.x, b.y, 12, '#8fa6ff', 2); floatText(b.x, b.y - 14, 'CAPTURED +' + pts, '#a9b8ff', 17); shake(2); SFX.capture();
+// scale speed (keeping direction) so total energy becomes E; mode 'down' only lowers, 'up' only raises
+function setEnergy(b, E, mode) {
+  const ph = phi(S.planets, b.x, b.y), v = Math.hypot(b.vx, b.vy), e0 = v * v / 2 + ph;
+  if ((mode === 'down' && e0 <= E) || (mode === 'up' && e0 >= E)) return true;
+  const v2 = 2 * (E - ph);
+  if (v2 <= 400 || v < 1e-6) return false;
+  const f = Math.sqrt(v2) / v; b.vx *= f; b.vy *= f; return true;
 }
-function kickLoose(o) {
-  const pl = S.planets, v0 = launchSpeed(pl), E = phi(pl, LX, LY) + v0 * v0 / 2 + 400, ph = phi(pl, o.x, o.y);
-  const v = Math.hypot(o.vx, o.vy), v2 = 2 * (E - ph);
-  if (v > 1e-6 && v2 > v * v) { const f = Math.sqrt(v2) / v; o.vx *= f; o.vy *= f; }
-  o.cap = false; o.kicked = true; o.nodrag = S.t + 6000; S.st.kicked = (S.st.kicked || 0) + 1;
-  ring(o.x, o.y, '#ff9f43', 3, 34, 3); burst(o.x, o.y, 12, '#ff9f43', 2.5);
-  floatText(o.x, o.y - 12, (o.kind === 'w' ? 'wreck' : '#' + o.n) + ' KNOCKED LOOSE', '#ffae5e', 16);
-  if (!QUIET) tone(520, 0.25, 'sawtooth', 0.04, 0.5, 0.05);
-}
-function collide(a, b) {
-  a.dead = true; b.dead = true;
-  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-  if (!b.cap && !b.live) {
-    S.st.saved++;
-    const pts = Math.round((b.kind === 'w' ? 120 : 75) * mult()); S.score += pts; success(a);
-    burst(mx, my, 34, '#ffcf6b', 4.5); burst(mx, my, 12, '#fff', 3); ring(mx, my, '#ffcf6b', 5, 50, 4);
-    floatText(mx, my - 12, (b.kind === 'w' ? 'WRECK DOWN +' : 'SAVED +') + pts, '#ffd84a', 21); shake(7); S.freeze = Math.max(S.freeze, 70); flash(0.18, '255,207,107'); SFX.save();
+function looseEnergy() { const v0 = launchSpeed(S.planets); return phi(S.planets, LX, LY) + v0 * v0 / 2 + 400; }
+// end of a comet's flight: hit a star => SAFE orbit (scores for you); missed => LOOSE debris that hunts the launcher
+function settle(b, TH) {
+  b.live = false;
+  if (b.ok) {
+    b.cap = true; b.capT = S.t; S.st.captured++;
+    setEnergy(b, TH.cap - 400, 'down');
+    const pts = Math.round(25 * mult()); S.score += pts;
+    ring(b.x, b.y, '#8fa6ff', 4, 40, 3); burst(b.x, b.y, 12, '#8fa6ff', 2); floatText(b.x, b.y - 14, 'SAFE ORBIT +' + pts, '#a9b8ff', 17); SFX.capture();
+    let n = 0, old = null;
+    for (const o of S.bodies) if (o.cap && !o.dead) { n++; if (o !== b && (!old || o.capT < old.capT)) old = o; }
+    if (n > SAFE_MAX && old) retire(old);
   } else {
-    S.st.smashed++;
-    burst(mx, my, 20, '#a9b8ff', 3); ring(mx, my, '#a9b8ff', 3, 28, 2); floatText(mx, my - 10, 'SMASH', '#a9b8ff', 16); shake(4); SFX.smash();
-    if (a.live && !a.ok) missed(a);
+    b.loose = true; S.st.missed++;
+    setEnergy(b, looseEnergy(), 'up');
+    ring(b.x, b.y, '#ff9f43', 4, 38, 3); burst(b.x, b.y, 12, '#ff9f43', 2.5);
+    floatText(b.x, b.y - 14, 'MISS: #' + b.n + ' IS LOOSE', '#ffae5e', 18);
+    if (!QUIET) tone(520, 0.25, 'sawtooth', 0.04, 0.5, 0.05);
+    loseStreak();
   }
+}
+function retire(o) {
+  o.dead = true; S.st.retired++;
+  const pts = Math.round(50 * mult()); S.score += pts;
+  burst(o.x, o.y, 14, '#a9b8ff', 2); ring(o.x, o.y, '#a9b8ff', 16, 2, 2); floatText(o.x, o.y - 10, '#' + o.n + ' retires +' + pts, '#a9b8ff', 15);
+}
+function collide(a, b) {   // a live comet shoots down loose debris
+  a.dead = true; b.dead = true; S.st.saved++;
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, pts = Math.round((b.kind === 'w' ? 120 : 75) * mult()); S.score += pts;
+  burst(mx, my, 34, '#ffcf6b', 4.5); burst(mx, my, 12, '#fff', 3); ring(mx, my, '#ffcf6b', 5, 50, 4);
+  floatText(mx, my - 12, (b.kind === 'w' ? 'WRECK DOWN +' : 'SAVE #' + b.n + ' +') + pts, '#ffd84a', 22); shake(7); S.freeze = Math.max(S.freeze, 70); flash(0.18, '255,207,107'); SFX.save();
 }
 function starHit(st, b) {
   st.dead = true; S.prog++; S.st.stars++;
   if (b.live) {
     b.chain++;
+    const first = !b.ok; streakUp(b);
     const pts = Math.round(100 * b.chain * (b.sling ? 2 : 1) * mult());
-    S.score += pts; success(b);
+    S.score += pts;
     const big = b.chain >= 2;
     burst(st.x, st.y, big ? 40 : 24, '#ffd84a', big ? 5 : 3.5); burst(st.x, st.y, 10, '#fff', 2.5); ring(st.x, st.y, '#ffd84a', 6, big ? 64 : 40, big ? 5 : 3);
     let label = '+' + pts; if (b.chain >= 2) label = '×' + b.chain + ' CHAIN +' + pts; else if (b.sling) label = 'SLINGSHOT +' + pts;
     floatText(st.x, st.y - 16, label, big ? '#fff3b0' : '#ffd84a', big ? 26 : 22);
     shake(big ? 8 + b.chain * 2 : 4); flash(big ? 0.3 : 0.1, '255,216,74'); SFX.star(b.chain, false);
     if (big) S.freeze = Math.max(S.freeze, 60 + 35 * b.chain);
-    if (b.chain === 3 && S.hearts < 3) { S.hearts++; floatText(LX, LY - 64, '3-CHAIN: +1 HEART', '#ff8fb1', 22); SFX.heart(); if (!QUIET) FX.heartPop[S.hearts - 1] = 1; }
+    if (b.chain === 3 && S.hearts < 3) { S.hearts++; floatText(LX, LY - 74, '3-CHAIN: +1 HEART', '#ff8fb1', 22); SFX.heart(); if (!QUIET) FX.heartPop[S.hearts - 1] = 1; }
   } else {
     S.st.passive++;
     const pts = Math.round(50 * mult()); S.score += pts;
-    const col = b.kind === 'w' ? '#ff7a59' : b.cap ? '#a9b8ff' : '#ffae5e';
-    burst(st.x, st.y, 18, '#ffd84a', 3); burst(st.x, st.y, 8, col, 2); ring(st.x, st.y, col, 5, 34, 3);
-    floatText(st.x, st.y - 16, (b.kind === 'w' ? 'wreck' : '#' + b.n) + ' +' + pts, col, 19); shake(2.5); SFX.star(1, true);
+    burst(st.x, st.y, 18, '#ffd84a', 3); burst(st.x, st.y, 8, '#a9b8ff', 2); ring(st.x, st.y, '#a9b8ff', 5, 34, 3);
+    floatText(st.x, st.y - 16, 'safe #' + b.n + ' +' + pts, '#c2ceff', 19); shake(2.5); SFX.star(1, true);
   }
 }
 function burnout(st) {
@@ -469,17 +494,16 @@ function burnout(st) {
   let tx = -(st.y - my), ty = st.x - mx; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
   if (rnd() < 0.5) { tx = -tx; ty = -ty; }
   const tilt = (rnd() - 0.5) * 0.6, c = Math.cos(tilt), s = Math.sin(tilt);
-  const w = { id: S.nextId++, n: 0, kind: 'w', x: st.x, y: st.y, vx: (tx * c - ty * s) * v, vy: (tx * s + ty * c) * v, ax: 0, ay: 0, born: S.t, live: false, cap: false, chain: 0, sling: false, ok: true };
+  const w = { id: S.nextId++, n: 0, kind: 'w', x: st.x, y: st.y, vx: (tx * c - ty * s) * v, vy: (tx * s + ty * c) * v, ax: 0, ay: 0, born: S.t, live: false, cap: false, loose: true, chain: 0, sling: false, ok: true };
   accel(w, pl, false); S.bodies.push(w);
-  loseStreak();
-  burst(st.x, st.y, 26, '#ff6a3d', 3); ring(st.x, st.y, '#ff6a3d', 30, 4, 3); floatText(st.x, st.y - 16, 'BURNT OUT', '#ff7a59', 18); shake(3); SFX.burn();
+  burst(st.x, st.y, 26, '#ff6a3d', 3); ring(st.x, st.y, '#ff6a3d', 30, 4, 3); floatText(st.x, st.y - 16, 'BURNT OUT: WRECK LOOSE', '#ff7a59', 17); shake(3); SFX.burn();
 }
 function launcherHit(b) {
   b.dead = true;
   if (S.inv > 0) { burst(b.x, b.y, 14, '#7df9ff', 2.5); ring(LX, LY, '#7df9ff', 10, 40, 2); floatText(LX, LY - 34, 'SHIELDED', '#7df9ff', 15); SFX.smash(); return; }
-  S.hearts--; S.inv = INV; S.freeze = 230; loseStreak();
+  S.hearts--; S.inv = INV; S.freeze = 230;
   if (!QUIET) FX.heartPop[S.hearts] = 1;
-  for (const o of S.bodies) if (!o.dead && Math.hypot(o.x - LX, o.y - LY) < SHOCK) { o.dead = true; burst(o.x, o.y, 8, '#ff5e7e', 2); }
+  for (const o of S.bodies) if (!o.dead && o.loose && Math.hypot(o.x - LX, o.y - LY) < SHOCK) { o.dead = true; burst(o.x, o.y, 8, '#ff5e7e', 2); }
   const who = b.kind === 'w' ? 'a burnt-out star\'s wreck' : 'comet #' + b.n;
   burst(LX, LY, 50, '#ff5e7e', 6); burst(LX, LY, 20, '#fff', 4); ring(LX, LY, '#ff5e7e', 8, SHOCK + 30, 6); ring(LX, LY, '#fff', 4, SHOCK, 2);
   shake(20); flash(0.6, '255,70,100'); SFX.hit();
@@ -594,10 +618,11 @@ function render() {
   cx.globalCompositeOperation = 'lighter';
   for (const b of S.bodies) {
     const tr = FX.trails[b.id]; if (!tr) continue;
+    const thr = FX.threat && FX.threat.id === b.id;
     if (b.live) drawTrail(tr, '#7df9ff', 3.5, 0.9);
-    else if (b.kind === 'w') drawTrail(tr, '#ff5a3a', 2.4, 0.55 + 0.4 * hotness(b));
-    else if (b.cap) drawTrail(tr, '#6d8bff', 1.6, 0.42);
-    else drawTrail(tr, '#ff9f43', 2, 0.42 + 0.5 * hotness(b));
+    else if (b.cap) { const f = Math.max(0, 1 - (S.t - b.capT) / SAFE_FADE); drawTrail(tr, '#6d8bff', 1 + f, 0.13 + 0.3 * f); }
+    else if (b.kind === 'w') drawTrail(tr, '#ff5a3a', thr ? 3.2 : 2.4, thr ? 1 : 0.7);
+    else drawTrail(tr, thr ? '#ff5e7e' : '#ff9f43', thr ? 3.2 : 2.3, thr ? 1 : 0.7);
   }
   cx.globalCompositeOperation = 'source-over';
 
@@ -613,7 +638,7 @@ function render() {
     cx.globalAlpha = 1;
     let k = 0;
     for (const h of pv.hits) {
-      if (h.cap) { cx.strokeStyle = '#a9b8ff'; cx.lineWidth = 2; cx.globalAlpha = 0.8; cx.beginPath(); cx.arc(h.x, h.y, 7 + pulse * 3, 0, 6.283); cx.stroke(); cx.globalAlpha = 1; continue; }
+      if (h.cap) { if (!pv.hits.some(q => !q.cap)) continue; cx.strokeStyle = '#a9b8ff'; cx.lineWidth = 2; cx.globalAlpha = 0.8; cx.beginPath(); cx.arc(h.x, h.y, 7 + pulse * 3, 0, 6.283); cx.stroke(); cx.globalAlpha = 1; continue; }
       k++;
       cx.strokeStyle = '#ffffff'; cx.lineWidth = 2.5; cx.beginPath(); cx.arc(h.x, h.y, SHIT + 3 + pulse * 3, 0, 6.283); cx.stroke();
       if (k >= 2) { cx.fillStyle = '#fff3b0'; cx.font = font(15); cx.textAlign = 'center'; cx.fillText('×' + k, h.x, h.y - SHIT - 9); }
@@ -656,30 +681,43 @@ function render() {
       cx.fillStyle = g; cx.beginPath(); cx.arc(b.x, b.y, 14, 0, 6.283); cx.fill();
       cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(b.x, b.y, 4, 0, 6.283); cx.fill();
       if (b.sling) { cx.strokeStyle = 'rgba(255,216,74,0.8)'; cx.lineWidth = 1.5; cx.beginPath(); cx.arc(b.x, b.y, 8 + pulse * 2, 0, 6.283); cx.stroke(); }
+    } else if (b.cap) {
+      const f = Math.max(0, 1 - (S.t - b.capT) / SAFE_FADE);
+      cx.globalAlpha = 0.45 + 0.4 * f; cx.fillStyle = '#9fb2ff'; cx.beginPath(); cx.arc(b.x, b.y, 2.4 + 1.5 * f, 0, 6.283); cx.fill(); cx.globalAlpha = 1;
     } else {
-      const ht = b.cap ? 0 : hotness(b), col = b.kind === 'w' ? '#ff5a3a' : b.cap ? '#7f98ff' : '#ff9f43';
-      const gr = 7 + ht * 10 + (ht > 0.3 ? pulse * 4 * ht : 0), g = cx.createRadialGradient(b.x, b.y, 0, b.x, b.y, gr);
+      const ht = hotness(b), col = b.kind === 'w' ? '#ff5a3a' : '#ff9f43';
+      const gr = 9 + ht * 8 + pulse * 3, g = cx.createRadialGradient(b.x, b.y, 0, b.x, b.y, gr);
       g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
-      cx.fillStyle = g; cx.globalAlpha = b.cap ? 0.6 : 0.75 + 0.25 * ht; cx.beginPath(); cx.arc(b.x, b.y, gr, 0, 6.283); cx.fill(); cx.globalAlpha = 1;
-      cx.fillStyle = b.cap ? '#c9d3ff' : '#ffe0b8';
+      cx.fillStyle = g; cx.globalAlpha = 0.85 + 0.15 * ht; cx.beginPath(); cx.arc(b.x, b.y, gr, 0, 6.283); cx.fill(); cx.globalAlpha = 1;
+      cx.fillStyle = '#ffe0b8';
       if (b.kind === 'w') { cx.save(); cx.translate(b.x, b.y); cx.rotate(now / 300 + b.id); cx.fillStyle = '#ffb08a'; cx.fillRect(-3.5, -3.5, 7, 7); cx.restore(); }
       else { cx.beginPath(); cx.arc(b.x, b.y, b.cap ? 2.6 : 3.2, 0, 6.283); cx.fill(); }
     }
   }
   cx.globalCompositeOperation = 'source-over';
-  // loose junk near the launcher: label + warning line
+  // loose debris: labelled; the NEXT one to reach the launcher gets a red ring, a line home and a countdown
+  cx.textAlign = 'center';
   for (const b of S.bodies) {
-    if (b.cap || b.live) continue;
-    const ht = hotness(b); if (ht < 0.35) continue;
-    cx.globalAlpha = Math.min(1, ht * 1.3); cx.strokeStyle = '#ff5e7e'; cx.lineWidth = 1.5; cx.setLineDash([4, 5]);
-    cx.beginPath(); cx.moveTo(b.x, b.y); cx.lineTo(LX, LY); cx.stroke(); cx.setLineDash([]);
-    cx.fillStyle = '#ffb3c0'; cx.font = font(13); cx.textAlign = 'center'; cx.fillText(b.kind === 'w' ? 'wreck' : '#' + b.n, b.x, b.y - 12); cx.globalAlpha = 1;
+    if (!b.loose) continue;
+    const thr = FX.threat && FX.threat.id === b.id && !S.over;
+    cx.font = font(thr ? 15 : 12); cx.fillStyle = thr ? '#ffd0d8' : 'rgba(255,190,140,0.85)';
+    cx.fillText((b.kind === 'w' ? 'wreck' : '#' + b.n) + (thr ? ' INCOMING' : ''), b.x, b.y - (thr ? 22 : 11));
+    if (thr) {
+      cx.strokeStyle = 'rgba(255,70,100,' + (0.6 + 0.4 * pulse) + ')'; cx.lineWidth = 3; cx.beginPath(); cx.arc(b.x, b.y, 13 + 3 * pulse, 0, 6.283); cx.stroke();
+      cx.globalAlpha = 0.55 + 0.45 * FX.warn; cx.strokeStyle = '#ff5e7e'; cx.lineWidth = 2; cx.setLineDash([6, 6]); cx.lineDashOffset = -now / 30;
+      cx.beginPath(); cx.moveTo(b.x, b.y); cx.lineTo(LX, LY); cx.stroke(); cx.setLineDash([]); cx.globalAlpha = 1;
+    }
   }
 
   // launcher
   {
     const inv = S.inv > 0 && !S.over, a = S.aim, rc = FX.recoil * 6;
-    if (FX.warn > 0 && !S.over) { cx.strokeStyle = 'rgba(255,94,126,' + (0.25 + 0.5 * FX.warn * pulse) + ')'; cx.lineWidth = 3; cx.beginPath(); cx.arc(LX, LY, 26 + 6 * pulse, 0, 6.283); cx.stroke(); }
+    if (FX.threat && FX.threat.t < 1500 && FX.threat.t > 0 && !S.over) {
+      const f = FX.threat.t / 1500;
+      cx.strokeStyle = 'rgba(255,60,90,0.25)'; cx.lineWidth = 6; cx.beginPath(); cx.arc(LX, LY, 30, 0, 6.283); cx.stroke();
+      cx.strokeStyle = 'rgba(255,60,90,' + (0.75 + 0.25 * pulse) + ')'; cx.beginPath(); cx.arc(LX, LY, 30, -Math.PI / 2, -Math.PI / 2 + 6.283 * f); cx.stroke();
+      cx.font = font(14); cx.fillStyle = '#ff9fb0'; cx.textAlign = 'center'; cx.fillText((FX.threat.t / 1000).toFixed(1) + 's', LX + 50, LY + 5);
+    }
     if (inv) { cx.strokeStyle = 'rgba(125,249,255,' + (0.35 + 0.35 * pulse) + ')'; cx.lineWidth = 2.5; cx.beginPath(); cx.arc(LX, LY, 24, 0, 6.283); cx.stroke(); }
     cx.save(); cx.translate(LX, LY); cx.rotate(a);
     cx.fillStyle = '#3b3f7a'; cx.fillRect(-4.5, -26 + rc, 9, 20);
@@ -736,22 +774,22 @@ function drawHUD(now, pulse) {
   cx.textAlign = 'center'; cx.font = font(18); cx.fillStyle = '#ffd84a'; cx.fillText('LEVEL ' + S.level, W / 2, 72);
   cx.fillStyle = 'rgba(255,216,74,0.18)'; cx.fillRect(W / 2 - 70, 80, 140, 6);
   cx.fillStyle = '#ffd84a'; cx.fillRect(W / 2 - 70, 80, 140 * Math.min(1, S.prog / S.need), 6);
-  let cap = 0, loose = 0; for (const b of S.bodies) if (!b.live) { if (b.cap) cap++; else loose++; }
+  let cap = 0, loose = 0; for (const b of S.bodies) { if (b.cap) cap++; else if (b.loose) loose++; }
   cx.textAlign = 'right'; cx.font = font(17);
-  cx.fillStyle = cap >= capacity(S.level) ? '#ffd84a' : '#a9b8ff'; cx.fillText(cap + '/' + capacity(S.level) + ' orbits', W - 16, 82);
-  cx.fillStyle = loose ? '#ffae5e' : '#6f6d9a'; cx.fillText(loose + ' loose', W - 16, 102);
+  cx.fillStyle = '#a9b8ff'; cx.fillText('SAFE ' + cap + '/' + SAFE_MAX, W - 16, 82);
+  cx.fillStyle = loose ? 'rgba(255,174,94,' + (0.75 + 0.25 * pulse) + ')' : '#6f6d9a'; cx.fillText('LOOSE ' + loose + (loose ? ' ⚠' : ''), W - 16, 102);
 
   // bottom: legend + hint
   cx.textAlign = 'center';
-  cx.font = font(16, 'normal');
-  cx.fillStyle = '#8fa6ff'; cx.fillText('● captured = safe', W / 2 - 112, 688);
-  cx.fillStyle = '#ffae5e'; cx.fillText('● loose = coming back!', W / 2 + 104, 688);
+  cx.font = font(15, 'normal');
+  cx.fillStyle = '#8fa6ff'; cx.fillText('● hit a star → SAFE orbit (scores for you, max ' + SAFE_MAX + ')', W / 2, 676);
+  cx.fillStyle = '#ffae5e'; cx.fillText('● miss → LOOSE debris that hunts you · shoot it to SAVE', W / 2, 697);
   if (FX.hintA > 0.01 && !S.over) {
     cx.globalAlpha = Math.min(1, FX.hintA);
     cx.font = font(20); cx.fillStyle = '#f4f1ff';
-    cx.fillText(touchUI ? 'drag to aim · release to fire' : '← → aim · SPACE fire  (or mouse)', W / 2, 726);
-    cx.font = font(16, 'normal'); cx.fillStyle = '#b7b3e6';
-    cx.fillText('pop stars · dive through a planet\'s glow to capture', W / 2, 754);
+    cx.fillText(touchUI ? 'drag to aim · release to fire' : '← → aim · SPACE fire  (or mouse)', W / 2, 730);
+    cx.font = font(16, 'normal'); cx.fillStyle = '#ffc9a0';
+    cx.fillText('every miss is debris that hunts you', W / 2, 756);
     cx.globalAlpha = 1;
   }
   if (FX.banner) {
@@ -772,7 +810,7 @@ function drawHUD(now, pulse) {
     cx.font = font(16); cx.fillStyle = '#9a98c8'; cx.fillText('SCORE', W / 2, 416);
     cx.font = font(20); cx.fillStyle = '#ffd84a'; cx.fillText((FX.newBest ? 'NEW BEST! ' : 'BEST ') + best, W / 2, 452);
     cx.font = font(16, 'normal'); cx.fillStyle = '#b7b3e6';
-    cx.fillText('level ' + S.level + ' · ' + S.fired + ' comets · ' + S.st.passive + ' junk hits · ' + S.st.saved + ' saves', W / 2, 486);
+    cx.fillText('level ' + S.level + ' · ' + S.st.hitShots + '/' + S.fired + ' comets hit a star · ' + S.st.saved + ' loose shot down', W / 2, 486);
     const ok = performance.now() - overAt > 400;
     cx.globalAlpha = ok ? 0.6 + 0.4 * pulse : 0.3; cx.font = font(20); cx.fillStyle = '#f4f1ff';
     cx.fillText('press any key or tap to retry', W / 2, 540); cx.globalAlpha = 1;
@@ -829,7 +867,9 @@ addEventListener('pointercancel', () => { dragging = false; });
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(100, now - last); last = now;
-  if (!manual) { carry += dt; while (carry >= STEP) { step(); carry -= STEP; } }
+  let sdt = dt;
+  if (FX.slowmo > 0) { FX.slowmo -= dt; sdt = dt * 0.3; }   // presentation-only slow-mo (real-time play)
+  if (!manual) { carry += sdt; while (carry >= STEP) { step(); carry -= STEP; } }
   if ((FX.hintA < 1 && S.t > 2500) || S.t > 25000) FX.hintA = Math.max(0, FX.hintA - dt / 2500);
   render();
   requestAnimationFrame(frame);
@@ -845,8 +885,8 @@ window.__game = {
       aim: S.aim, aimMax: AIM_MAX, cool: S.cool, inv: S.inv, streak: S.streak, launcher: { x: LX, y: LY }, center: { x: CX, y: CY }, rim: RA,
       v0: launchSpeed(S.planets), planets: pl, shifting: !!S.shift, aimHits: S.over ? 0 : computePreview().hits.filter(h => !h.cap).length,
       stars: S.stars.map(s => ({ x: s.x, y: s.y, r: SHIT, fuse: s.fuse })),
-      bodies: S.bodies.map(b => ({ id: b.id, n: b.n, x: b.x, y: b.y, vx: b.vx, vy: b.vy, live: b.live, cap: b.cap, kind: b.kind })),
-      stats: S.st, capacity: capacity(S.level), fired: S.fired, junk: S.bodies.filter(b => !b.live).length, loose: S.bodies.filter(b => !b.live && !b.cap).length,
+      bodies: S.bodies.map(b => ({ id: b.id, n: b.n, x: b.x, y: b.y, vx: b.vx, vy: b.vy, live: b.live, cap: !!b.cap, loose: !!b.loose, hit: !!b.ok, kind: b.kind })),
+      stats: S.st, safeMax: SAFE_MAX, fired: S.fired, safe: S.bodies.filter(b => b.cap).length, loose: S.bodies.filter(b => b.loose).length,
     };
   },
   getActions() { return S.over ? ['none'] : ['none', 'left', 'right', 'fire']; },

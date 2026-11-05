@@ -428,3 +428,90 @@ couldn't find a deliberate tactic in the screenshots that obviously beat it.
 - **Would I play a 4th run?** No, not without clearer counterplay against loose comets.
 - **Bugs / friction:** No console errors. The stars in the first-look screenshot were in completely different places from the ones on the first stepped frame. "orbits 0/24" didn't change after my first captures (it moved later), so its meaning is unclear. "saves" on the game-over screen is never explained (am I meant to catch or shoot loose comets?). The late-game board is visually overwhelming. ×STREAK never moved off ×1.0 for me.
 
+---
+
+## 10. Magsumo
+
+**What it is:** Magnet sumo in a shrinking circular ring against a CPU (PEBBLE "the Trickster / Brawler /
+Wall"), with a 2-player option on Enter. WASD/arrows steer and SPACE flips your pole N ⇄ S. Same poles repel,
+opposite poles attract, and flipping point-blank triggers a SLAM that blasts you apart. Push the CPU off the
+edge to win a round. You have 3 hearts (each ring-out costs one), and a "ring" bar shows the arena shrinking.
+Field lines are drawn between the magnets.
+
+**Runs**
+| Run | Seed | Score | Length | Cause |
+|---|---|---|---|---|
+| 1 | 101 | 40 | 21 s | slid off the edge on your own (round 3), 0 rounds won, 2 slams |
+| 2 | 102 | 440 | 22 s | slid off the edge on your own (round 4), 1 round won (during blind play) |
+| 3 | 105 | 0 | 15 s | shoved off the ring by PEBBLE (round 3) |
+| (blind) | 103 / 104 | 0 / 0 | ~20 s | slid off on your own / shoved off by PEBBLE |
+
+Improved? **No.** My only round win came during a random-input stretch. Deliberate play (rush to center,
+repel-push, attract-and-slam) lost every round I watched. The slam sends *both* magnets flying, and I usually
+flew toward the edge myself.
+
+| # | Principle | Score | Justification |
+|---|---|---|---|
+| 1 | Readable in 5 s | 2 | "WASD / arrows steer · SPACE flips N ⇄ S · same poles repel · opposite attract · flip point-blank to SLAM", a ROUND 1 / SET / GO! countdown, and labelled magnets. |
+| 2 | Clear goal, visible score | 2 | Score, best, hearts, round, opponent name and level, win streak ×, and flip-ready/charging for both sides. Goal: "ring the CPU out". |
+| 3 | Juicy feedback | 2 | Field lines redraw live between the magnets (dashed red for repel, blue for attract), with "SLAMMED!" and "MAGNET SLAM! +20" banners, a radial burst of lines on slams, a red edge-glow warning arc when you're near the rim, and "RING OUT — 2 hearts left". |
+| 4 | Forgiving input | 0 | No forgiveness I could find. Momentum carries you off the edge after a slam, the shrinking ring leaves no margin, and in two of my deaths I'd been steering inward the whole time. |
+| 5 | Fair, legible failure | 1 | "slid off the edge on your own" vs "shoved off the ring by PEBBLE" is a nice distinction. But I often couldn't explain *why* I slid: the magnetic forces aren't readable enough to predict. |
+| 6 | Instant retry | 2 | "press any key or tap to play again". Rounds also auto-advance quickly. |
+| 7 | Interesting decisions | 1 | The flip is a real decision (attract to close in, flip to slam, or repel to keep away). But at my skill, random input scored *better* than deliberate input (440 vs 40/0). |
+| 8 | Pattern to learn | 0 | I learned the rules but not a pattern that wins. The CPU outplayed every plan, and scores didn't move. |
+| 9 | Escalation / flow | 1 | The ring shrinks within a round, and opponents rotate personalities (Trickster, Brawler, Wall). But runs last ~20 s, far below the 60 s flow window, and I never got past PEBBLE LV1. |
+| 10 | Not solved | 2 | Definitely not solved, by me at least. |
+| 11 | Risk and reward | 2 | The slam is a clear gamble: flipping point-blank sends the opponent flying *and* you, so slamming near the edge can kill you. |
+| 12 | Few verbs, deep use | 2 | Steer plus flip, and the flip is attract, repel *and* attack depending on distance. A textbook dual-purpose verb. |
+| 13 | Variety | 1 | The opponent personality changes per round and seed, but runs end so fast they felt similar. |
+| 14 | Reward cadence / compounding | 1 | Slams give +20, round wins are big (~400), and there's a win-streak ×. But slams are rare and wins rarer, so reward events came about every 10+ s at my level. |
+| 15 | One more go | 1 | NEW BEST is shown at game over, with a stats line. I'd replay mostly for 2-player, not solo. |
+
+**Total: 20 / 30 → Fun score 7**
+
+- **MDA aesthetic felt:** Sensation / Challenge (with Fellowship potential via the 2-player mode, which I couldn't test).
+- **Best moment:** The first "MAGNET SLAM! +20": flipping point-blank and watching the field lines explode outward as PEBBLE flew across the ring.
+- **Worst moment:** Rushing to the center to repel-push the Brawler, getting deflected sideways around it, and sliding out of the ring at the top-left within 1.5 s of GO.
+- **Would I play a 4th run?** Against a friend, yes. Solo against the CPU, probably not until the opening is less punishing.
+- **Bugs / friction:** No console errors. **My pole changed between the first-look frame (N vs N) and the first stepped frame (S vs N)** even though my first key was an arrow, so the opening state shown isn't the one you play. The opponent's epithet also changed between those frames ("the Trickster" → "the Brawler", seed 101). The "ring" shrink bar is unlabelled. The slam's self-knockback is never explained, which made it feel like a trap. Momentum is very high for a ring this small.
+
+---
+
+## Final ranking
+
+| Rank | Game | Total /30 | Fun score | One-line verdict |
+|---|---|---|---|---|
+| 1 | **Loopback** | 30 | **10** | Your own past is the enemy. A brilliant, original rule with a 17× learning curve and the best death message in the set. |
+| 2 | **Pipwalk** | 29 | **10** | A die-rolling tactics roguelite where every move picks your weapon. The deepest decisions, plus Balatro-style match multipliers. |
+| 3 | **Mazewright** | 29 | **10** | Tower defense where you build the path, not the towers. The bank-vs-build greed mechanic is superb, and the score went 5× in two runs. |
+| 4 | Tiltwell | 27 | 9 | Puyo with a whole-board tilt. Predicting the re-settle is a great "aha", but ArrowUp silently burns tilts. |
+| 5 | Uptempo | 27 | 9 | A rhythm highway whose tempo is your own DDA. It looks excellent but is provisional without audio, and Shift-to-start counts as a brake. |
+| 6 | Spellsnake | 26 | 9 | Snake + Scrabble. Cash-in tension (MEAN +150 vs gamble for MEANS +350) is wonderful, but it's too fast for a first-timer. |
+| 7 | Kickback | 25 | 8 | Recoil-only Asteroids in an electric ring. Juicy and tense, but the slow turn makes the first 7 seconds a cliff. |
+| 8 | Compound | 25 | 8 | A gorgeous idle engine-builder vs a rising tide, but blind key-mashing did as well as careful building. |
+| 9 | Magsumo | 20 | 7 | Magnet sumo with a great dual-purpose flip, but the solo CPU outplayed every plan, and random input beat deliberate input. |
+| 10 | Junkorbit | 19 | 6 | Lovely orbital physics, but fixed-aim spam reaches level 3 and the late game is an unreadable spaghetti of trails. |
+
+### Best game: **Loopback**
+
+Loopback is the only game where the core rule (every ~8 s, a ghost replays everything you've done) turns
+*the player's own history* into the level. That one rule produced everything the rubric asks for, with
+almost no extra machinery:
+- **Learning (Koster):** I went from 216 to 3,789 in two runs because I understood the rule better, not because of luck.
+- **Interesting decisions (Meier):** every step is a commitment you'll have to dodge later.
+- **Risk/reward:** brush (pass close for ×mult) and phase (dash *through* a ghost for a bonus) make danger something you approach on purpose.
+- **Escalation:** ghosts stack, intervals tighten, and the walls close in at ~73 s.
+- **Fair failure (Juul):** "hit by ghost #11 (you, 79s ago)" makes every death your own fault, legibly.
+
+Pipwalk and Mazewright are close behind and arguably deeper (build drafts, multiplicative synergies). But
+both have more friction on first contact (Pipwalk's face-net, Mazewright's digit keys not working), and
+neither has Loopback's instant "oh, *that's* the game" moment.
+
+### Cross-cutting observations
+- **The first-look frame often doesn't match the first played frame.** In Tiltwell, Spellsnake, Junkorbit and Magsumo the starting pieces, letters, stars or poles changed after the first keypress. Something seems to re-seed or re-roll on start. It's harmless for fun, but it undercuts "readable in 5 s", because the player reads a board that then changes.
+- **Overloaded or hidden keys bite new players:** ArrowUp = tilt (Tiltwell), Shift-to-start = brake (Uptempo), digits ignored on upgrade cards (Mazewright), Space overloaded on the core (Mazewright), auto-advancing cursor overwrites cards (Compound).
+- **Score HUDs that tween** briefly showed a lower score than BEST in Mazewright, Uptempo and Compound. That's cosmetic, but it reads like a bug.
+- **Blind-input tests are revealing.** To stay within budget, I finished several runs with mindless loops. In Junkorbit, Compound and Magsumo the loop scored as well as or better than my deliberate play, which is strong evidence of weak skill expression (#7/#8). In Pipwalk, Mazewright and Tiltwell the blind loop clearly did worse, which is the healthy result.
+- **No console errors in any game across ~30 runs.**
+- **Method caveats:** I played in stepped mode with no audio. Twitch games (Kickback, Uptempo, Spellsnake, Magsumo) are harder this way than with a real keyboard, and Uptempo's score especially should be treated as provisional.

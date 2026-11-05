@@ -73,3 +73,32 @@ The bold pitches are the ten to build, one per genre, which guarantees the varie
 
 ## D7. Fun scores keep one decimal
 - FUN.md says `round(total/3)`. With 10 games bunched at 7–9 that throws away the resolution needed to rank them, so all components keep one decimal.
+
+## D8. Round-1 ranking, and which games get reworked or polished (Phase 4)
+Provisional final = 0.30 × bot (v2, round-1 data) + 0.35 × blind critic + 0.35 × my gut:
+
+| Game | bot | critic | mine | final |
+|---|---|---|---|---|
+| LOOPBACK | 9.2 | 10 | 8.0 | 9.06 |
+| PIPWALK | 9.5 | 10 | 7.5 | 8.98 |
+| SPELLSNAKE | 9.1 | 9 | 8.5 | 8.86 |
+| MAZEWRIGHT | 8.3 | 10 | 8.0 | 8.79 |
+| TILTWELL | 8.3 | 9 | 7.0 | 8.09 |
+| UPTEMPO | 7.6 | 9 | 7.0 | 7.88 |
+| COMPOUND | 9.1 | 8 | 6.5 | 7.81 |
+| KICKBACK | 9.5 | 8 | 5.5 | 7.58 |
+| MAGSUMO | 9.1 | 7 | 6.5 | 7.46 |
+| JUNK ORBIT | 9.3 | 6 | 7.0 | 7.34 |
+
+- **Bottom 3, reworked hard:**
+  - JUNK ORBIT: blind spam ≈ deliberate play. The economy was reworked so misses become the danger and the streak rewards accuracy.
+  - MAGSUMO: deliberate play ≈ random, and there was no forgiveness. The on-ramp, edge grace, force readability and the teaching CPU ladder were reworked.
+  - KICKBACK: everyone died in under 10 s. The on-ramp was reworked: eased turn, drift arrow, gentle waves, a rim shield.
+- **Also reworked: COMPOUND (4th from bottom).** The critic and I independently found the same flaw: mashing survives as long as careful play, and the score doesn't track what you see. Two independent sources plus the bot data (heuristic ≈ random) were enough to act on.
+- **Top 3, polished:**
+  - LOOPBACK: teach PHASE, kinder pickup, clutter fading.
+  - PIPWALK: legibility of chain breaks, dodges and the TOP face.
+  - SPELLSNAKE: gentle opening with a starter word, visible grace, rules on screen.
+  - MAZEWRIGHT (a close 4th) also got its friction fixes.
+- **Every bug the critic found was fixed in every game.** TILTWELL: Up spent a tilt, and taps were dropped. UPTEMPO: the start key braked. MAZEWRIGHT: digit picks and dropped cursor presses. COMPOUND: unreadable numbers. PIPWALK: preview pips were misread.
+- **Round 2:** a fresh blind critic (it hasn't seen the round-1 notes) replays the reworked bottom 4 and the polished top 3. The full bot lab re-runs on all 10 as `v2`.
