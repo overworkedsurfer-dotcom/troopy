@@ -3,7 +3,7 @@
  "tag": "",
  "n": 12,
  "cap": 900000,
- "date": "2026-11-05T00:59:38.963Z",
+ "date": "2026-11-05T01:25:10.971Z",
  "bots": {
   "random": {
    "decisionMs": 100,
@@ -65,12 +65,12 @@
     "p10": 1,
     "p25": 1,
     "median": 1.5,
-    "p75": 3,
-    "p90": 3.9000000000000004,
-    "max": 7,
-    "mean": 2.25,
-    "sd": 1.815338686155987,
-    "cv": 0.8068171938471054
+    "p75": 3.25,
+    "p90": 4.9,
+    "max": 6,
+    "mean": 2.4166666666666665,
+    "sd": 1.781640374554423,
+    "cv": 0.7372304998156233
    },
    "causes": {
     "fried on the electric rim": 11,
@@ -93,7 +93,7 @@
      "scoreEvents": 0,
      "difficulty0": 0,
      "difficulty1": 1,
-     "wallMs": 7,
+     "wallMs": 6,
      "err": null,
      "seed": 1,
      "capHit": false
@@ -161,7 +161,7 @@
      "scoreEvents": 1,
      "difficulty0": 0,
      "difficulty1": 1,
-     "wallMs": 4,
+     "wallMs": 3,
      "err": null,
      "seed": 5,
      "capHit": false
@@ -229,7 +229,7 @@
      "scoreEvents": 0,
      "difficulty0": 0,
      "difficulty1": 1,
-     "wallMs": 3,
+     "wallMs": 4,
      "err": null,
      "seed": 9,
      "capHit": false
@@ -280,7 +280,7 @@
      "scoreEvents": 1,
      "difficulty0": 0,
      "difficulty1": 1,
-     "wallMs": 2,
+     "wallMs": 5,
      "err": null,
      "seed": 12,
      "capHit": false
@@ -344,15 +344,15 @@
    "wallMs": {
     "n": 12,
     "min": 1,
-    "p10": 1,
-    "p25": 2.5,
+    "p10": 1.1,
+    "p25": 2,
     "median": 4,
-    "p75": 5.75,
-    "p90": 10.700000000000001,
-    "max": 24,
+    "p75": 6.5,
+    "p90": 13.400000000000002,
+    "max": 21,
     "mean": 5.833333333333333,
-    "sd": 6.436166749257079,
-    "cv": 1.1033428713012134
+    "sd": 6.027713773341708,
+    "cv": 1.033322361144293
    },
    "causes": {
     "smashed by a big rock": 6,
@@ -376,7 +376,7 @@
      "scoreEvents": 2,
      "difficulty0": 0,
      "difficulty1": 1,
-     "wallMs": 5,
+     "wallMs": 6,
      "err": null,
      "seed": 1,
      "capHit": false
@@ -393,7 +393,7 @@
      "scoreEvents": 23,
      "difficulty0": 0,
      "difficulty1": 3,
-     "wallMs": 24,
+     "wallMs": 21,
      "err": null,
      "seed": 2,
      "capHit": false
@@ -461,7 +461,7 @@
      "scoreEvents": 3,
      "difficulty0": 0,
      "difficulty1": 1,
-     "wallMs": 1,
+     "wallMs": 2,
      "err": null,
      "seed": 6,
      "capHit": false
@@ -478,7 +478,7 @@
      "scoreEvents": 6,
      "difficulty0": 0,
      "difficulty1": 2,
-     "wallMs": 3,
+     "wallMs": 5,
      "err": null,
      "seed": 7,
      "capHit": false
@@ -495,7 +495,7 @@
      "scoreEvents": 7,
      "difficulty0": 0,
      "difficulty1": 2,
-     "wallMs": 5,
+     "wallMs": 2,
      "err": null,
      "seed": 8,
      "capHit": false
@@ -512,7 +512,7 @@
      "scoreEvents": 6,
      "difficulty0": 0,
      "difficulty1": 2,
-     "wallMs": 4,
+     "wallMs": 2,
      "err": null,
      "seed": 9,
      "capHit": false
@@ -529,7 +529,7 @@
      "scoreEvents": 11,
      "difficulty0": 0,
      "difficulty1": 3,
-     "wallMs": 3,
+     "wallMs": 4,
      "err": null,
      "seed": 10,
      "capHit": false
@@ -546,7 +546,7 @@
      "scoreEvents": 13,
      "difficulty0": 0,
      "difficulty1": 3,
-     "wallMs": 11,
+     "wallMs": 14,
      "err": null,
      "seed": 11,
      "capHit": false
@@ -626,16 +626,16 @@
    },
    "wallMs": {
     "n": 12,
-    "min": 978,
-    "p10": 1710,
-    "p25": 2192.25,
-    "median": 2754.5,
-    "p75": 3861.25,
-    "p90": 5022.400000000001,
-    "max": 5541,
-    "mean": 3058.5833333333335,
-    "sd": 1389.013217970574,
-    "cv": 0.4541361364369912
+    "min": 991,
+    "p10": 1809.1,
+    "p25": 2254.75,
+    "median": 2895,
+    "p75": 4041,
+    "p90": 4914.3,
+    "max": 5487,
+    "mean": 3104,
+    "sd": 1346.9903826342231,
+    "cv": 0.43395308718886055
    },
    "causes": {
     "smashed by a big rock": 3,
@@ -661,7 +661,7 @@
      "scoreEvents": 106,
      "difficulty0": 0,
      "difficulty1": 7,
-     "wallMs": 5541,
+     "wallMs": 5487,
      "err": null,
      "seed": 1,
      "capHit": false
@@ -678,7 +678,7 @@
      "scoreEvents": 76,
      "difficulty0": 0,
      "difficulty1": 6,
-     "wallMs": 2685,
+     "wallMs": 2884,
      "err": null,
      "seed": 2,
      "capHit": false
@@ -695,7 +695,7 @@
      "scoreEvents": 81,
      "difficulty0": 0,
      "difficulty1": 6,
-     "wallMs": 3686,
+     "wallMs": 3935,
      "err": null,
      "seed": 3,
      "capHit": false
@@ -712,7 +712,7 @@
      "scoreEvents": 48,
      "difficulty0": 0,
      "difficulty1": 5,
-     "wallMs": 2296,
+     "wallMs": 2352,
      "err": null,
      "seed": 4,
      "capHit": false
@@ -729,7 +729,7 @@
      "scoreEvents": 105,
      "difficulty0": 0,
      "difficulty1": 7,
-     "wallMs": 4387,
+     "wallMs": 4359,
      "err": null,
      "seed": 5,
      "capHit": false
@@ -746,7 +746,7 @@
      "scoreEvents": 50,
      "difficulty0": 0,
      "difficulty1": 5,
-     "wallMs": 1881,
+     "wallMs": 1963,
      "err": null,
      "seed": 6,
      "capHit": false
@@ -763,7 +763,7 @@
      "scoreEvents": 57,
      "difficulty0": 0,
      "difficulty1": 5,
-     "wallMs": 1691,
+     "wallMs": 1792,
      "err": null,
      "seed": 7,
      "capHit": false
@@ -780,7 +780,7 @@
      "scoreEvents": 60,
      "difficulty0": 0,
      "difficulty1": 6,
-     "wallMs": 3200,
+     "wallMs": 3106,
      "err": null,
      "seed": 8,
      "capHit": false
@@ -797,7 +797,7 @@
      "scoreEvents": 84,
      "difficulty0": 0,
      "difficulty1": 6,
-     "wallMs": 2441,
+     "wallMs": 2497,
      "err": null,
      "seed": 9,
      "capHit": false
@@ -814,7 +814,7 @@
      "scoreEvents": 35,
      "difficulty0": 0,
      "difficulty1": 4,
-     "wallMs": 978,
+     "wallMs": 991,
      "err": null,
      "seed": 10,
      "capHit": false
@@ -831,7 +831,7 @@
      "scoreEvents": 91,
      "difficulty0": 0,
      "difficulty1": 6,
-     "wallMs": 2824,
+     "wallMs": 2906,
      "err": null,
      "seed": 11,
      "capHit": false
@@ -848,7 +848,7 @@
      "scoreEvents": 98,
      "difficulty0": 0,
      "difficulty1": 7,
-     "wallMs": 5093,
+     "wallMs": 4976,
      "err": null,
      "seed": 12,
      "capHit": false
@@ -881,5 +881,5 @@
   "botPoints": 14,
   "botScore10": 10
  },
- "wallS": 37
+ "wallS": 38
 }

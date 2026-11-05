@@ -91,6 +91,7 @@ let QUIET = false, manual = false, carry = 0, overAt = 0, newBest = false;
 let botAct = 'none', fireLatch = false;
 const keys = { left: false, right: false, fire: false };
 let ptr = null;          // held pointer, logical coords {x,y}
+let started = false;      // human real-time mode waits for the first key/tap (bots: manual mode ignores this)
 let touchSeen = false;
 
 function newState(seed) {
@@ -636,6 +637,12 @@ function drawHUD() {
   for (let i = 1; i < 10; i++) { cx.fillStyle = 'rgba(5,3,12,0.6)'; cx.fillRect(bx + bw * i / 10 - 0.5, by, 1, 10); }
   cx.textAlign = 'right'; cx.fillStyle = 'rgba(255,255,255,0.55)'; cx.font = `700 11px ${mono}`; cx.fillText('HEAT', bx - 8, by + 9);
   if (S.lock > 0) { cx.textAlign = 'left'; cx.fillStyle = COL.bad; cx.fillText('LOCKED', bx + bw + 8, by + 9); }
+  // start prompt (human mode, before the first input)
+  if (!started && !manual && !S.over) {
+    cx.globalAlpha = 0.6 + 0.4 * Math.sin(performance.now() / 260); cx.textAlign = 'center'; cx.fillStyle = '#fff'; cx.font = `900 18px ${mono}`;
+    cx.fillText(touchSeen ? 'TAP TO START' : 'PRESS ANY KEY / TAP TO START', W / 2, CY + 70);
+    cx.globalAlpha = 1;
+  }
   // hint
   if (FX.hintA > 0.01 && !S.over) {
     cx.globalAlpha = FX.hintA; cx.textAlign = 'center'; cx.fillStyle = '#c9c4ff'; cx.font = `700 14px ${mono}`;
@@ -685,7 +692,7 @@ function firstInput() { if (!FX.firstInput) { FX.firstInput = true; } }
 function humanRestart() { if (S.over && performance.now() - overAt > 400) { reset(Date.now() & 0x7fffffff); return true; } return false; }
 const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'fire', ArrowUp: 'fire', KeyW: 'fire' };
 addEventListener('keydown', e => {
-  audioInit();
+  audioInit(); started = true;
   const k = KEYMAP[e.code];
   if (k || e.code === 'ArrowDown' || e.code === 'Space') e.preventDefault();
   if (S.over) { if (!e.repeat) humanRestart(); return; }
@@ -695,7 +702,7 @@ addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) keys[k] = fals
 function toLogical(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }; }
 let ptrId = null;
 cv.addEventListener('pointerdown', e => {
-  e.preventDefault(); audioInit();
+  e.preventDefault(); audioInit(); started = true;
   if (e.pointerType === 'touch') touchSeen = true;
   if (S.over) { humanRestart(); return; }
   ptrId = e.pointerId; ptr = toLogical(e); botAct = 'none'; firstInput(); fireLatch = true;
@@ -710,7 +717,7 @@ addEventListener('touchstart', () => { touchSeen = true; }, { passive: true });
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(100, now - last); last = now;
-  if (!manual) { carry += dt; while (carry >= STEP) { step(); carry -= STEP; } }
+  if (!manual && started) { carry += dt; while (carry >= STEP) { step(); carry -= STEP; } }
   if (FX.firstInput && S.t > 3500) FX.hintA = Math.max(0, FX.hintA - dt / 1500);
   render();
   requestAnimationFrame(frame);

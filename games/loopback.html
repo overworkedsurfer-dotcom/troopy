@@ -91,6 +91,7 @@ let QUIET = false, manual = false, carry = 0, overAt = 0, newBest = false;
 let botDir = 'none', dashBuf = 0;
 const keys = { up: false, down: false, left: false, right: false };
 let stick = null;        // touch joystick {id, x0, y0, x, y} in logical coords
+let started = false;      // human real-time mode waits for the first key/tap (bots: manual mode ignores this)
 let touchSeen = false, lastTap = 0;
 
 function newState(seed) {
@@ -525,6 +526,12 @@ function drawHUD() {
   cx.textAlign = 'left'; cx.font = `700 12px ${mono}`;
   const ready = S.dcd <= 0;
   cx.fillStyle = ready ? COL.glow : 'rgba(255,255,255,0.35)'; cx.fillText(ready ? 'DASH ready' : 'DASH ' + (S.dcd * STEP / 1000).toFixed(1), 14, 68);
+  // start prompt (human mode, before the first input)
+  if (!started && !manual && !S.over) {
+    cx.globalAlpha = 0.6 + 0.4 * Math.sin(performance.now() / 260); cx.textAlign = 'center'; cx.fillStyle = '#fff'; cx.font = `900 18px ${mono}`;
+    cx.fillText(touchSeen ? 'TAP TO START' : 'PRESS ANY KEY / TAP TO START', W / 2, AY0 + 44);
+    cx.globalAlpha = 1;
+  }
   // hint
   if (FX.hintA > 0.01 && !S.over) {
     cx.globalAlpha = FX.hintA; cx.textAlign = 'center'; cx.fillStyle = '#d6ccff'; cx.font = `700 14px ${mono}`;
@@ -561,7 +568,7 @@ function drawHUD() {
       cx.fillStyle = '#fff'; cx.font = `900 12px ${mono}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(String(kg.k), kg.x, kg.y + 0.5);
       cx.textBaseline = 'alphabetic'; cx.font = `800 12px ${mono}`;
       const lt = 'you, ' + (FX.killAgo != null ? FX.killAgo : '?') + 's ago', lw = cx.measureText(lt).width / 2 + 6;
-      cx.fillStyle = ghostCol(kg.k); cx.fillText(lt, Math.max(lw, Math.min(W - lw, kg.x)), kg.y - pr - 8);
+      cx.fillStyle = ghostCol(kg.k); cx.fillText(lt, Math.max(lw, Math.min(W - lw, kg.x)), S.y > H / 2 ? kg.y + pr + 18 : kg.y - pr - 8);
     }
     const py = S.y > H / 2 ? 230 : 500;
     cx.globalAlpha = a; cx.textAlign = 'center'; cx.textBaseline = 'alphabetic';
@@ -593,7 +600,7 @@ addEventListener('resize', fit); fit();
 function humanRestart() { if (S.over && performance.now() - overAt > 400) { reset(Date.now() & 0x7fffffff); return true; } return false; }
 const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
 addEventListener('keydown', e => {
-  audioInit();
+  audioInit(); started = true;
   const k = KEYMAP[e.code], isDash = e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight';
   if (k || isDash) e.preventDefault();
   if (S.over) { if (!e.repeat) humanRestart(); return; }
@@ -603,7 +610,7 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) keys[k] = false; });
 function toLogical(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }; }
 cv.addEventListener('pointerdown', e => {
-  e.preventDefault(); audioInit();
+  e.preventDefault(); audioInit(); started = true;
   if (e.pointerType === 'touch') touchSeen = true;
   if (S.over) { humanRestart(); return; }
   FX.firstInput = true;
@@ -623,7 +630,7 @@ addEventListener('touchstart', () => { touchSeen = true; }, { passive: true });
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(100, now - last); last = now;
-  if (!manual) { carry += dt; while (carry >= STEP) { step(); carry -= STEP; } }
+  if (!manual && started) { carry += dt; while (carry >= STEP) { step(); carry -= STEP; } }
   if (FX.firstInput && S.t > 4000) FX.hintA = Math.max(0, FX.hintA - dt / 1500);
   render();
   requestAnimationFrame(frame);
