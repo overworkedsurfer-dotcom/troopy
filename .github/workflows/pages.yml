@@ -18,18 +18,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - name: Assemble site
+      # Enabling Pages needs a repo admin (one click: Settings -> Pages -> Source: "GitHub Actions").
+      # Until then, skip cleanly with a notice instead of failing every push.
+      - id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p _site
+          if gh api "repos/${{ github.repository }}/pages" >/dev/null 2>&1; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Pages not enabled::Enable it once: Settings -> Pages -> Build and deployment -> Source: GitHub Actions. Then re-run this workflow."
+          fi
+      - if: steps.pages.outputs.enabled == 'true'
+        uses: actions/configure-pages@v5
+      - name: Assemble site
+        if: steps.pages.outputs.enabled == 'true'
+        run: |
+          mkdir -p _site/lab
           cp -r index.html games assets research DECISIONS.md REPORT.md _site/
-          mkdir -p _site/lab && cp -r lab/notes _site/lab/ && cp lab/results/summary.v1.json lab/results/summary.v2.json _site/lab/ 2>/dev/null || true
+          cp -r lab/notes _site/lab/
+          cp lab/results/summary.v1.json lab/results/summary.v2.json _site/lab/
           rm -f _site/games/_example.html
           touch _site/.nojekyll
-      - uses: actions/upload-pages-artifact@v3
+      - if: steps.pages.outputs.enabled == 'true'
+        uses: actions/upload-pages-artifact@v3
         with:
           path: _site
-      - id: deployment
+      - if: steps.pages.outputs.enabled == 'true'
+        id: deployment
         uses: actions/deploy-pages@v4
