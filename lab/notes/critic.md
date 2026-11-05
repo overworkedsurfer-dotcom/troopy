@@ -331,3 +331,52 @@ my budget, not the game's difficulty.
 - **Would I play a 4th run?** Yes, but only with sound. The design looks strong, and I couldn't experience its core (the music). Treat my score as provisional.
 - **Bugs / friction:** No console errors. **Starting run 1 with ShiftLeft counted as a BRAKE** (BPM dropped 90 → 80 instantly and the end screen said "brakes 1"). In run 2, starting with Enter didn't do that. "press any key to drop the beat" should not apply a brake. The "NOW PLAYING" song title covers the far third of the highway for the first several seconds, exactly where you read upcoming notes. The HUD score tweens and shows a lower number than BEST for a moment. I never saw what happens when the floor catches your BPM. Both deaths were HP.
 
+---
+
+## 8. Compound
+
+**What it is:** An idle/engine-builder on a 5×5 grid. You have WEALTH ($), and a rising TIDE that grows by a
+%/s that itself accelerates. Each second you draft one of three shop cards (1/2/3) onto the cursor cell:
+SEED (flat $/s), MILL (×1.5 to neighbours), LENS (×2 to whole row/column), FURNACE (big $/s but ×0.5
+neighbours), BANK (compounds % of $/s). R rerolls. The headline number is "you +X%/s vs tide +Y%/s", and a
+log chart of you vs the tide (with forecast) shows the race. You can't buy if it would drop you below the tide
+("the tide would take you"). Hoarding to ×10 above the tide hits "VAULT FULL · invest!", which caps your
+growth, so you must keep investing. Rogue waves spike the tide.
+
+**Runs**
+| Run | Seed | Score | Length | Cause |
+|---|---|---|---|---|
+| 1 | 101 | 306 | 82 s | a rogue wave swamped you at $1.17K (1:22) |
+| 2 | 102 | 317 | 85 s | the tide (+12.9%/s) outgrew your engine (+6.84%/s) at 1:25 |
+
+Improved? **Barely** (306 → 317). The score is roughly log(wealth), so it compresses differences. I hand-built
+the first ~10 cards of run 1 and the vault phase of run 2, and filled the rest with a blind 1/2/3/R loop.
+Notably, **the blind loop did about as well as my careful play**, which is a warning sign for decision depth
+(see #7).
+
+| # | Principle | Score | Justification |
+|---|---|---|---|
+| 1 | Readable in 5 s | 2 | The "OUTGROW THE TIDE" card says it all ("press 1 2 3 to build a card on the cursor · neighbours multiply · banks compound · if your wealth sinks under the tide, it's over"), and the shop cards preview "+1.88%/s here". |
+| 2 | Clear goal, visible score | 1 | The goal is crystal clear ("stay above the tide"). But the **SCORE** (149 → 306) has no obvious relation to the giant WEALTH number, so I couldn't tell what I was maximizing. The real feedback is "×2.04 above the tide". |
+| 3 | Juicy feedback | 2 | "GROWTH ×2.3" splash text on synergies, "LEGENDARY!"/"RARE!" pops, multiplier tags on every affected neighbour (×1.5, ×2, ×0.75 in red), coin particles, a −$N spend floater, a live log chart, "VAULT FULL · invest!", and the tide animating up the board on game over. |
+| 4 | Forgiving input | 1 | "the tide would take you" blocks suicidal buys (good). But the cursor auto-advances after each buy to a neighbour I didn't choose, so my next ArrowLeft landed on my Lens and **replaced it with a Seed**, with no confirm or undo. |
+| 5 | Fair, legible failure | 2 | Both causes are precise and numeric: "a rogue wave swamped you at $1.17K (1:22)", "the tide (+12.9%/s) outgrew your engine (+6.84%/s)". The forecast line on the chart shows it coming. |
+| 6 | Instant retry | 2 | "press any key to try again". |
+| 7 | Interesting decisions | 1 | On paper, rich: neighbour adjacency, furnace trade-offs, row vs column lenses, and when to spend vs keep a buffer. In practice, a key-mashing loop survived as long as my deliberate play, so the choices felt lower-impact than they look. |
+| 8 | Pattern to learn | 1 | I learned the vault and buffer rules, but my score didn't move meaningfully. |
+| 9 | Escalation / flow | 2 | The tide's %/s accelerates (2% → 3.6% → 12.9%/s), and rogue waves add spikes. Both runs ended around 80–85 s. |
+| 10 | Not solved | 2 | The tide's acceleration guarantees an end. A full 25-cell board can't keep up. |
+| 11 | Risk and reward | 2 | Spend (grow the engine, but drop toward the tide) vs hoard (a safe buffer, but the vault caps growth at ×10). That's an elegant push-your-luck loop, and the vault cleverly stops turtling. |
+| 12 | Few verbs, deep use | 2 | Arrows, 1/2/3 and R. Each card is both an income source and a multiplier target for its neighbours. |
+| 13 | Variety | 2 | Shop draws, rarities and legendaries differ per seed, and the boards looked completely different. |
+| 14 | Reward cadence / compounding | 2 | It's the theme. A buy every second, multiplicative neighbour stacking (×1.5 × ×2 × ×1.75), and compounding banks. |
+| 15 | One more go | 1 | NEW BEST and a stats line are shown, and the restart is instant. But I didn't feel a "next time I'll…" plan forming, because I couldn't tell which of my choices had mattered. |
+
+**Total: 25 / 30 → Fun score 8**
+
+- **MDA aesthetic felt:** Submission / Discovery (watching numbers grow, discovering synergies). It's the most "idle game" of the set.
+- **Best moment:** Hoarding to "×9.60 above the tide", watching my gold curve rocket up the log chart, then hitting "VAULT FULL · invest!" and realizing the game was telling me to stop turtling.
+- **Worst moment:** The auto-advancing cursor making me overwrite my own ×2 Lens with a Seed (the "LENS replaced" text appeared after it was too late).
+- **Would I play a 4th run?** Maybe. The systems are clever, but I'd want clearer cause and effect between my build choices and the outcome.
+- **Bugs / friction:** No console errors. The first-look screenshot shows the score at 149 before any input (a non-zero starting score is odd). Score vs wealth is unexplained. Replacing a placed card has no confirmation. With 25 cells of tags (×1.5, ×0.75, +0.5/s) the board gets dense, and the tiny red/white multiplier labels are hard to read. "the tide would take you" appears in small red text at the bottom of the board and is easy to miss.
+
