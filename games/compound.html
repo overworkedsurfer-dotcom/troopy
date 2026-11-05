@@ -57,7 +57,8 @@ function fmt(x, dp) {
   const neg = x < 0; x = Math.abs(x);
   if (x < 1000) return (neg ? '-' : '') + (x < 10 && dp !== 0 ? x.toFixed(1) : Math.floor(x).toString());
   const e = Math.floor(Math.log10(x) / 3);
-  if (e >= SUF.length) return (neg ? '-' : '') + x.toExponential(2).replace('+', '');
+  // past trillions, named suffixes (Qa, UDc, DDc...) are unreadable: switch to e-notation, e.g. 1.89e40
+  if (e >= 5) { const p = Math.floor(Math.log10(x)), m = x / Math.pow(10, p); return (neg ? '-' : '') + m.toFixed(2) + 'e' + p; }
   const v = x / Math.pow(1000, e);
   return (neg ? '-' : '') + (v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : Math.floor(v).toString()) + SUF[e];
 }

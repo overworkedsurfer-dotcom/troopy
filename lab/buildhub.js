@@ -225,7 +225,7 @@ for (const g of D.games) {
   const sg = g.signals || {};
   cg.append(el('div', { class: 'chart' }, [
     el('h5', { text: '#' + g.rank + ' ' + g.name }),
-    el('div', { class: 'meta', text: 'skill gap ×' + f1(sg.skillRatio) + ' · smart median ' + Math.round(sg.smartMedianLenS || 0) + 's · CV ' + f1(sg.smartCV) + ' · cap hits ' + (sg.notSolved ? 0 : 'YES') }),
+    el('div', { class: 'meta', text: 'skill gap ×' + fmt(sg.skillRatio || 0) + ' · smart median ' + Math.round(sg.smartMedianLenS || 0) + 's · CV ' + f1(sg.smartCV) + ' · cap hits ' + (sg.notSolved ? 0 : 'YES') }),
     svg,
   ]));
 }
@@ -235,7 +235,7 @@ const head = el('tr', {}, ['Game', 'random med', 'heuristic med', 'smart med', '
 tbl.append(head);
 for (const g of D.games) {
   const sg = g.signals || {}, B = g.bots || {};
-  tbl.append(el('tr', {}, [g.name, fmt(B.random?.median ?? 0), fmt(B.heuristic?.median ?? 0), fmt(B.smart?.median ?? 0), f1(sg.skillRatio), Math.round(sg.smartMedianLenS || 0), f1(sg.smartCV), f1(g.bot), f1(g.critic), f1(g.mine), f1(g.final)].map(v => el('td', { text: String(v) }))));
+  tbl.append(el('tr', {}, [g.name, fmt(B.random?.median ?? 0), fmt(B.heuristic?.median ?? 0), fmt(B.smart?.median ?? 0), fmt(sg.skillRatio || 0), Math.round(sg.smartMedianLenS || 0), f1(sg.smartCV), f1(g.bot), f1(g.critic), f1(g.mine), f1(g.final)].map(v => el('td', { text: String(v) }))));
 }
 })();
 </script>

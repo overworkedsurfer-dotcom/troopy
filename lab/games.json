@@ -1,0 +1,12 @@
+{
+  "kickback":   { "name": "KICKBACK",   "genre": "Arcade action",      "aesthetic": "Challenge",              "pitch": "An Asteroids-style arena with no engine: every shot kicks you backward, so your gun is your only thruster." },
+  "loopback":   { "name": "LOOPBACK",   "genre": "Weird",              "aesthetic": "Discovery / Challenge",  "pitch": "Collect orbs while every few seconds a ghost of your own past movement replays. Your history is the bullet hell." },
+  "tiltwell":   { "name": "TILTWELL",   "genre": "Puzzle",             "aesthetic": "Challenge / Discovery",  "pitch": "A falling-block colour puzzle where you never rotate pieces. You rotate the whole well and gravity re-settles everything." },
+  "spellsnake": { "name": "SPELLSNAKE", "genre": "Word",               "aesthetic": "Challenge / Expression", "pitch": "Snake where your body is the word. Eat letters, then cast a word to shrink. Longer words score more, but they keep you long." },
+  "pipwalk":    { "name": "PIPWALK",    "genre": "Roguelite",          "aesthetic": "Challenge / Discovery",  "pitch": "You are a die. Rolling is moving, and the face that lands on top is your attack. Upgrade your faces into broken combos." },
+  "mazewright": { "name": "MAZEWRIGHT", "genre": "Tiny strategy",      "aesthetic": "Challenge / Expression", "pitch": "Tower defence with no towers to build. One core turret and a handful of walls: the path you force is your weapon." },
+  "uptempo":    { "name": "UPTEMPO",    "genre": "Rhythm",             "aesthetic": "Sensation / Challenge",  "pitch": "A 4-lane rhythm highway where accuracy drives the BPM. Play perfectly and the song speeds up until you can't keep up." },
+  "compound":   { "name": "COMPOUND",   "genre": "Idle / incremental", "aesthetic": "Submission → Challenge", "pitch": "A whole incremental game in about 3 minutes. Build compounding adjacency combos faster than an exponential tide rises." },
+  "junkorbit":  { "name": "JUNK ORBIT", "genre": "Physics",            "aesthetic": "Discovery / Expression", "pitch": "Slingshot comets around planets at stars. Every comet you fire stays in orbit forever, and some come back for you." },
+  "magsumo":    { "name": "MAGSUMO",    "genre": "2-player local",     "aesthetic": "Fellowship / Challenge", "pitch": "Sumo on shrinking ice where you can't push: only steer and flip your magnet's polarity. Solo CPU gauntlet, or local 2P." }
+}

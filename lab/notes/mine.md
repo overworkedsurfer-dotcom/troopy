@@ -74,3 +74,8 @@ Played through `lab/play.js` (time-stepped, real key events, screenshots between
 - **JUNK ORBIT** (level 7): a beautiful spirograph tangle of captured orbits, plus "BURNT OUT". Busy, but the colour coding holds.
 - **MAGSUMO** (round 13): the ring has shrunk to roughly 1.5 puck diameters. The ceiling works, but at that size the round is a coin-flip, not a contest.
 - **COMPOUND**: wealth shows as **"$18.9DDc"**, and these late-game suffixes (UDc, DDc) are unreadable to normal people. Use scientific-style notation past T (e.g. 1.9e40). The 5×5 grid of ×18/×24/×56 badges is very Balatro, but it is visual noise.
+
+## KICKBACK, after the on-ramp rework (Phase 4)
+- Round 2, run 1 (semi-blind burst/turn/cool loop): 150 pts, 16.5 s. Cause: "clipped by a rock shard" from my own kill, which was fair. In round 1 my runs lasted 4–9 s.
+- The white drift arrow is the key fix: I can finally see where I'm going. The eased turn is snappy (180° in about 0.37 s), so I now *overshoot* aim slightly, which is a much better problem to have. The rim shield saved me twice. The solid nose with its yellow muzzle dot reads instantly.
+- Gut score moves from 5.5 to 7.0. The core (shots are movement) was always good; it just needed an on-ramp.
