@@ -680,11 +680,11 @@ function icon(kind, x, y, r, col) {
 }
 const PIPS = { 1: [[50, 50]], 2: [[27, 27], [73, 73]], 3: [[25, 25], [50, 50], [75, 75]], 4: [[27, 27], [73, 27], [27, 73], [73, 73]], 5: [[25, 25], [75, 25], [50, 50], [25, 75], [75, 75]], 6: [[27, 24], [73, 24], [27, 50], [73, 50], [27, 76], [73, 76]] };
 // draw face contents in a 100x100 box at the current transform
-function faceArt(face, bg, flashA) {
+function faceArt(face, bg, flashA, numeral) {
   rr(3, 3, 94, 94, 18); cx.fillStyle = bg; cx.fill();
   if (face.k) { cx.lineWidth = 6; cx.strokeStyle = KGLOW[face.k]; rr(7, 7, 86, 86, 15); cx.stroke(); }
   const col = KCOL[face.k];
-  if (face.v <= 6) {
+  if (face.v <= 6 && !numeral) {
     for (const [px, py] of PIPS[face.v]) {
       const r = face.v === 1 ? 15 : 9.5;
       cx.beginPath(); cx.arc(px, py, r, 0, 6.283);
@@ -704,7 +704,7 @@ function miniFace(x, y, s, face, opt) {
   opt = opt || {};
   cx.save(); cx.translate(x - s / 2, y - s / 2); cx.scale(s / 100, s / 100);
   if (opt.glow) { cx.shadowColor = opt.glow; cx.shadowBlur = 18; }
-  faceArt(face, opt.bg || '#f7f0e2', opt.flash || 0);
+  faceArt(face, opt.bg || '#f7f0e2', opt.flash || 0, opt.numeral);
   cx.restore();
 }
 // ---- 3D die ----
@@ -888,7 +888,7 @@ function drawPreviews(t) {
     const danger = m[nx + ny * GN];
     const bob = Math.sin(t / 260 + nx + ny) * 1.5;
     cx.globalAlpha = 0.93;
-    miniFace(x, y + bob, 30, f, { bg: danger ? '#ffd9dc' : '#f7f0e2' });
+    miniFace(x, y + bob, 30, f, { bg: danger ? '#ffd9dc' : '#f7f0e2', numeral: true });   // numerals: pips misread at 30px
     cx.globalAlpha = 1;
     // arrow from die toward the preview
     const [dcx, dcy] = cellC(S.px, S.py), ax = dcx + d[0] * 33, ay = dcy + d[1] * 33;
