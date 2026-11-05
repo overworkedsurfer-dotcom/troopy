@@ -114,7 +114,7 @@ const keys = {};                                   // human keyboard
 const touchIn = [{ x: 0, y: 0 }, { x: 0, y: 0 }];  // human touch sticks
 let touchUI = false;
 
-function puck(x, y, q, m, thrust, flipcd) { return { x, y, vx: 0, vy: 0, ix: 0, iy: 0, q, m, thrust, flipcd, cd: 0, buf: 0, hold: 0, teeter: 0, inT: 0, brace: 0, bk: 0, out: false, hit: null }; }
+function puck(x, y, q, m, thrust, flipcd) { return { x, y, vx: 0, vy: 0, ix: 0, iy: 0, q, m, thrust, flipcd, cd: 0, buf: 0, hold: 0, teeter: 0, inT: 0, brace: 0, bk: 0, out: false, hit: null, kvx: 0, kvy: 0, kk: '', mvx: 0, mvy: 0, rvx: 0, rvy: 0, rep: -1e9 }; }   // blame: velocity owed to foe hits (kv), the magnet (mv), your own slam recoil (rv)
 // The gauntlet teaches: LV1 is always the Wall, LV2 the Dancer, LV3 the Brawler, LV4 the Trickster; seeded after that.
 const STYLES = [
   { tag: 'the Wall', mass: 1.35, thrust: 0.95, react: 1.1, flipcd: 1.1, back: 0.8, pSlam: 0, pDef: 0.08, pPush: 0.9, edge: -8, tip: 'heavy & slow · pull it in, flip point-blank to SLAM it out' },
@@ -359,7 +359,8 @@ function physics(scale) {
         }
       }
       p.vx += ax * dt; p.vy += ay * dt;
-      const fk = Math.max(0, 1 - fr * dt); p.vx *= fk; p.vy *= fk;
+      p.mvx += sgn * mf * nx / p.m * dt; p.mvy += sgn * mf * ny / p.m * dt;   // the magnet's share of your momentum
+      const fk = Math.max(0, 1 - fr * dt); p.vx *= fk; p.vy *= fk; p.kvx *= fk; p.kvy *= fk; p.mvx *= fk; p.mvy *= fk; p.rvx *= fk; p.rvy *= fk;
       p.x += p.vx * dt; p.y += p.vy * dt;
     }
     // collision
@@ -371,6 +372,7 @@ function physics(scale) {
       if (vn < 0) {
         const j = -(1 + RESTITUTION) * vn / (1 / a.m + 1 / b.m);
         a.vx -= j * nx2 / a.m; a.vy -= j * ny2 / a.m; b.vx += j * nx2 / b.m; b.vy += j * ny2 / b.m;
+        a.kvx -= j * nx2 / a.m; a.kvy -= j * ny2 / a.m; b.kvx += j * nx2 / b.m; b.kvy += j * ny2 / b.m; a.kk = b.kk = 'bump';
         if (S.phase === 'fight') {
           a.hit = { by: 1, kind: 'bump', t: S.t }; b.hit = { by: 0, kind: 'bump', t: S.t };
           if (-vn > 60 && !QUIET) {
@@ -406,12 +408,14 @@ function doFlip(i) {
     const F = S.ice.F, il = Math.hypot(p.ix || 0, p.iy || 0) || 1, into = ((p.ix || 0) * nx + (p.iy || 0) * ny) / il;
     const firstSlam = S.st.slams + S.st.slammed === 0;
     // the slam overrides the closing speed: the victim always flies off at the full kick
-    const ov = o.vx * nx + o.vy * ny, pv = p.vx * nx + p.vy * ny;
+    const ov = o.vx * nx + o.vy * ny, pv = p.vx * nx + p.vy * ny, ovx0 = o.vx, ovy0 = o.vy, pvx0 = p.vx, pvy0 = p.vy;
     if (ov < 0) { o.vx -= nx * ov; o.vy -= ny * ov; }
     if (pv > 0) { p.vx -= nx * pv; p.vy -= ny * pv; }
     const kick = SLAM_V * Math.sqrt(F * S.ice.fr) / o.m; o.vx += nx * kick; o.vy += ny * kick;
+    o.kvx += o.vx - ovx0; o.kvy += o.vy - ovy0; o.kk = 'slam';
     const rc = SLAM_V * F * (into > BRACE_DOT ? 0.05 : SLAM_RECOIL) / p.m;
     p.vx -= nx * rc; p.vy -= ny * rc;
+    p.rvx += p.vx - pvx0; p.rvy += p.vy - pvy0;
     p.brace = BRACE_MS; p.bk = 1;
     o.hit = { by: i, kind: 'slam', t: S.t, braced: into > BRACE_DOT };
     S.freeze = Math.max(S.freeze, firstSlam && S.mode === 'solo' ? 220 : 110);
@@ -428,7 +432,8 @@ function doFlip(i) {
       SFX.slam(); crowd('ooh');
     }
     if (p.bk === 1 && into > BRACE_DOT) braced(i);
-  } else if (!wasAttract && r < 170) {
+  } else if (wasAttract) o.rep = S.t;        // flipped into repel at range (blame only; never touches o.hit)
+  else if (r < 170) {
     o.hit = { by: i, kind: 'yank', t: S.t };
     if (!QUIET) { SFX.yank(); for (let k = 0; k < 8; k++) { const f = k / 8; FX.parts.push({ x: o.x + (p.x - o.x) * f, y: o.y + (p.y - o.y) * f, vx: 0, vy: 0, life: 0.8, dec: 0.05, col: COL.S, sz: 3, g: 0 }); } }
   }
@@ -442,11 +447,23 @@ function clutch(i) {
 function causeFor(i) {
   const p = S.p[i], h = p.hit, foe = S.mode === 'solo' ? cpuName(S.level) : 'P' + (2 - i);
   const age = h ? S.t - h.t : 1e9;
-  if (h && h.kind === 'slam' && age < 2200) return 'magnet-slammed off the ice by ' + foe;
+  if (h && h.kind === 'slam' && age < 2500) return 'magnet-slammed off the ice by ' + foe;
   if (p.brace > 0 && p.bk === 1) return 'flew off on your own slam\'s recoil (steer into it to brace)';
   if (h && h.kind === 'yank' && age < 1500) return 'yanked off the edge by ' + foe + '\'s magnet';
   if (h && age < 1800) return 'shoved off the ring by ' + foe;
-  return S.ringR < S.R0 - 30 ? 'the ring shrank out from under you' : 'slid off the edge on your own';
+  // whose momentum carried you out? split your outward speed into foe hits, the magnet, your slam recoil and your steering
+  const pr = Math.hypot(p.x - CX, p.y - CY) || 1, ox = (p.x - CX) / pr, oy = (p.y - CY) / pr, vo = p.vx * ox + p.vy * oy;
+  const ko = p.kvx * ox + p.kvy * oy, mo = p.mvx * ox + p.mvy * oy, ro = p.rvx * ox + p.rvy * oy, so = vo - ko - mo - ro;
+  const foeOut = Math.max(0, ko) + Math.max(0, mo), shrunk = S.ringR < S.R0 - 30;
+  if (mo > 0 && S.t - p.rep < 2500) return 'repelled off the edge when ' + foe + ' flipped (like poles push apart)';
+  if (shrunk && vo < 15) return 'the ring shrank out from under you';       // barely moving: the edge came to you
+  if (foeOut > 0.5 && foeOut >= so && foeOut >= ro) {
+    if (ko >= mo) return 'carried out by the momentum of ' + (p.kk === 'slam' ? foe + '\'s slam' : 'a collision with ' + foe);
+    return p.q === S.p[1 - i].q ? 'repelled off the edge by ' + foe + ' (like poles push apart)' : 'pulled off the edge by ' + foe + '\'s magnet (opposite poles attract)';
+  }
+  if (ro > 0.5 && ro > so) return 'flew off on your own slam\'s recoil (steer into it to brace)';
+  if (so > 0.5) return 'slid off the edge on your own';                    // only your own steering drove you out
+  return shrunk ? 'the ring shrank out from under you' : 'teetered off the edge (steer back in while it glows)';
 }
 
 function ringOut(out0, out1) {

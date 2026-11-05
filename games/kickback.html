@@ -125,7 +125,7 @@ function spray(x, y, ang, spread, n, col, spd, life) {
     FX.parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1, dec: 1 / ((life || 20) * (0.6 + Math.random() * 0.8)), col, sz: 1 + Math.random() * 2, g: 0 });
   }
 }
-function floatText(x, y, txt, col, size) { if (!QUIET) FX.texts.push({ x, y, txt, col, life: 1, sz: size || 18, age: 0 }); }
+function floatText(x, y, txt, col, size, dur) { if (!QUIET) FX.texts.push({ x, y, txt, col, life: 1, sz: size || 18, age: 0, dec: 0.016 / (dur || 1) }); }
 function ring(x, y, col, r1, w) { if (!QUIET) FX.rings.push({ x, y, col, r: 4, r1: r1 || 60, life: 1, w: w || 3 }); }
 function shake(a) { if (!QUIET) FX.shake = Math.max(FX.shake, a); }
 function flash(a, col) { if (!QUIET) { FX.flash = Math.max(FX.flash, a); FX.flashCol = col || '255,255,255'; } }
@@ -136,7 +136,8 @@ function fxStep() {
   for (const p of FX.parts) { p.x += p.vx; p.y += p.vy; p.vx *= 0.96; p.vy *= 0.96; p.vy += p.g; p.life -= p.dec; }
   if (FX.parts.length > 600) FX.parts.splice(0, FX.parts.length - 600);
   FX.parts = FX.parts.filter(p => p.life > 0);
-  for (const t of FX.texts) { t.age++; t.y -= 0.9 * t.life; t.life -= 0.016; }
+  for (const t of FX.texts) { t.age++; t.y -= 0.9 * t.life; t.life -= t.dec || 0.016; }
+  if (FX.skimTeach > 0) FX.skimTeach = Math.max(0, FX.skimTeach - STEP / 2800);
   FX.texts = FX.texts.filter(t => t.life > 0);
   for (const r of FX.rings) { r.life -= 0.05; r.r += (r.r1 - r.r) * 0.18; }
   FX.rings = FX.rings.filter(r => r.life > 0);
@@ -261,7 +262,13 @@ function kill(e, bvx, bvy) {
     ring(e.x, e.y, col, e.r * 2.6 + 10, big ? 4 : 2);
     shake(big ? 6 : 3.5);
     floatText(e.x, e.y - e.r - 6, '+' + pts, pb ? '#fff' : COL.pts, Math.min(34, 16 + Math.log10(pts + 1) * 4));
-    if (pb) { floatText(e.x, e.y + e.r + 18, 'POINT BLANK ×2', '#ff9de0', 14); flash(0.12); shake(8); }
+    if (pb) {
+      if (S.pbKills <= 3) {   // teach it the first few times: what it is and why it paid double
+        floatText(e.x, e.y + e.r + 22, 'POINT-BLANK ×2', '#ff9de0', 22, 1.8);
+        floatText(e.x, e.y + e.r + 44, 'kills up close score double', '#ffd3f0', 13, 1.8);
+      } else floatText(e.x, e.y + e.r + 18, 'POINT BLANK ×2', '#ff9de0', 14);
+      flash(0.12); shake(8);
+    }
     if (S.combo > 1) FX.comboPop = 1;
     const p = Math.min(2.2, 1 + S.combo * 0.06);
     noise(big ? 0.35 : 0.2, big ? 0.22 : 0.14, big ? 900 : 1600, 0.25);
@@ -366,6 +373,7 @@ function step() {
         if (Math.random() < 0.6) spray(CX + dx / d * S.R, CY + dy / d * S.R, Math.atan2(-dy, -dx), 1.6, 1, COL.mult, 2.5, 14);
         if (S.skimTick % 6 === 0) tone(500 + S.mult * 90, 0.05, 'triangle', 0.045);
         FX.multPop = Math.max(FX.multPop, 0.4);
+        if (!FX.skimTaught && S.mult > 1.05) { FX.skimTaught = true; FX.skimTeach = 1; FX.multPop = 1; }   // name it the first time it rises
       }
     } else if (S.skimming) {
       if (S.skimGain > 0.04 && !QUIET) { floatText(S.x, S.y - 24, 'SKIM +' + S.skimGain.toFixed(1) + '×', COL.mult, 17); FX.multPop = 1; tone(1100, 0.1, 'triangle', 0.06); tone(1650, 0.12, 'triangle', 0.05, 0, 0.05); }
@@ -660,6 +668,16 @@ function drawHUD() {
   cx.fillStyle = S.mult > 1.05 ? COL.mult : 'rgba(94,242,255,0.45)'; cx.font = `900 ${Math.round(26 * mp)}px ${mono}`;
   cx.fillText('×' + S.mult.toFixed(1), W / 2, 40);
   cx.fillStyle = 'rgba(94,242,255,0.6)'; cx.font = `700 10px ${mono}`; cx.fillText(S.multHold > 0 || S.skimming ? 'SKIM MULT' : (S.mult > 1 ? 'MULT FADING' : 'SKIM RIM = MULT'), W / 2, 54);
+  if (FX.skimTeach > 0 && !S.over) {     // first skim of the run: label the multiplier it just raised (live value)
+    const u = 1 - FX.skimTeach, ease = u < 0.08 ? 1 - Math.pow(1 - u / 0.08, 3) : 1, ly = S.combo > 1 ? 98 : 78;
+    const txt = 'RIM SKIM ×' + S.mult.toFixed(1) + ': skim the rim for multiplier';
+    cx.globalAlpha = Math.min(1, FX.skimTeach * 5); cx.font = `900 ${Math.round(14 * (0.7 + 0.3 * ease))}px ${mono}`;
+    const tw = cx.measureText(txt).width;
+    cx.fillStyle = 'rgba(5,3,12,0.8)'; cx.fillRect(W / 2 - tw / 2 - 8, ly - 14, tw + 16, 20);
+    cx.strokeStyle = 'rgba(94,242,255,0.6)'; cx.lineWidth = 1; cx.strokeRect(W / 2 - tw / 2 - 7.5, ly - 13.5, tw + 15, 19);
+    cx.fillStyle = COL.mult; cx.fillText(txt, W / 2, ly);
+    cx.globalAlpha = 1;
+  }
   if (S.combo > 1) {
     const cp = 1 + FX.comboPop * 0.4;
     cx.fillStyle = COL.pts; cx.font = `900 ${Math.round(16 * cp)}px ${mono}`; cx.fillText('CHAIN ×' + S.combo, W / 2, 74);

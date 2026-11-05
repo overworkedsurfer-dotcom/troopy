@@ -1,5 +1,5 @@
 // Bots for games/compound.html. decide() functions are stringified and run inside the page.
-// Action semantics: buyN selects card N; buyN again builds it on the cursor (a filled cursor cell needs one more buyN to
+// Action semantics: buyN selects card N (the cursor jumps to its ★ best cell, if one stands out); buyN again builds it on the cursor (a filled cursor cell needs one more buyN to
 // confirm the replace); next moves the cursor to the next EMPTY cell (every cell once the board is full); reroll.
 module.exports = {
   bots: {
@@ -12,7 +12,7 @@ module.exports = {
     },
 
     // Rule of thumb: walk the cursor to an empty cell, then pick and build the cheapest card that keeps a 1.6x margin
-    // over the tide. No adjacency planning (it builds wherever the cursor lands), never rerolls.
+    // over the tide. No adjacency planning of its own (it builds where the cursor lands: the game's ★ best cell when one stands out), never rerolls.
     heuristic: {
       decisionMs: 200,
       decide: function (G, rng, mem) {
