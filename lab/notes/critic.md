@@ -284,3 +284,50 @@ banking, and the maze kept paying for the rest of the run.
 - **Would I play a 4th run?** Yes. It's a clean, original twist on TD, and the bank-vs-build tension is excellent.
 - **Bugs / friction:** No console errors. **Digit keys 1/2/3 didn't select an upgrade** for me even though the card says "or 1 / 2 / 3". Only ←/→ + Space worked (it may be an input lockout right after the card appears). The cursor's first-look position differed between seeds, and in seed 102 my first two Down presses didn't move it. The HUD score tweens and briefly showed less than BEST. Space is overloaded, so a mis-tap on the core starts the wave early. The left/right edge "gate" bars look like UI handles until a path appears.
 
+---
+
+## 7. Uptempo
+
+**What it is:** A 4-lane synthwave rhythm highway (D F J K or arrows). The twist is a tempo economy. PERFECT
+hits speed the song up (BPM shown on a speedometer), misses and "ghost" presses (−3 BPM) slow it down, and a
+red FLOOR keeps rising under your BPM. SPACE = BRAKE (−10 BPM) is a voluntary slow-down. Combo → ×mult.
+Each seed is a different named song ("SOLAR RUNNER — chord mix", "AFTERBURN SIGNAL — club mix").
+
+**Runs**
+| Run | Seed | Score | Length | Cause |
+|---|---|---|---|---|
+| 1 | 101 | 156 | 15.9 s | missed a note at 84 BPM — out of HP |
+| 2 | 102 | 344 | 21 s | missed a stream at 86 BPM — out of HP |
+
+Improved? **Yes** (156 → 344, combo 17 → 27+, 20+ perfects in a row in run 2). Big caveat: **no audio**, and
+stepped mode means I time notes by measuring their pixel distance to the hit line between screenshots. That's
+nothing like how a human plays a rhythm game. In both runs, after ~12–20 s of hand-timed play, I stopped
+inputting to stay within screenshot budget, and the run drained out within ~6 s. So run length here measures
+my budget, not the game's difficulty.
+
+| # | Principle | Score | Justification |
+|---|---|---|---|
+| 1 | Readable in 5 s | 2 | A title card explains the whole economy in two lines ("PERFECT hits speed the song up. Misses slow it down. The red floor keeps rising."), with key labels on the lanes and the control line at the bottom. |
+| 2 | Clear goal, visible score | 2 | Score, ×mult, combo, BPM gauge with floor marker, HP, and perfect/miss counts. Goal: "hit notes on the beat and outrun the rising floor". |
+| 3 | Juicy feedback | 2 | PERFECT / GOOD · early / GOOD · late / MISS judgements, lane flashes with particle bursts, +N floaters, a giant combo number behind the highway, "ghost −3 BPM" tags, warp speed lines appearing as BPM climbs, and a speedometer needle that swings. |
+| 4 | Forgiving input | 1 | There's a GOOD window with early/late feedback (useful). But ghost presses cost BPM, so mashing or anticipating is punished hard, and the strong perspective makes far notes hard to read. |
+| 5 | Fair, legible failure | 2 | "THE BEAT DROPPED — missed a note at 84 BPM — out of HP", with top speed, max combo, time and perfect/good/miss/brake counts. |
+| 6 | Instant retry | 2 | "press any key to go again". |
+| 7 | Interesting decisions | 1 | Mostly execution. The one real decision is BRAKE (trade speed and score for safety) and whether to ride high BPM. I never got fast enough to feel it. |
+| 8 | Pattern to learn | 2 | Clear improvement (2× score, perfect streaks) once I locked onto the beat grid. Patterns come at half- and full-beat spacing with chords, which is learnable. |
+| 9 | Escalation / flow | 2 | Self-driven DDA: your own perfects raise the tempo, and the floor rises regardless. That's the Jenova Chen idea done literally. |
+| 10 | Not solved | 2 | The floor rises forever and the tempo goes up with success. |
+| 11 | Risk and reward | 2 | Speed is score: higher BPM means faster notes and more points per second. BRAKE is the safety valve with a cost, and ghosting to "make sure" is punished. |
+| 12 | Few verbs, deep use | 1 | Four lanes plus brake. Hits double as tempo control (a nice dual purpose), but there's no layered verb beyond that. |
+| 13 | Variety | 2 | Each seed is a different named song with its own mix (chord vs club) and chart. |
+| 14 | Reward cadence / compounding | 2 | Points every half-beat, and the combo multiplier (×1 → ×2 at ~14 combo) compounds with BPM. |
+| 15 | One more go | 2 | NEW BEST and a full stats line. Restarts are instant. |
+
+**Total: 27 / 30 → Fun score 9**
+
+- **MDA aesthetic felt:** Sensation (synthwave highway, warp lines), with Challenge.
+- **Best moment:** Hitting a 22-note perfect streak, watching speed lines appear at the edges and the needle creep toward 100 BPM.
+- **Worst moment:** Mis-predicting a rest in the chart, firing three "ghost −3 BPM" presses in a row and losing my whole combo.
+- **Would I play a 4th run?** Yes, but only with sound. The design looks strong, and I couldn't experience its core (the music). Treat my score as provisional.
+- **Bugs / friction:** No console errors. **Starting run 1 with ShiftLeft counted as a BRAKE** (BPM dropped 90 → 80 instantly and the end screen said "brakes 1"). In run 2, starting with Enter didn't do that. "press any key to drop the beat" should not apply a brake. The "NOW PLAYING" song title covers the far third of the highway for the first several seconds, exactly where you read upcoming notes. The HUD score tweens and shows a lower number than BEST for a moment. I never saw what happens when the floor catches your BPM. Both deaths were HP.
+
