@@ -48,10 +48,12 @@ function prefixSet() { if (!PREFIX) { PREFIX = new Set(); for (const w of DICT) 
 function wordValue(w) { let b = 0; for (const c of w) b += VAL[c] || 0; return b * 10 * (LENMULT[w.length] || 0); }
 
 // ---------- tuning (escalation + hard ceiling) ----------
-function interval(L) { return Math.max(78, Math.round(190 * Math.pow(0.92, L - 1))); }
+const WARM_MS = 20000;   // the first 20 s start slower (245 ms/cell) and ease into the level-1 pace
+function interval(L, t) { const warm = t == null ? 0 : Math.max(0, 1 - t / WARM_MS); return Math.round(Math.max(78, 190 * Math.pow(0.92, L - 1)) + 55 * warm); }
+function iv() { return interval(S.level, S.t); }
 function rockEvery(L) { return Math.max(2400, 13000 - 900 * (L - 1)); }
 function rocksPerCast(L) { return 1 + Math.floor((L - 1) / 3); }
-function graceMs(L) { return Math.max(80, interval(L) * 0.75); }
+function graceMs() { return Math.max(140, iv()); }   // one full beat to turn away
 function hungerAt(L) { return Math.max(6000, 16000 - 1000 * (L - 1)); }   // ms without a cast before the tail grows
 const STARVE_EVERY = 2500;
 
@@ -139,7 +141,7 @@ function newState(seed, started) {
     level: 1, dir: 1, turnQ: [], castQ: false,
     body: [[4, 7], [3, 7], [2, 7]], lets: [], tiles: [], rocks: new Array(COLS * ROWS).fill(0), warns: [],
     moveT: 0, grace: 0, streak: 0, casts: 0, spits: 0, eaten: 0, blasted: 0, bestWord: '', bestPts: 0,
-    freeze: 0, rockT: rockEvery(1), since: 0, starveT: 0, grow: 0, grown: 0,
+    freeze: 0, rockT: rockEvery(1), opener: '', since: 0, starveT: 0, grow: 0, grown: 0,
   };
 }
 function newFX() {
@@ -149,7 +151,8 @@ function newFX() {
 }
 function reset(seed, started) {
   S = newState(seed, started); FX = newFX(); carry = 0;
-  for (let i = 0; i < NTILES; i++) spawnTile();
+  dealOpening();
+  while (S.tiles.length < NTILES) spawnTile();
   FX.prev = S.body.map(p => p.slice());
 }
 
@@ -192,6 +195,28 @@ function pickLetter() {
     return c;
   }
   return 'E';
+}
+const OPENERS3 = ['CAT', 'SUN', 'TEA', 'DOG', 'HAT', 'RED', 'TEN', 'SEA', 'PET', 'MAP', 'EAT', 'NET', 'TOP', 'SIT', 'RAT', 'PEN', 'ONE', 'ART',
+  'TAN', 'ICE', 'HOT', 'SET', 'LET', 'RUN', 'FUN', 'BAT', 'CAN', 'POT', 'LOT', 'TIN', 'OAT', 'ARE', 'ATE', 'TOE'];
+const OPENERS4 = ['STAR', 'SEAT', 'NEST', 'RAIN', 'NOTE', 'RATE', 'SAND', 'TIME', 'LAST', 'MEAT', 'HEAT', 'LANE', 'TALE', 'NEAT', 'SOAP'];
+function dealOpening() {
+  const list = rnd() < 0.75 ? OPENERS3 : OPENERS4, w = list[Math.floor(rnd() * list.length)];
+  const h = S.body[0];
+  let x = h[0] + 3, y = h[1];
+  S.tiles.push({ x, y, c: w[0], g: 0, age: 0 });
+  const OFFS = [[2, -1], [2, 1], [1, -2], [1, 2], [0, -2], [0, 2], [2, 0], [-1, 2], [-1, -2]];
+  for (let i = 1; i < w.length; i++) {
+    let done = false;
+    for (let tries = 0; tries < 20 && !done; tries++) {
+      const o = OFFS[Math.floor(rnd() * OFFS.length)], nx = x + o[0], ny = y + o[1];
+      if (nx < 2 || ny < 3 || nx > COLS - 3 || ny > ROWS - 3 || ny === h[1] && nx < x) continue;
+      if (occupied(nx, ny)) continue;
+      x = nx; y = ny; done = true;
+    }
+    if (!done) { const p = freeCell(3, false); if (!p) break; x = p[0]; y = p[1]; }
+    S.tiles.push({ x, y, c: w[i], g: 0, age: 0 });
+  }
+  S.opener = w;
 }
 function spawnTile() {
   const c = pickLetter(), g = rnd() < 0.07 ? 1 : 0;
@@ -242,7 +267,7 @@ function stepFX() {
   }
   FX.fly = FX.fly.filter(f => f.t < f.dur + 60);
   if (S) { const d = S.score - FX.disp; FX.disp = d > 0 ? Math.min(S.score, FX.disp + Math.max(1, d * 0.12)) : S.score; }
-  FX.shake *= 0.86; FX.flash *= 0.88; FX.scorePulse *= 0.9; FX.headBump *= 0.85; FX.bar *= 0.92; FX.graceT *= 0.9;
+  FX.shake *= 0.86; FX.flash *= 0.88; FX.scorePulse *= 0.9; FX.headBump *= 0.85; FX.bar *= 0.92; FX.graceT *= 0.95;
   FX.slide = FX.slide > 0.02 ? FX.slide * 0.8 : 0;
   if (FX.wordPop) { FX.wordPop.life -= 0.0135; if (FX.wordPop.life <= 0) FX.wordPop = null; }
   if (FX.banner) { FX.banner.life -= 0.014; if (FX.banner.life <= 0) FX.banner = null; }
@@ -293,8 +318,8 @@ function step() {
   } else S.starveT = 0;
   if (S.castQ) { S.castQ = false; doCast(); if (S.over) return; }
   S.moveT += STEP;
-  const iv = interval(S.level);
-  if (S.moveT >= iv) { S.moveT -= iv; doMove(); }
+  const step_iv = iv();
+  if (S.moveT >= step_iv) { S.moveT -= step_iv; doMove(); }
 }
 
 function bodyCause(i) {
@@ -317,8 +342,8 @@ function doMove() {
   }
   if (hit) {
     if (!S.grace) {     // forgiveness: one beat of grace before a fatal move
-      S.grace = 1; S.moveT = interval(S.level) - graceMs(S.level);
-      if (!QUIET) { FX.graceT = 1; FX.hold = true; SFX.grace(); }
+      S.grace = 1; S.moveT = iv() - graceMs();
+      if (!QUIET) { FX.graceT = 1; FX.graceCell = [nx, ny]; FX.hold = true; SFX.grace(); const [a, b] = cellC(h[0], h[1]); floatText(a, b - 26, 'TURN!', '#ff5a7a', 18, 30); }
       return;
     }
     die(hit + (S.since >= hungerAt(S.level) ? ' while starving' : '')); return;
@@ -382,7 +407,7 @@ function doCast() {
     const seg = S.body[1].slice(), tailPos = S.body[S.body.length - 1].slice();
     S.body.length -= 1;
     const lost = S.streak; S.streak = 0; S.spits++;
-    const p = addWarn();
+    const p = addWarn(spitSpot(tailPos));
     if (!QUIET) {
       const [a, b] = cellC(seg[0], seg[1]);
       if (p) { const [c, d] = cellC(p[0], p[1]); FX.fly.push({ c: l.c, g: 0, x0: a, y0: b, x1: c, y1: d, t: 0, dur: 420, rock: true, arc: -90 }); }
@@ -391,6 +416,12 @@ function doCast() {
       floatText(hx, hy - 24, lost > 0 ? 'SPIT · combo lost' : 'SPIT', '#d6b8ff', 16, 50);
     }
   } else if (!QUIET) { SFX.bump(); FX.msg = { txt: 'eat letters first!', col: '#d6b8ff', life: 0.8 }; }
+}
+
+function spitSpot(tp) {
+  const c = [tp, [tp[0] + 1, tp[1]], [tp[0] - 1, tp[1]], [tp[0], tp[1] + 1], [tp[0], tp[1] - 1]];
+  for (const q of c) if (q[0] >= 0 && q[1] >= 0 && q[0] < COLS && q[1] < ROWS && !occupied(q[0], q[1])) return q;
+  return null;   // addWarn falls back to a random free cell
 }
 
 function blast(n, h) {
@@ -449,8 +480,7 @@ function pathPoint(path, f) {
 }
 
 function drawSnake() {
-  const iv = interval(S.level);
-  const p = (!S.started || FX.hold) ? 1 : clamp(S.moveT / iv, 0, 1);
+  const p = (!S.started || FX.hold) ? 1 : clamp(S.moveT / iv(), 0, 1);
   const prev = FX.prev || S.body;
   // interpolated segment centres (grid units)
   const pts = S.body.map((b, i) => { const q = prev[i] || b; return [q[0] + (b[0] - q[0]) * p, q[1] + (b[1] - q[1]) * p]; });
@@ -491,9 +521,10 @@ function drawSnake() {
   const d = DIRS[S.dir];
   cx.save(); cx.translate(HX, HY); cx.rotate(Math.atan2(d[1], d[0]));
   if (wk >= 3) { cx.shadowColor = '#ffd34d'; cx.shadowBlur = 14 + glow * 10; }
-  if (FX.graceT > 0.1) { cx.shadowColor = '#ff3355'; cx.shadowBlur = 22; }
+  const gr = FX.graceT > 0.1 && !S.over && Math.sin(performance.now() / 45) > -0.2;
+  if (FX.graceT > 0.1) { cx.shadowColor = '#ff3355'; cx.shadowBlur = 26; }
   const hg = cx.createLinearGradient(-hs / 2, -hs / 2, hs / 2, hs / 2);
-  hg.addColorStop(0, S.over ? '#ff7b93' : '#6dffd2'); hg.addColorStop(1, S.over ? '#a3203e' : '#12a57f');
+  hg.addColorStop(0, S.over || gr ? '#ff7b93' : '#6dffd2'); hg.addColorStop(1, S.over || gr ? '#a3203e' : '#12a57f');
   cx.fillStyle = hg; rr(-hs / 2, -hs / 2, hs, hs, hs * 0.38); cx.fill(); cx.shadowBlur = 0;
   // eyes
   for (const sy of [-1, 1]) {
@@ -568,7 +599,9 @@ function drawWordBar() {
   cx.textAlign = 'center'; cx.textBaseline = 'middle';
   if (!n) {
     cx.fillStyle = '#b9a8de'; cx.font = '700 16px ' + FONT;
-    cx.fillText(touchUI ? 'eat letters to spell a word · tap to cast' : 'eat letters to spell a word · SPACE casts it', W / 2, y0 + 26);
+    const tip = (S.casts === 0 && S.opener && S.t < 15000) ? '  —  try ' + S.opener : '';
+    cx.fillText('eat 3+ letters to spell a word' + (tip || (touchUI ? ' · tap casts it' : ' · SPACE casts it')), W / 2, y0 + 22);
+    fuseLine(y0 + 44, false);
     return;
   }
   if (off) { cx.fillStyle = '#8f7fb8'; cx.font = '900 18px ' + FONT; cx.fillText('…', x + 8, y0 + 19); x += 22; }
@@ -585,10 +618,20 @@ function drawWordBar() {
   if (wk >= 3) {
     const w = str.slice(-wk), gold = S.lets.slice(0, wk).some(l => l.g) ? 2 : 1;
     const est = Math.round(wordValue(w) * (1 + 0.25 * S.streak) * gold);
-    cx.fillStyle = '#ffd34d'; cx.fillText((touchUI ? 'TAP' : 'SPACE') + ' casts ' + w + ' for +' + est, W / 2, y0 + 44);
-  } else {
-    cx.fillStyle = '#a99bd0'; cx.fillText('no word yet · ' + (touchUI ? 'tap' : 'SPACE') + ' spits the ' + str[n - 1] + ' (it becomes a rock)', W / 2, y0 + 44);
+    cx.fillStyle = '#ffd34d'; cx.fillText((touchUI ? 'TAP' : 'SPACE') + ' casts ' + w + ' for +' + est + (S.since > hungerAt(S.level) * 0.5 ? ' · resets the fuse' : ''), W / 2, y0 + 44);
+  } else if (!fuseLine(y0 + 44, true)) {
+    cx.fillStyle = '#a99bd0';
+    if (n < 3) cx.fillText('words need 3+ letters · keep eating', W / 2, y0 + 44);
+    else cx.fillText('no word yet · ' + (touchUI ? 'tap' : 'SPACE') + ' spits the ' + str[n - 1] + ' (it lands as a rock at your tail)', W / 2, y0 + 44);
   }
+}
+// explains the fuse where it matters: once it is half burnt (or at the very start of a run)
+function fuseLine(y, onlyWhenLow) {
+  const f = S.since / hungerAt(S.level);
+  cx.font = '800 12px ' + FONT; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  if (f >= 1) { cx.fillStyle = Math.sin(performance.now() / 120) > 0 ? '#ff6b8a' : '#ffb3c1'; cx.fillText('STARVING: your tail grows until you CAST a word', W / 2, y); return true; }
+  if (f > 0.5 || (!onlyWhenLow && S.t < 6000)) { cx.fillStyle = f > 0.5 ? '#ffb15e' : '#8fe8c8'; cx.fillText('CAST before the fuse ends, or your tail grows', W / 2, y); return true; }
+  return false;
 }
 
 function render() {
@@ -599,7 +642,19 @@ function render() {
   if (FX.shake > 0.3) cx.translate((Math.random() - 0.5) * FX.shake, (Math.random() - 0.5) * FX.shake);
   drawBoard();
   drawSnake();
-  if (FX.graceT > 0.05) { cx.strokeStyle = 'rgba(255,51,85,' + FX.graceT + ')'; cx.lineWidth = 6; rr(BX - 6, BY - 6, BWID + 12, BHEI + 12, 12); cx.stroke(); }
+  if (FX.graceT > 0.05) {
+    cx.strokeStyle = 'rgba(255,51,85,' + FX.graceT * 0.7 + ')'; cx.lineWidth = 4; rr(BX - 6, BY - 6, BWID + 12, BHEI + 12, 12); cx.stroke();
+    const gc = FX.graceCell, pu = 0.55 + 0.45 * Math.sin(performance.now() / 45);
+    if (gc) {
+      cx.fillStyle = 'rgba(255,51,85,' + (0.75 * FX.graceT * pu) + ')';
+      const x = gc[0], y = gc[1];
+      if (x >= 0 && y >= 0 && x < COLS && y < ROWS) { rr(BX + x * CELL + 1, BY + y * CELL + 1, CELL - 2, CELL - 2, 9); cx.fill(); }
+      else if (x < 0) cx.fillRect(BX - 9, BY + y * CELL - 4, 9, CELL + 8);
+      else if (x >= COLS) cx.fillRect(BX + BWID, BY + y * CELL - 4, 9, CELL + 8);
+      else if (y < 0) cx.fillRect(BX + x * CELL - 4, BY - 9, CELL + 8, 9);
+      else cx.fillRect(BX + x * CELL - 4, BY + BHEI, CELL + 8, 9);
+    }
+  }
   // flying letters
   for (const f of FX.fly) {
     if (f.t < 0) continue;
@@ -693,8 +748,8 @@ function drawHUD() {
 }
 
 function drawReady() {
-  const ry = BY + BHEI * 0.27;
-  cx.fillStyle = 'rgba(15,8,30,0.6)'; cx.fillRect(BX, ry - 60, BWID, 120);
+  const ry = BY + 50;
+  cx.fillStyle = 'rgba(15,8,30,0.72)'; cx.fillRect(BX, ry - 46, BWID, 92);
   cx.textAlign = 'center'; cx.textBaseline = 'middle';
   cx.font = '900 30px ' + FONT; cx.fillStyle = '#7ff0c8'; cx.fillText('YOUR BODY IS THE WORD', W / 2, ry - 24);
   const p = 0.65 + 0.35 * Math.sin(performance.now() / 220);
@@ -808,7 +863,7 @@ window.__game = {
       lets: S.lets.map(l => l.c).join(''), gold: S.lets.map(l => l.g), word: headWord(),
       tiles: S.tiles.map(t => ({ x: t.x, y: t.y, c: t.c, g: t.g, age: t.age })),
       rocks: S.rocks.slice(), warns: S.warns.map(w => ({ x: w.x, y: w.y, t: w.t })),
-      interval: interval(S.level), moveT: S.moveT, turnQ: S.turnQ.slice(), grace: S.grace,
+      interval: iv(), moveT: S.moveT, turnQ: S.turnQ.slice(), grace: S.grace,
       streak: S.streak, since: S.since, hungerAt: hungerAt(S.level), grow: S.grow, grown: S.grown, casts: S.casts, spits: S.spits, eaten: S.eaten, blasted: S.blasted, bestWord: S.bestWord,
     };
   },
