@@ -1,0 +1,121 @@
+{
+ "id": "junkorbit",
+ "pass": true,
+ "results": [
+  {
+   "name": "single file: no external scripts/styles",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "no Math.random/Date.now in file outside FX (manual review if flagged)",
+   "pass": true,
+   "detail": "Math.random uses: 15, Date.now uses: 2"
+  },
+  {
+   "name": "has <title> and meta description",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "uses localStorage key funlab.junkorbit.best",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "real-time mode advances sim after input",
+   "pass": true,
+   "detail": "t 799.9999999999995 -> 3649.999999999989"
+  },
+  {
+   "name": "window.__game has all methods",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "touch: game responds / runs",
+   "pass": true,
+   "detail": "t=2316.666666666668"
+  },
+  {
+   "name": "touch: canvas fits 390px viewport",
+   "pass": true,
+   "detail": "390x563"
+  },
+  {
+   "name": "getState has t/score/over/cause/difficulty",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "getState JSON-serialisable",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "getActions includes none, ≤6 actions",
+   "pass": true,
+   "detail": "[\"none\",\"left\",\"right\",\"fire\"]"
+  },
+  {
+   "name": "input(junk) does not throw",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "tick(1000) advances t",
+   "pass": true,
+   "detail": "t=999.9999999999991"
+  },
+  {
+   "name": "not over after 1s idle",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "score() is a number",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "determinism: same seed+inputs ⇒ same state",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "different seeds ⇒ different runs",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "snapshot/restore (+quiet) reproduces exactly",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "bots file has random/heuristic/smart",
+   "pass": true,
+   "detail": "random,heuristic,smart"
+  },
+  {
+   "name": "bot random runs 20s without error",
+   "pass": true,
+   "detail": "score=5617 ms=20000 wall=33ms"
+  },
+  {
+   "name": "bot heuristic runs 20s without error",
+   "pass": true,
+   "detail": "score=388 ms=20000 wall=7ms"
+  },
+  {
+   "name": "bot smart runs 20s without error",
+   "pass": true,
+   "detail": "score=9365 ms=20000 wall=1164ms"
+  },
+  {
+   "name": "zero console/page errors",
+   "pass": true,
+   "detail": ""
+  }
+ ]
+}

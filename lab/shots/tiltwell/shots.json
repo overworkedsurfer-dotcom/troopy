@@ -1,0 +1,40 @@
+{
+ "id": "tiltwell",
+ "bot": "smart",
+ "seed": 1,
+ "lengthMs": 183600,
+ "finalScore": 10015,
+ "cause": "rising stones overflowed the well",
+ "replayMatches": true,
+ "shots": [
+  {
+   "name": "1-start",
+   "t": 1500,
+   "score": 0,
+   "over": false,
+   "file": "lab/shots/tiltwell/1-start.png"
+  },
+  {
+   "name": "2-mid",
+   "t": 91800,
+   "score": 3994,
+   "over": false,
+   "file": "lab/shots/tiltwell/2-mid.png"
+  },
+  {
+   "name": "3-intense",
+   "t": 182100,
+   "score": 9795,
+   "over": false,
+   "file": "lab/shots/tiltwell/3-intense.png"
+  },
+  {
+   "name": "4-gameover",
+   "t": 183600,
+   "score": 10015,
+   "over": true,
+   "file": "lab/shots/tiltwell/4-gameover.png"
+  }
+ ],
+ "errors": []
+}

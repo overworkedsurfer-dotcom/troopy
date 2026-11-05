@@ -1,0 +1,40 @@
+{
+ "id": "kickback",
+ "bot": "smart",
+ "seed": 1,
+ "lengthMs": 114200,
+ "finalScore": 355857,
+ "cause": "smashed by a big rock",
+ "replayMatches": true,
+ "shots": [
+  {
+   "name": "1-start",
+   "t": 1500,
+   "score": 0,
+   "over": false,
+   "file": "lab/shots/kickback/1-start.png"
+  },
+  {
+   "name": "2-mid",
+   "t": 57100,
+   "score": 15250,
+   "over": false,
+   "file": "lab/shots/kickback/2-mid.png"
+  },
+  {
+   "name": "3-intense",
+   "t": 112700,
+   "score": 334097,
+   "over": false,
+   "file": "lab/shots/kickback/3-intense.png"
+  },
+  {
+   "name": "4-gameover",
+   "t": 114200,
+   "score": 355857,
+   "over": true,
+   "file": "lab/shots/kickback/4-gameover.png"
+  }
+ ],
+ "errors": []
+}

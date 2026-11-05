@@ -1,0 +1,40 @@
+{
+ "id": "spellsnake",
+ "bot": "smart",
+ "seed": 1,
+ "lengthMs": 83800,
+ "finalScore": 6163,
+ "cause": "crashed into the wall",
+ "replayMatches": true,
+ "shots": [
+  {
+   "name": "1-start",
+   "t": 1500,
+   "score": 0,
+   "over": false,
+   "file": "lab/shots/spellsnake/1-start.png"
+  },
+  {
+   "name": "2-mid",
+   "t": 41900,
+   "score": 2235,
+   "over": false,
+   "file": "lab/shots/spellsnake/2-mid.png"
+  },
+  {
+   "name": "3-intense",
+   "t": 82300,
+   "score": 6163,
+   "over": false,
+   "file": "lab/shots/spellsnake/3-intense.png"
+  },
+  {
+   "name": "4-gameover",
+   "t": 83800,
+   "score": 6163,
+   "over": true,
+   "file": "lab/shots/spellsnake/4-gameover.png"
+  }
+ ],
+ "errors": []
+}

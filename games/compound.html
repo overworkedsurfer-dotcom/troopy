@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>COMPOUND</title>
+<meta name="description" content="A three-minute incremental race: build a tiny 5x5 money engine whose adjacency multipliers compound faster than an accelerating tide.">
+<style>
+  html,body{margin:0;height:100%;background:#060b18;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+  canvas{display:block;margin:0 auto}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+(() => {
+'use strict';
+const ID = 'compound';
+const W = 480, H = 840;
+const STEP = 1000 / 60;
+const cv = document.getElementById('c'), cx = cv.getContext('2d');
+
+// ---------- layout ----------
+const GN = 5, CS = 64, GAP = 4, GW = GN * CS + (GN - 1) * GAP, GX = (W - GW) / 2, GY = 300;
+const CH_X = 16, CH_Y = 154, CH_W = 448, CH_H = 118;            // duel chart
+const SH_Y = 650, SH_H = 138, SH_W = 146, SH_GAP = 5, SH_X = (W - (3 * SH_W + 2 * SH_GAP)) / 2;
+const RR = { x: 16, y: 796, w: 150, h: 34 };                    // reroll button
+const SEED = 0, MILL = 1, BANK = 2, LENS = 3, FURN = 4;
+const NAMES = ['SEED', 'MILL', 'BANK', 'LENS', 'FURNACE'];
+const TCOL = ['#3ee6a8', '#ffa94d', '#ffd166', '#b794ff', '#ff5d73'];
+const TRGB = ['62,230,168', '255,169,77', '255,209,102', '183,148,255', '255,93,115'];
+const T0 = 10, R0 = 0.02, TAU = 56;                              // tide: ln T = ln T0 + R0·TAU·(e^(t/TAU) − 1)
+const GRACE = 1000;
+const VAULT = 10;                                                // banks only pay interest on wealth up to VAULT × tide                                              // ms you may spend under the tide before it takes you
+const N4 = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+const FONT = '"Trebuchet MS","Segoe UI",Verdana,system-ui,sans-serif';
+const MONO = 'ui-monospace,"DejaVu Sans Mono",Menlo,Consolas,monospace';
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+
+// ---------- seeded RNG (state lives in S.rng) ----------
+function rnd() {
+  let t = (S.rng = (S.rng + 0x6D2B79F5) | 0);
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+// ---------- best score ----------
+function loadBest() { try { return +localStorage.getItem('funlab.' + ID + '.best') || 0; } catch (e) { return 0; } }
+function saveBest(v) { try { localStorage.setItem('funlab.' + ID + '.best', String(v)); } catch (e) {} }
+let best = loadBest();
+
+// ---------- number formatting ----------
+const SUF = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc', 'UDc', 'DDc', 'TDc', 'QaDc', 'QiDc', 'SxDc', 'SpDc', 'OcDc', 'NoDc', 'Vg'];
+function fmt(x, dp) {
+  if (!isFinite(x)) return '∞';
+  const neg = x < 0; x = Math.abs(x);
+  if (x < 1000) return (neg ? '-' : '') + (x < 10 && dp !== 0 ? x.toFixed(1) : Math.floor(x).toString());
+  const e = Math.floor(Math.log10(x) / 3);
+  if (e >= SUF.length) return (neg ? '-' : '') + x.toExponential(2).replace('+', '');
+  const v = x / Math.pow(1000, e);
+  return (neg ? '-' : '') + (v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : Math.floor(v).toString()) + SUF[e];
+}
+function pct(r) { const p = r * 100; return (p < 10 ? p.toFixed(2) : p < 100 ? p.toFixed(1) : Math.round(p).toString()) + '%'; }
+
+// ---------- tide ----------
+function tideLn(tms) { const s = tms / 1000; return Math.log(T0) + R0 * TAU * (Math.exp(s / TAU) - 1); }
+function tideBase(tms) { return Math.exp(tideLn(tms)); }
+function tideRate(tms) { return R0 * Math.exp(tms / 1000 / TAU); }
+function swell(tms) { const s = tms / 1000, A = 0.04 + 0.06 * Math.min(1, s / 150); return A * (0.5 + 0.5 * Math.sin(s * 6.283 / 6.5)); }
+function rogueAt(tms) { const r = S.rogue; if (tms < r.at || tms > r.at + r.dur) return 0; const u = (tms - r.at) / r.dur, s = Math.sin(Math.PI * u); return r.amp * s * s; }
+function tideEff(tms) { return tideBase(tms) * (1 + swell(tms) + rogueAt(tms)); }
+function margin() { const m = S.W / tideEff(S.t); return isFinite(m) ? m : 0; }
+
+// ---------- state ----------
+let S = null, FX = null;
+let QUIET = false, manual = false, carry = 0, overAt = 0, touchMode = false;
+try { touchMode = matchMedia('(pointer: coarse)').matches; } catch (e) {}
+
+function newState(seed) {
+  return {
+    rng: (seed | 0) || 1, t: 0, score: 0, over: false, cause: null,
+    W: 30, peak: 30, grid: new Array(25).fill(null), mult: new Array(25).fill(1), out: new Array(25).fill(0), F: 0, B: 0,
+    cur: 12, shop: [], rerolls: 0, buys: 0, count: 0, under: 0, freeze: 0, q: [],
+    rogue: { at: 0, amp: 0, dur: 0, warned: false }, lastBuy: null, maxGrowth: 0,
+  };
+}
+function newFX() {
+  return { parts: [], texts: [], coins: [], pops: [], hist: [], tile: new Array(25).fill(0), tileSq: new Array(25).fill(0), cardPop: [0, 0, 0], deny: [0, 0, 0],
+    shake: 0, flash: 0, flashCol: '255,255,255', dispW: 30, wPulse: 0, water: 0.6, time: 0, beat: 0, nextBeat: 0, rogueWarn: 0,
+    fly: null, overT: 0, newBest: false, hintA: 1, under: 0, rerollPop: 0, chainT: 0, bigTxt: null, sampleT: 0, coinSnd: 0 };
+}
+function reset(seed) {
+  S = newState(seed); FX = newFX(); carry = 0; drag = null;
+  S.shop = [genCard(SEED), genCard(SEED), genCard()];
+  planRogue(18000);
+  recompute(); score();
+}
+function planRogue(after) { S.rogue = { at: S.t + after + rnd() * 22000, amp: 0.22 + rnd() * 0.3, dur: 2600 + rnd() * 1400, warned: false }; }
+
+// ---------- cards ----------
+function genCard(force) {
+  const s = S.t / 1000;
+  let t = force;
+  if (t == null) {
+    const w = s < 30 ? [0.42, 0.2, 0.16, 0.11, 0.11] : [0.24, 0.22, 0.26, 0.15, 0.13];
+    let r = rnd(), i = 0; while (i < 4 && r >= w[i]) { r -= w[i]; i++; } t = i;
+  }
+  const q = rnd(), rr = rnd(), rar = rr < 0.03 ? 2 : rr < 0.15 ? 1 : 0;      // RARE / LEGENDARY cards
+  const boost = [1, 1.6, 2.2][rar], pm = [1, 1.35, 1.8][rar];
+  let c;
+  if (t === SEED) { const k = 0.03 + 0.03 * q; c = { t, k: k * boost, o: 0, p: 0.25 * k / 0.045 * pm }; }
+  else if (t === BANK) { const k = 0.004 + 0.004 * q; c = { t, k: k * boost, o: 0, p: 0.7 * k / 0.006 * pm }; }
+  else if (t === MILL) c = { t, k: [1.5, 1.75, 2][rar], o: 0, p: 0.5 * pm };
+  else if (t === LENS) c = { t, k: [2, 2.5, 3][rar], o: q < 0.5 ? 0 : 1, p: 0.8 * pm };
+  else { const k = 0.2 + 0.15 * q; c = { t: FURN, k: k * boost, o: 0, p: 0.55 * k / 0.275 * pm }; }
+  c.rar = rar;
+  return c;
+}
+function priceOf(c) { return c.p * (1 + 0.1 * S.count) * tideBase(S.t); }
+function rerollCost() { return 0.1 * Math.pow(1.6, S.rerolls) * tideBase(S.t); }
+function canAfford(price) { return S.W - price >= tideEff(S.t) * 1.0005; }
+
+// ---------- economy: multiplicative adjacency ----------
+function multAt(g, i) {
+  const r = (i / 5) | 0, c = i % 5;
+  let m = 1;
+  for (const d of N4) {
+    const rr = r + d[0], cc = c + d[1]; if (rr < 0 || rr > 4 || cc < 0 || cc > 4) continue;
+    const n = g[rr * 5 + cc]; if (!n) continue;
+    if (n.t === MILL) m *= n.k; else if (n.t === FURN) m *= 0.5;
+  }
+  let lr = 1, lc = 1;                                         // lenses focus, they don't stack: best row lens × best column lens
+  for (let k = 0; k < 5; k++) {
+    const a = g[r * 5 + k], b = g[k * 5 + c];
+    if (k !== c && a && a.t === LENS && a.o === 0 && a.k > lr) lr = a.k;
+    if (k !== r && b && b.t === LENS && b.o === 1 && b.k > lc) lc = b.k;
+  }
+  return m * lr * lc;
+}
+function recompute() {
+  let F = 0, B = 0;
+  for (let i = 0; i < 25; i++) {
+    const n = S.grid[i];
+    if (!n || n.t === MILL || n.t === LENS) { S.mult[i] = 1; S.out[i] = 0; continue; }
+    const m = multAt(S.grid, i); S.mult[i] = m; S.out[i] = n.v * m;
+    if (n.t === BANK) B += n.v * m; else F += n.v * m;
+  }
+  S.F = F; S.B = B;
+}
+function vaultCap() { return VAULT * tideBase(S.t); }
+function interestOn() { return Math.min(S.W, vaultCap()); }
+function growth() { return (S.F + S.B * interestOn()) / Math.max(1e-300, S.W); }
+function score() { S.score = Math.floor(100 * Math.log10(S.peak + 1)); }
+function nearestEmpty(from) {
+  let bi = -1, bd = 1e9; const r0 = (from / 5) | 0, c0 = from % 5;
+  for (let i = 0; i < 25; i++) if (!S.grid[i]) { const d = Math.abs(((i / 5) | 0) - r0) + Math.abs(i % 5 - c0); if (d < bd) { bd = d; bi = i; } }
+  return bi;
+}
+function nextEmpty(from) {
+  for (let k = 1; k <= 25; k++) { const i = (from + k) % 25; if (!S.grid[i]) return i; }
+  return (from + 1) % 25;
+}
+
+// ---------- audio (lazy, fail-safe) ----------
+let AC = null, AU = null;
+function audioInit() {
+  try {
+    if (!AC) {
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      const m = AC.createGain(); m.gain.value = 0.7;
+      const comp = AC.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+      m.connect(comp); comp.connect(AC.destination);
+      const nb = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate), d = nb.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      // ocean bed: looped noise through a lowpass, swelling with the tide
+      const src = AC.createBufferSource(); src.buffer = nb; src.loop = true;
+      const of = AC.createBiquadFilter(); of.type = 'lowpass'; of.frequency.value = 400; const og = AC.createGain(); og.gain.value = 0.0;
+      src.connect(of); of.connect(og); og.connect(m); src.start();
+      AU = { m, noise: nb, of, og };
+    }
+    if (AC.state === 'suspended') AC.resume();
+  } catch (e) { AC = null; AU = null; }
+}
+function aerr(e) { try { const a = window.__audioErr || (window.__audioErr = []); if (a.length < 20) a.push(String(e && e.message || e)); } catch (_) {} }
+function live() { return !QUIET && AC && AU && AC.state === 'running'; }
+function sfx(fn) { if (!live()) return; try { fn(AC.currentTime); } catch (e) { aerr(e); } }
+function tone(at, type, f, dur, v, f2) {
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, at); if (f2) o.frequency.exponentialRampToValueAtTime(f2, at + dur);
+  g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(v, at + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  o.connect(g); g.connect(AU.m); o.start(at); o.stop(at + dur + 0.03);
+}
+function hiss(at, dur, type, f, q, v, f2) {
+  const s = AC.createBufferSource(), fl = AC.createBiquadFilter(), g = AC.createGain();
+  s.buffer = AU.noise; fl.type = type; fl.frequency.setValueAtTime(f, at); if (f2) fl.frequency.exponentialRampToValueAtTime(f2, at + dur); fl.Q.value = q;
+  g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(v, at + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  s.connect(fl); fl.connect(g); g.connect(AU.m); s.start(at, Math.random()); s.stop(at + dur + 0.03);
+}
+const PENTA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26, 28, 31];
+function nhz(semi) { return 523.25 * Math.pow(2, semi / 12); }
+
+// ---------- FX helpers (never touch S) ----------
+function cellXY(i) { return { x: GX + (i % 5) * (CS + GAP) + CS / 2, y: GY + ((i / 5) | 0) * (CS + GAP) + CS / 2 }; }
+function cardXY(k) { return { x: SH_X + k * (SH_W + SH_GAP) + SH_W / 2, y: SH_Y + SH_H / 2 }; }
+function burst(x, y, n, col, spd, g) {
+  if (QUIET) return;
+  for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, s = (0.3 + Math.random()) * (spd || 4); FX.parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, g: g == null ? 0.12 : g, life: 1, dl: 0.02 + Math.random() * 0.02, col, sz: 2 + Math.random() * 3 }); }
+}
+function floatText(x, y, txt, col, size, vy) { if (!QUIET) FX.texts.push({ x, y, txt, col, size: size || 16, life: 1, vy: vy == null ? -1.6 : vy }); }
+function shake(a) { if (!QUIET) FX.shake = Math.max(FX.shake, a); }
+function flash(a, col) { if (!QUIET) { FX.flash = Math.max(FX.flash, a); FX.flashCol = col || '255,255,255'; } }
+
+// ---------- actions ----------
+function buy(slot) {
+  const c = S.shop[slot]; if (!c) return;
+  const price = priceOf(c);
+  if (!canAfford(price)) {
+    if (!QUIET) { FX.deny[slot] = 1; floatText(cardXY(slot).x, SH_Y - 6, 'the tide would take you', '#ff8fa0', 13, -0.8); sfx(t => tone(t, 'square', 110, 0.16, 0.08, 80)); }
+    return;
+  }
+  const i = S.cur, old = S.grid[i], prevOut = S.out.slice(), g0 = growth();
+  S.W -= price;
+  S.grid[i] = { t: c.t, v: c.t === BANK ? c.k : (c.t === SEED || c.t === FURN) ? c.k * tideBase(S.t) : 0, o: c.o, k: c.k, rar: c.rar };
+  if (!old) S.count++;
+  recompute();
+  S.shop[slot] = genCard(); S.rerolls = 0; S.buys++;
+  S.lastBuy = { t: S.t, name: NAMES[c.t] };
+  const g1 = growth(), gain = g0 > 0 ? g1 / g0 : 2;
+  // affected neighbours (multiplier changed) -> chain
+  const chain = [];
+  for (let j = 0; j < 25; j++) if (j !== i && S.grid[j] && Math.abs(S.out[j] - prevOut[j]) > 1e-12 * (1 + prevOut[j])) chain.push(j);
+  chain.sort((a, b) => (Math.abs(a % 5 - i % 5) + Math.abs(((a / 5) | 0) - ((i / 5) | 0))) - (Math.abs(b % 5 - i % 5) + Math.abs(((b / 5) | 0) - ((i / 5) | 0))));
+  S.freeze = Math.min(220, 40 + chain.length * 30 + (gain > 1.5 ? 60 : 0));      // hitstop: the tide holds while the combo lands
+  { const ni = nearestEmpty(i); if (ni >= 0) S.cur = ni; }        // cursor hops to the nearest empty cell
+  if (QUIET) return;
+  const p = cellXY(i), from = cardXY(slot);
+  FX.fly = { x0: from.x, y0: from.y, x1: p.x, y1: p.y, t: 0, col: TCOL[c.t], type: c.t, o: c.o };
+  FX.tileSq[i] = 1; FX.cardPop[slot] = 1;
+  burst(p.x, p.y, 22, TCOL[c.t], 4.5);
+  floatText(W / 2, 128, '−$' + fmt(price), '#ff8fa0', 17, -0.9);
+  if (old) floatText(p.x, p.y - 30, NAMES[old.t] + ' replaced', '#aab', 12, -0.8);
+  chain.forEach((j, k) => {
+    const nm = S.out[j] / Math.max(1e-300, prevOut[j]);
+    FX.pops.push({ i: j, d: 6 + k * 5, txt: prevOut[j] > 0 ? (nm >= 1 ? '×' + (nm < 10 ? nm.toFixed(nm % 1 ? 2 : 0).replace(/\.?0+$/, '') : Math.round(nm)) : '×' + nm.toFixed(2)) : 'ON', up: nm >= 1, k });
+  });
+  const big = (gain >= 1.6 && S.buys > 2) || c.rar === 2;
+  if (c.rar) floatText(p.x, p.y + 34, c.rar === 2 ? 'LEGENDARY!' : 'RARE!', c.rar === 2 ? '#ff7ae0' : '#ffe08a', 14, -0.6);
+  shake(big ? 10 : 4 + Math.min(6, chain.length));
+  if (big) { FX.bigTxt = { txt: 'GROWTH ×' + (gain < 10 ? gain.toFixed(1) : Math.round(gain)), life: 1 }; flash(0.3, '255,209,102'); burst(W / 2, 90, 40, '#ffd166', 6, 0.05); }
+  sfx(t => {
+    tone(t, 'square', 1318, 0.09, 0.07); tone(t + 0.06, 'square', 1760, 0.22, 0.07); hiss(t, 0.12, 'bandpass', 6000, 2, 0.06);
+    tone(t, 'sine', 196, 0.25, 0.18, 98);
+    if (big) [0, 4, 7, 12, 16].forEach((s, k) => tone(t + 0.25 + k * 0.05, 'triangle', nhz(s), 0.4, 0.06));
+  });
+}
+function reroll() {
+  const c = rerollCost();
+  if (!canAfford(c)) { if (!QUIET) { floatText(RR.x + RR.w / 2, RR.y - 6, 'too close to the tide', '#ff8fa0', 13, -0.8); sfx(t => tone(t, 'square', 110, 0.16, 0.08, 80)); } return; }
+  S.W -= c; S.rerolls++;
+  S.shop = [genCard(), genCard(), genCard()];
+  if (!QUIET) {
+    FX.rerollPop = 1; FX.cardPop = [1, 1, 1]; floatText(W / 2, 128, '−$' + fmt(c), '#ff8fa0', 15, -0.9);
+    for (let k = 0; k < 3; k++) { const p = cardXY(k); burst(p.x, p.y, 8, '#9fb4ff', 3); }
+    sfx(t => { hiss(t, 0.25, 'bandpass', 800, 3, 0.12, 5000); for (let k = 0; k < 3; k++) tone(t + k * 0.05, 'triangle', 660 + k * 220, 0.06, 0.05); });
+  }
+}
+function moveCur(a) {
+  if (a === 'next') { S.cur = nextEmpty(S.cur); }
+  else {
+    const r = (S.cur / 5) | 0, c = S.cur % 5;
+    if (a === 'up' && r > 0) S.cur -= 5; else if (a === 'down' && r < 4) S.cur += 5; else if (a === 'left' && c > 0) S.cur -= 1; else if (a === 'right' && c < 4) S.cur += 1;
+    else if (a.startsWith('cell')) S.cur = clamp(+a.slice(4), 0, 24);
+  }
+  if (!QUIET) { FX.tile[S.cur] = Math.max(FX.tile[S.cur], 0.4); sfx(t => tone(t, 'sine', 880, 0.04, 0.03)); }
+}
+function die() {
+  S.over = true;
+  const s = S.t / 1000, mm = Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+  if (rogueAt(S.t) > 0.02) S.cause = 'a rogue wave swamped you at $' + fmt(S.W) + ' (' + mm + ')';
+  else if (S.lastBuy && S.t - S.lastBuy.t < 6000) S.cause = 'bought a ' + S.lastBuy.name + ' too close to the tide (' + mm + ')';
+  else S.cause = 'the tide (+' + pct(tideRate(S.t)) + '/s) outgrew your engine (+' + pct(Math.max(0, growth())) + '/s) at ' + mm;
+  if (QUIET) return;
+  shake(22); flash(0.6, '60,140,255');
+  for (let i = 0; i < 25; i++) if (S.grid[i]) { const p = cellXY(i); burst(p.x, p.y, 8, '#7fd1ff', 4); }
+  if (S.score > best) { best = S.score; saveBest(best); FX.newBest = true; }
+  overAt = performance.now();
+  sfx(t => { tone(t, 'sine', 300, 1.4, 0.22, 40); hiss(t, 1.6, 'lowpass', 2400, 0.7, 0.25, 200); for (let k = 0; k < 6; k++) tone(t + 0.2 + k * 0.13, 'sine', 500 + Math.random() * 500, 0.08, 0.05, 900); });
+}
+
+// ---------- simulation ----------
+function step() {
+  if (!QUIET) fxStep();
+  if (S.over) return;
+  if (S.q.length) {
+    const q = S.q; S.q = [];
+    for (const a of q) { if (a === 'buy1' || a === 'buy2' || a === 'buy3') buy(+a[3] - 1); else if (a === 'reroll') reroll(); else moveCur(a); }
+  }
+  if (S.freeze > 0) { S.freeze -= STEP; return; }          // hitstop (deterministic)
+  S.t += STEP;
+  const dt = STEP / 1000;
+  S.W += (S.F + S.B * interestOn()) * dt;                  // flat income + compounding interest (up to the vault cap)
+  if (!(S.W < 1e300)) S.W = 1e300;                         // overflow guard (the tide passes this long before)
+  if (S.W > S.peak) { S.peak = S.W; score(); }
+  const g = growth(); if (g > S.maxGrowth) S.maxGrowth = g;
+  // rogue waves (seeded) with a 3 s warning
+  if (!S.rogue.warned && S.t >= S.rogue.at - 3000) {
+    S.rogue.warned = true;
+    if (!QUIET) { FX.rogueWarn = 1; sfx(t => { for (let k = 0; k < 4; k++) tone(t + k * 0.22, 'square', k % 2 ? 620 : 880, 0.18, 0.05); }); }
+  }
+  if (S.t > S.rogue.at + S.rogue.dur) planRogue(14000);
+  const Te = tideEff(S.t);
+  if (!(S.W >= Te)) {
+    if (S.under === 0 && !QUIET) { shake(8); sfx(t => hiss(t, 0.6, 'lowpass', 300, 1, 0.3, 1600)); }
+    S.under += STEP;
+    if (S.under >= GRACE) { die(); return; }
+  } else S.under = Math.max(0, S.under - STEP * 2);
+}
+
+// ---------- FX advance (inside step, cosmetic only) ----------
+function fxStep() {
+  FX.time += STEP;
+  for (const p of FX.parts) { p.x += p.vx; p.y += p.vy; p.vy += p.g; p.vx *= 0.98; p.life -= p.dl; }
+  FX.parts = FX.parts.filter(p => p.life > 0); if (FX.parts.length > 500) FX.parts.splice(0, FX.parts.length - 500);
+  for (const t of FX.texts) { t.y += t.vy; t.vy *= 0.95; t.life -= 0.016; }
+  FX.texts = FX.texts.filter(t => t.life > 0);
+  for (let i = 0; i < 25; i++) { FX.tile[i] *= 0.9; FX.tileSq[i] *= 0.88; }
+  for (let k = 0; k < 3; k++) { FX.cardPop[k] *= 0.86; FX.deny[k] *= 0.9; }
+  FX.shake *= 0.87; FX.flash *= 0.9; FX.wPulse *= 0.88; FX.rerollPop *= 0.88;
+  if (FX.bigTxt) { FX.bigTxt.life -= 0.012; if (FX.bigTxt.life <= 0) FX.bigTxt = null; }
+  if (FX.fly) { FX.fly.t += 0.09; if (FX.fly.t >= 1) FX.fly = null; }
+  // chain pops (Balatro-style staggered evaluation)
+  for (const p of FX.pops) {
+    if (--p.d === 0) {
+      const c = cellXY(p.i); FX.tileSq[p.i] = 0.8; FX.tile[p.i] = 1;
+      floatText(c.x, c.y - 24, p.txt, p.up ? '#fff3b0' : '#ff8fa0', 15 + Math.min(8, p.k), -1.3);
+      burst(c.x, c.y, 6, p.up ? '#ffd166' : '#ff5d73', 3);
+      const semi = PENTA[Math.min(PENTA.length - 1, p.k)];
+      sfx(t => tone(t, 'triangle', nhz(semi), 0.14, 0.07));
+    }
+  }
+  FX.pops = FX.pops.filter(p => p.d > 0);
+  // odometer: displayed wealth rolls toward real wealth in log space
+  const lw = Math.log(Math.max(1e-9, S.W)), ld = Math.log(Math.max(1e-9, FX.dispW));
+  FX.dispW = Math.exp(ld + (lw - ld) * 0.18);
+  // coins fly from producers to the wealth counter
+  if (!S.over && !S.freeze) {
+    const prod = []; for (let i = 0; i < 25; i++) if (S.out[i] > 0) prod.push(i);
+    if (prod.length && Math.random() < 0.08 + 0.025 * prod.length) {
+      const i = prod[(Math.random() * prod.length) | 0], c = cellXY(i);
+      FX.coins.push({ x0: c.x + (Math.random() - 0.5) * 20, y0: c.y, t: 0, sp: 0.022 + Math.random() * 0.012, bank: S.grid[i] && S.grid[i].t === BANK });
+    }
+  }
+  for (const c of FX.coins) c.t += c.sp;
+  const arrived = FX.coins.filter(c => c.t >= 1).length;
+  if (arrived) { FX.wPulse = Math.min(1, FX.wPulse + 0.25 * arrived); if (FX.coinSnd <= 0) { FX.coinSnd = 5; sfx(t => tone(t, 'sine', 2093 + Math.random() * 400, 0.05, 0.025)); } }
+  FX.coinSnd--;
+  FX.coins = FX.coins.filter(c => c.t < 1);
+  // duel history
+  if ((FX.sampleT += STEP) >= 100) { FX.sampleT = 0; FX.hist.push({ t: S.t, w: Math.log10(Math.max(1e-9, S.W)), d: Math.min(308, Math.log10(tideEff(S.t))), b: Math.min(308, Math.log10(tideBase(S.t))) }); if (FX.hist.length > 460) FX.hist.shift(); }
+  // water level from the margin (log scale): m = 1 -> the tide reaches the wealth counter
+  const m = margin(), target = clamp(1 - Math.log(Math.max(1, m)) / Math.log(8), 0, 1);
+  FX.water += ((S.over ? 1.15 : target) - FX.water) * (S.over ? 0.03 : 0.08);
+  FX.under = S.under;
+  if (S.rogue.warned && S.t < S.rogue.at + S.rogue.dur && !S.over) FX.rogueWarn = 1; else FX.rogueWarn *= 0.95;
+  if (S.over) FX.overT = Math.min(1, FX.overT + 0.03);
+  if (S.t > 9000 || S.buys > 2) FX.hintA = Math.max(0, FX.hintA - 0.01);
+  // heartbeat when the tide is close
+  if (!S.over && m < 1.5) {
+    FX.nextBeat -= STEP;
+    if (FX.nextBeat <= 0) { FX.nextBeat = 350 + (m - 1) * 1600; FX.beat = 1; sfx(t => { tone(t, 'sine', 64, 0.16, 0.4, 40); tone(t + 0.14, 'sine', 54, 0.14, 0.28, 36); }); }
+  }
+  FX.beat *= 0.9;
+  if (live()) { try { AU.og.gain.setTargetAtTime(0.02 + 0.12 * clamp(1.6 - m, 0, 1) + 0.05 * swell(S.t) * 10, AC.currentTime, 0.2); AU.of.frequency.setTargetAtTime(300 + 900 * clamp(1.8 - m, 0, 1), AC.currentTime, 0.3); } catch (e) { aerr(e); } }
+}
+
+// ---------- render ----------
+function rrect(x, y, w, h, r) { cx.beginPath(); cx.moveTo(x + r, y); cx.arcTo(x + w, y, x + w, y + h, r); cx.arcTo(x + w, y + h, x, y + h, r); cx.arcTo(x, y + h, x, y, r); cx.arcTo(x, y, x + w, y, r); cx.closePath(); }
+function drawIcon(t, x, y, s, o, tm, act) {
+  cx.save(); cx.translate(x, y);
+  if (t === SEED) {
+    cx.strokeStyle = '#2bb673'; cx.lineWidth = s * 0.09; cx.lineCap = 'round';
+    cx.beginPath(); cx.moveTo(0, s * 0.32); cx.quadraticCurveTo(s * 0.04, 0, 0, -s * 0.12); cx.stroke();
+    cx.fillStyle = '#3ee6a8';
+    cx.beginPath(); cx.ellipse(-s * 0.17, -s * 0.1, s * 0.19, s * 0.09, -0.6, 0, 6.283); cx.fill();
+    cx.beginPath(); cx.ellipse(s * 0.17, -s * 0.2, s * 0.19, s * 0.09, 0.6, 0, 6.283); cx.fill();
+    cx.fillStyle = '#ffd166'; cx.beginPath(); cx.arc(0, s * 0.34, s * 0.13, 0, 6.283); cx.fill();
+  } else if (t === MILL) {
+    cx.fillStyle = '#c4703a'; cx.fillRect(-s * 0.05, -s * 0.02, s * 0.1, s * 0.38);
+    cx.rotate(tm * (act ? 0.004 : 0.0012));
+    cx.fillStyle = '#ffa94d';
+    for (let k = 0; k < 4; k++) { cx.rotate(Math.PI / 2); cx.fillRect(-s * 0.05, -s * 0.36, s * 0.1, s * 0.33); cx.fillRect(s * 0.05, -s * 0.36, s * 0.07, s * 0.22); }
+    cx.fillStyle = '#fff1d6'; cx.beginPath(); cx.arc(0, 0, s * 0.06, 0, 6.283); cx.fill();
+  } else if (t === BANK) {
+    cx.fillStyle = '#ffd166';
+    cx.beginPath(); cx.moveTo(-s * 0.34, -s * 0.1); cx.lineTo(0, -s * 0.34); cx.lineTo(s * 0.34, -s * 0.1); cx.closePath(); cx.fill();
+    for (let k = -1; k <= 1; k++) cx.fillRect(k * s * 0.2 - s * 0.05, -s * 0.06, s * 0.1, s * 0.28);
+    cx.fillRect(-s * 0.36, s * 0.24, s * 0.72, s * 0.08);
+    cx.fillStyle = '#8a5a00'; cx.font = 'bold ' + Math.round(s * 0.18) + 'px ' + FONT; cx.textAlign = 'center'; cx.fillText('%', 0, -s * 0.13);
+  } else if (t === LENS) {
+    cx.strokeStyle = '#b794ff'; cx.lineWidth = s * 0.08;
+    cx.beginPath(); cx.arc(-s * 0.04, -s * 0.04, s * 0.2, 0, 6.283); cx.stroke();
+    cx.fillStyle = 'rgba(183,148,255,0.25)'; cx.fill();
+    cx.lineCap = 'round'; cx.beginPath(); cx.moveTo(s * 0.11, s * 0.11); cx.lineTo(s * 0.27, s * 0.27); cx.stroke();
+    cx.strokeStyle = '#efe6ff'; cx.lineWidth = s * 0.05; cx.beginPath();
+    if (o === 0) { cx.moveTo(-s * 0.42, -s * 0.04); cx.lineTo(-s * 0.3, -s * 0.04); cx.moveTo(s * 0.22, -s * 0.04); cx.lineTo(s * 0.42, -s * 0.04); }
+    else { cx.moveTo(-s * 0.04, -s * 0.42); cx.lineTo(-s * 0.04, -s * 0.3); cx.moveTo(-s * 0.04, s * 0.22); cx.lineTo(-s * 0.04, s * 0.42); }
+    cx.stroke();
+  } else {
+    const f = 1 + Math.sin(tm * 0.02) * 0.06;
+    cx.scale(1, f);
+    cx.fillStyle = '#ff5d73'; cx.beginPath(); cx.moveTo(0, -s * 0.38); cx.bezierCurveTo(s * 0.32, -s * 0.05, s * 0.28, s * 0.3, 0, s * 0.32); cx.bezierCurveTo(-s * 0.28, s * 0.3, -s * 0.32, -s * 0.05, 0, -s * 0.38); cx.fill();
+    cx.fillStyle = '#ffd166'; cx.beginPath(); cx.moveTo(0, -s * 0.12); cx.bezierCurveTo(s * 0.16, s * 0.05, s * 0.14, s * 0.26, 0, s * 0.27); cx.bezierCurveTo(-s * 0.14, s * 0.26, -s * 0.16, s * 0.05, 0, -s * 0.12); cx.fill();
+  }
+  cx.restore();
+}
+function tileOutText(i) {
+  const n = S.grid[i]; if (!n) return '';
+  if (n.t === BANK) return '+' + pct(S.out[i]);
+  if (n.t === MILL) return '×' + n.k + ' adj';
+  if (n.t === LENS) return '×' + n.k + ' ' + (n.o ? 'col' : 'row');
+  return '+' + fmt(S.out[i]) + '/s';
+}
+function multCol(m) { return m >= 8 ? '#ff7ae0' : m >= 3 ? '#ffd166' : m > 1 ? '#fff' : '#ff8fa0'; }
+
+function drawWater(tm) {
+  const top = H - 4 - FX.water * (H - 150);
+  const danger = clamp(1 - (margin() - 1) / 0.6, 0, 1);
+  const g = cx.createLinearGradient(0, top, 0, H);
+  g.addColorStop(0, 'rgba(' + Math.round(40 + 160 * danger) + ',' + Math.round(130 - 80 * danger) + ',' + Math.round(220 - 120 * danger) + ',0.55)');
+  g.addColorStop(1, 'rgba(8,30,70,0.85)');
+  cx.fillStyle = g;
+  cx.beginPath(); cx.moveTo(0, H);
+  const amp = 6 + swell(S.t) * 60 + rogueAt(S.t) * 60;
+  for (let x = 0; x <= W; x += 12) cx.lineTo(x, top + Math.sin(x * 0.03 + tm * 0.003) * amp * 0.5 + Math.sin(x * 0.011 - tm * 0.0017) * amp * 0.5);
+  cx.lineTo(W, H); cx.closePath(); cx.fill();
+  cx.strokeStyle = 'rgba(200,235,255,' + (0.35 + danger * 0.4) + ')'; cx.lineWidth = 2;
+  cx.beginPath(); for (let x = 0; x <= W; x += 12) { const y = top + Math.sin(x * 0.03 + tm * 0.003) * amp * 0.5 + Math.sin(x * 0.011 - tm * 0.0017) * amp * 0.5; if (x === 0) cx.moveTo(x, y); else cx.lineTo(x, y); } cx.stroke();
+}
+
+function drawChart() {
+  const x0 = CH_X, y0 = CH_Y, w = CH_W, h = CH_H;
+  cx.fillStyle = 'rgba(6,12,28,0.88)'; rrect(x0, y0, w, h, 12); cx.fill();
+  cx.strokeStyle = 'rgba(160,190,255,0.18)'; cx.lineWidth = 1; cx.stroke();
+  const hs = FX.hist; if (hs.length < 2) return;
+  const span = 40000, tNow = S.t, tA = tNow - span, fut = 6000;
+  // forecast tide (dashed) shows the acceleration
+  const fc = []; for (let k = 0; k <= 12; k++) { const t = tNow + fut * k / 12; fc.push({ t, d: Math.log10(tideBase(t) * (1 + swell(t) + rogueAt(t))) }); }
+  let lo = 1e9, hi = -1e9;
+  for (const p of hs) if (p.t >= tA) { lo = Math.min(lo, p.w, p.d); hi = Math.max(hi, p.w, p.d); }
+  for (const p of fc) hi = Math.max(hi, p.d);
+  lo -= 0.15; hi += 0.15; if (hi - lo < 1) { const m = (hi + lo) / 2; lo = m - 0.5; hi = m + 0.5; }
+  const X = t => x0 + 8 + (t - tA) / (span + fut) * (w - 70), Y = v => y0 + h - 8 - (v - lo) / (hi - lo) * (h - 16);
+  cx.save(); rrect(x0, y0, w, h, 12); cx.clip();
+  // grid lines per decade
+  cx.strokeStyle = 'rgba(160,190,255,0.08)'; cx.fillStyle = 'rgba(160,190,255,0.45)'; cx.font = '10px ' + FONT; cx.textAlign = 'left';
+  for (let d = Math.ceil(lo); d <= hi; d++) { const y = Y(d); cx.beginPath(); cx.moveTo(x0, y); cx.lineTo(x0 + w, y); cx.stroke(); if (y > y0 + 12 && y < y0 + h - 4) cx.fillText(fmt(Math.pow(10, d), 0), x0 + 6, y - 2); }
+  // tide area
+  const danger = clamp(1 - (margin() - 1) / 0.6, 0, 1);
+  cx.beginPath(); cx.moveTo(X(Math.max(tA, hs[0].t)), y0 + h);
+  for (const p of hs) if (p.t >= tA) cx.lineTo(X(p.t), Y(p.d));
+  cx.lineTo(X(tNow), y0 + h); cx.closePath();
+  cx.fillStyle = 'rgba(' + Math.round(40 + 200 * danger) + ',' + Math.round(120 - 60 * danger) + ',' + Math.round(230 - 130 * danger) + ',0.45)'; cx.fill();
+  cx.strokeStyle = danger > 0.5 ? '#ff5d73' : '#5cc8ff'; cx.lineWidth = 2;
+  cx.beginPath(); let first = true; for (const p of hs) if (p.t >= tA) { if (first) { cx.moveTo(X(p.t), Y(p.d)); first = false; } else cx.lineTo(X(p.t), Y(p.d)); } cx.stroke();
+  cx.setLineDash([4, 4]); cx.beginPath(); fc.forEach((p, k) => { if (k === 0) cx.moveTo(X(p.t), Y(p.d)); else cx.lineTo(X(p.t), Y(p.d)); }); cx.stroke(); cx.setLineDash([]);
+  // vault line (10x tide): interest stops above it
+  cx.strokeStyle = 'rgba(255,209,102,0.35)'; cx.setLineDash([2, 5]); cx.lineWidth = 1.5;
+  cx.beginPath(); first = true; for (const p of hs) if (p.t >= tA) { const yv = Y(Math.log10(VAULT) + p.b); if (first) { cx.moveTo(X(p.t), yv); first = false; } else cx.lineTo(X(p.t), yv); } cx.stroke(); cx.setLineDash([]);
+  // wealth line
+  cx.strokeStyle = '#ffd166'; cx.lineWidth = 3; cx.shadowColor = '#ffd166'; cx.shadowBlur = 8;
+  cx.beginPath(); first = true; for (const p of hs) if (p.t >= tA) { if (first) { cx.moveTo(X(p.t), Y(p.w)); first = false; } else cx.lineTo(X(p.t), Y(p.w)); } cx.stroke();
+  cx.shadowBlur = 0;
+  const lw = Math.log10(Math.max(1e-9, S.W)), lt = Math.log10(tideEff(S.t)), xn = X(tNow);
+  cx.fillStyle = '#ffd166'; cx.beginPath(); cx.arc(xn, Y(lw), 4, 0, 6.283); cx.fill();
+  // margin bracket
+  cx.strokeStyle = 'rgba(255,255,255,0.6)'; cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(xn + 4, Y(lw)); cx.lineTo(xn + 10, Y(lw)); cx.lineTo(xn + 10, Y(lt)); cx.lineTo(xn + 4, Y(lt)); cx.stroke();
+  cx.restore();
+  cx.textAlign = 'right'; cx.font = 'bold 11px ' + FONT;
+  cx.fillStyle = '#ffd166'; cx.fillText('YOU', x0 + w - 8, Math.min(Y(lw), Y(lt) - 12) + 4);
+  cx.fillStyle = danger > 0.5 ? '#ff5d73' : '#5cc8ff'; cx.fillText('TIDE', x0 + w - 8, Math.max(Y(lt), Y(lw) + 12) + 4);
+  cx.textAlign = 'left'; cx.font = 'bold 11px ' + FONT; cx.fillStyle = 'rgba(160,190,255,0.7)';
+  cx.fillText('log scale · last 40 s + forecast', x0 + 70, y0 + 14);
+}
+
+function drawGrid(tm) {
+  cx.fillStyle = 'rgba(6,12,28,0.82)'; rrect(GX - 10, GY - 10, GW + 20, GW + 20, 16); cx.fill();
+  // lens beams
+  for (let i = 0; i < 25; i++) {
+    const n = S.grid[i]; if (!n || n.t !== LENS) continue;
+    const r = (i / 5) | 0, c = i % 5, a = 0.12 + 0.06 * Math.sin(tm * 0.004 + i);
+    cx.fillStyle = 'rgba(183,148,255,' + a + ')';
+    if (n.o === 0) rrect(GX - 4, GY + r * (CS + GAP) + 6, GW + 8, CS - 12, 10); else rrect(GX + c * (CS + GAP) + 6, GY - 4, CS - 12, GW + 8, 10);
+    cx.fill();
+  }
+  for (let i = 0; i < 25; i++) {
+    const n = S.grid[i], r = (i / 5) | 0, c = i % 5;
+    const x = GX + c * (CS + GAP), y = GY + r * (CS + GAP);
+    const sq = FX.tileSq[i], lit = FX.tile[i];
+    cx.save(); cx.translate(x + CS / 2, y + CS / 2);
+    const sx = 1 + sq * 0.22 * Math.cos(tm * 0.05), sy = 1 - sq * 0.18 * Math.cos(tm * 0.05);
+    cx.scale(sx, sy);
+    if (!n) {
+      cx.fillStyle = 'rgba(30,45,80,0.55)'; rrect(-CS / 2, -CS / 2, CS, CS, 10); cx.fill();
+      cx.strokeStyle = 'rgba(120,150,220,0.18)'; cx.setLineDash([4, 4]); cx.lineWidth = 1.5; cx.stroke(); cx.setLineDash([]);
+    } else {
+      const stale = (n.t === SEED || n.t === FURN) && S.out[i] < 0.004 * tideBase(S.t);
+      cx.fillStyle = 'rgba(' + TRGB[n.t] + ',' + (0.16 + lit * 0.3) + ')'; rrect(-CS / 2, -CS / 2, CS, CS, 10); cx.fill();
+      cx.strokeStyle = TCOL[n.t]; cx.lineWidth = 2 + lit * 2; cx.globalAlpha = stale ? 0.4 : 1; cx.stroke();
+      drawIcon(n.t, 0, -6, CS * 0.62, n.o, tm, S.out[i] > 0 || n.t === MILL);
+      if (n.rar) { cx.fillStyle = n.rar === 2 ? '#ff7ae0' : '#ffe08a'; cx.font = 'bold 12px ' + FONT; cx.textAlign = 'left'; cx.fillText('★', -CS / 2 + 4, -CS / 2 + 14); }
+      cx.textAlign = 'center'; cx.font = 'bold 11px ' + FONT; cx.fillStyle = stale ? '#8899aa' : '#fff';
+      cx.fillText(tileOutText(i), 0, CS / 2 - 6);
+      const m = S.mult[i];
+      if (S.out[i] > 0 && Math.abs(m - 1) > 1e-9) {
+        const txt = '×' + (m < 10 ? (Math.round(m * 100) / 100).toString() : Math.round(m).toString());
+        cx.font = 'bold 12px ' + FONT; const tw = cx.measureText(txt).width + 8;
+        cx.fillStyle = 'rgba(5,8,20,0.85)'; rrect(CS / 2 - tw - 2, -CS / 2 + 2, tw, 16, 6); cx.fill();
+        cx.fillStyle = multCol(m); cx.textAlign = 'right'; cx.fillText(txt, CS / 2 - 6, -CS / 2 + 14);
+      }
+      cx.globalAlpha = 1;
+    }
+    cx.restore();
+  }
+  // synergy links: mills feed neighbours, furnaces scorch them
+  cx.lineCap = 'round';
+  for (let i = 0; i < 25; i++) {
+    const n = S.grid[i]; if (!n || (n.t !== MILL && n.t !== FURN)) continue;
+    const r = (i / 5) | 0, c = i % 5, a = cellXY(i);
+    for (const d of N4) {
+      const rr = r + d[0], cc = c + d[1]; if (rr < 0 || rr > 4 || cc < 0 || cc > 4) continue;
+      const j = rr * 5 + cc, m = S.grid[j]; if (!m || m.t === MILL || m.t === LENS) continue;
+      const b = cellXY(j), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      const pulse = 0.55 + 0.45 * Math.sin(tm * 0.008 + i + j);
+      cx.strokeStyle = n.t === MILL ? 'rgba(255,169,77,' + pulse + ')' : 'rgba(255,93,115,' + pulse + ')';
+      cx.lineWidth = 4; cx.beginPath(); cx.moveTo(a.x + (b.x - a.x) * 0.3, a.y + (b.y - a.y) * 0.3); cx.lineTo(a.x + (b.x - a.x) * 0.7, a.y + (b.y - a.y) * 0.7); cx.stroke();
+      cx.fillStyle = n.t === MILL ? '#ffa94d' : '#ff5d73'; cx.beginPath(); cx.arc(mx, my, 3.5, 0, 6.283); cx.fill();
+    }
+  }
+  cx.lineCap = 'butt';
+  // cursor
+  const cp = cellXY(S.cur), pul = 0.6 + 0.4 * Math.sin(tm * 0.01);
+  cx.strokeStyle = 'rgba(255,255,255,' + pul + ')'; cx.lineWidth = 3;
+  rrect(cp.x - CS / 2 - 4, cp.y - CS / 2 - 4, CS + 8, CS + 8, 12); cx.stroke();
+}
+
+function previewGain(c) {          // what this card would add if bought onto the cursor cell (for the card label)
+  const g = S.grid.slice(), old = g[S.cur];
+  g[S.cur] = { t: c.t, v: c.t === BANK ? c.k : (c.t === SEED || c.t === FURN) ? c.k * tideBase(S.t) : 0, o: c.o, k: c.k };
+  let F = 0, B = 0;
+  for (let i = 0; i < 25; i++) { const n = g[i]; if (!n || n.t === MILL || n.t === LENS) continue; const v = n.v * multAt(g, i); if (n.t === BANK) B += v; else F += v; }
+  return (F - S.F + (B - S.B) * interestOn()) / Math.max(1e-300, S.W);
+}
+function drawShop(tm) {
+  for (let k = 0; k < 3; k++) {
+    const c = S.shop[k]; if (!c) continue;
+    const x = SH_X + k * (SH_W + SH_GAP), y = SH_Y, price = priceOf(c), ok = canAfford(price) && !S.over;
+    const pop = FX.cardPop[k], dn = FX.deny[k];
+    cx.save(); cx.translate(x + SH_W / 2 + (dn > 0.05 ? Math.sin(tm * 0.08) * dn * 6 : 0), y + SH_H / 2); cx.scale(1 + pop * 0.08, 1 - pop * 0.05);
+    cx.translate(-SH_W / 2, -SH_H / 2);
+    cx.globalAlpha = ok ? 1 : 0.55;
+    cx.fillStyle = 'rgba(10,16,36,0.95)'; rrect(0, 0, SH_W, SH_H, 12); cx.fill();
+    cx.strokeStyle = c.rar === 2 ? '#ff7ae0' : c.rar === 1 ? '#ffe08a' : ok ? TCOL[c.t] : 'rgba(255,255,255,0.2)'; cx.lineWidth = c.rar ? 3.5 : 2; cx.stroke();
+    if (c.rar) { cx.fillStyle = c.rar === 2 ? 'rgba(255,122,224,' + (0.1 + 0.08 * Math.sin(tm * 0.01)) + ')' : 'rgba(255,224,138,0.08)'; rrect(0, 0, SH_W, SH_H, 12); cx.fill(); }
+    cx.fillStyle = 'rgba(' + TRGB[c.t] + ',0.18)'; rrect(0, 0, SH_W, 30, 12); cx.fill();
+    cx.textAlign = 'left'; cx.font = 'bold 14px ' + FONT; cx.fillStyle = TCOL[c.t]; cx.fillText(NAMES[c.t], 10, 20);
+    if (c.rar) { cx.font = 'bold 10px ' + FONT; cx.fillStyle = c.rar === 2 ? '#ff7ae0' : '#ffe08a'; cx.fillText(c.rar === 2 ? '★ LEGENDARY' : '★ RARE', 10, 44); }
+    cx.textAlign = 'right'; cx.font = 'bold 13px ' + FONT; cx.fillStyle = 'rgba(255,255,255,0.75)'; cx.fillText(touchMode ? 'tap' : '[' + (k + 1) + ']', SH_W - 8, 20);
+    drawIcon(c.t, 28, 58, 40, c.o, tm, true);
+    cx.textAlign = 'left'; cx.fillStyle = '#fff'; cx.font = 'bold 13px ' + FONT;
+    const l1 = c.t === SEED ? '+' + fmt(c.k * tideBase(S.t)) + '/s' : c.t === BANK ? '+' + pct(c.k) + ' of $/s' : c.t === MILL ? '×' + c.k + ' to' : c.t === LENS ? '×' + c.k + ' to whole' : '+' + fmt(c.k * tideBase(S.t)) + '/s';
+    const l2 = c.t === SEED ? 'flat income' : c.t === BANK ? 'compounds' : c.t === MILL ? 'neighbours' : c.t === LENS ? (c.o ? 'COLUMN' : 'ROW') : '×0.5 neighbours';
+    cx.fillText(l1, 54, 54); cx.font = '12px ' + FONT; cx.fillStyle = c.t === FURN ? '#ff8fa0' : 'rgba(255,255,255,0.7)'; cx.fillText(l2, 54, 70);
+    const gpv = previewGain(c);
+    cx.font = 'bold 12px ' + FONT; cx.fillStyle = gpv > 1e-6 ? '#3ee6a8' : gpv < -1e-6 ? '#ff8fa0' : 'rgba(255,255,255,0.4)';
+    cx.fillText((gpv >= 0 ? '+' : '') + pct(gpv) + '/s here', 10, 96);
+    cx.fillStyle = ok ? '#ffd166' : '#ff8fa0'; cx.font = 'bold 16px ' + MONO; cx.fillText('$' + fmt(price), 10, 122);
+    cx.textAlign = 'right'; cx.font = '11px ' + FONT; cx.fillStyle = 'rgba(160,200,255,0.7)';
+    cx.fillText((price / tideBase(S.t)).toFixed(2) + ' tide', SH_W - 8, 122);
+    cx.restore(); cx.globalAlpha = 1;
+  }
+  // reroll
+  const rc = rerollCost(), rok = canAfford(rc) && !S.over;
+  cx.save(); const rp = 1 + FX.rerollPop * 0.1; cx.translate(RR.x + RR.w / 2, RR.y + RR.h / 2); cx.scale(rp, rp); cx.translate(-RR.w / 2, -RR.h / 2);
+  cx.fillStyle = rok ? 'rgba(120,150,255,0.18)' : 'rgba(255,255,255,0.05)'; rrect(0, 0, RR.w, RR.h, 10); cx.fill();
+  cx.strokeStyle = rok ? '#9fb4ff' : 'rgba(255,255,255,0.2)'; cx.lineWidth = 2; cx.stroke();
+  cx.textAlign = 'center'; cx.font = 'bold 13px ' + FONT; cx.fillStyle = rok ? '#dfe6ff' : 'rgba(255,255,255,0.4)';
+  cx.fillText((touchMode ? '⟳ REROLL ' : '[R] REROLL ') + '$' + fmt(rc), RR.w / 2, 22); cx.restore();
+}
+
+function drawTop(tm) {
+  // score / best
+  cx.textAlign = 'left'; cx.font = 'bold 12px ' + FONT; cx.fillStyle = 'rgba(200,215,255,0.6)'; cx.fillText('SCORE', 16, 22);
+  cx.font = 'bold 26px ' + MONO; cx.fillStyle = '#fff'; cx.fillText(String(S.score), 16, 48);
+  cx.textAlign = 'right'; cx.font = 'bold 12px ' + FONT; cx.fillStyle = 'rgba(200,215,255,0.6)'; cx.fillText('BEST', W - 16, 22);
+  cx.font = 'bold 22px ' + MONO; cx.fillStyle = '#ffd166'; cx.fillText(String(Math.max(best, S.score)), W - 16, 46);
+  // wealth odometer
+  const s = 1 + FX.wPulse * 0.03;
+  cx.save(); cx.translate(W / 2, 92); cx.scale(s, s);
+  cx.textAlign = 'center'; cx.font = 'bold 44px ' + MONO; cx.fillStyle = '#ffd166';
+  cx.shadowColor = 'rgba(255,209,102,0.6)'; cx.shadowBlur = 14 * FX.wPulse + 4;
+  cx.fillText('$' + fmt(FX.dispW), 0, 0); cx.shadowBlur = 0; cx.restore();
+  cx.textAlign = 'center'; cx.font = 'bold 12px ' + FONT; cx.fillStyle = 'rgba(200,215,255,0.6)'; cx.fillText('WEALTH', W / 2, 50);
+  const g = growth(), r = tideRate(S.t), m = margin();
+  cx.font = 'bold 14px ' + FONT;
+  cx.fillStyle = g >= r ? '#3ee6a8' : '#ff8fa0';
+  cx.fillText('you +' + pct(g) + '/s   vs   tide +' + pct(r) + '/s', W / 2, 116);
+  // margin badge
+  const danger = m < 1.3;
+  cx.font = 'bold 15px ' + FONT;
+  const txt = m >= 1 ? '×' + (m < 10 ? m.toFixed(2) : m < 1000 ? m.toFixed(0) : fmt(m)) + ' above the tide' : 'UNDER THE TIDE!';
+  const tw = cx.measureText(txt).width + 20;
+  cx.fillStyle = danger ? 'rgba(255,60,90,' + (0.3 + 0.3 * FX.beat) + ')' : 'rgba(40,120,200,0.25)'; rrect(W / 2 - tw / 2, 124, tw, 24, 12); cx.fill();
+  cx.fillStyle = danger ? '#fff' : '#9fd8ff'; cx.fillText(txt, W / 2, 141);
+  if (S.W > vaultCap() && !S.over) {
+    cx.font = 'bold 11px ' + FONT; cx.fillStyle = '#ffd166'; cx.textAlign = 'left';
+    cx.fillText('VAULT FULL — banks pay on 10× tide max. Invest!', 18, 141);
+  }
+  if (S.under > 0 && !S.over) {
+    const p = S.under / GRACE;
+    cx.fillStyle = '#ff5d73'; cx.fillRect(W / 2 - tw / 2, 150, tw * (1 - p), 3);
+  }
+}
+
+function render() {
+  const tm = FX.time + (manual ? 0 : 0);
+  cx.save();
+  cx.fillStyle = '#060b18'; cx.fillRect(0, 0, W, H);
+  // subtle backdrop
+  const bg = cx.createRadialGradient(W / 2, 300, 40, W / 2, 400, 520); bg.addColorStop(0, '#13204a'); bg.addColorStop(1, '#060b18');
+  cx.fillStyle = bg; cx.fillRect(0, 0, W, H);
+  if (FX.shake > 0.3) cx.translate((Math.random() - 0.5) * FX.shake, (Math.random() - 0.5) * FX.shake);
+  drawWater(tm);
+  drawChart();
+  drawGrid(tm);
+  drawShop(tm);
+  // card in flight
+  if (FX.fly) {
+    const f = FX.fly, e = 1 - Math.pow(1 - f.t, 3), x = f.x0 + (f.x1 - f.x0) * e, y = f.y0 + (f.y1 - f.y0) * e - Math.sin(f.t * Math.PI) * 60;
+    cx.globalAlpha = 1 - f.t * 0.3; cx.fillStyle = f.col; rrect(x - 20, y - 20, 40, 40, 8); cx.fill(); drawIcon(f.type, x, y, 30, f.o, tm, true); cx.globalAlpha = 1;
+  }
+  // coins
+  for (const c of FX.coins) {
+    const e = c.t * c.t, x = c.x0 + (W / 2 - c.x0) * e, y = c.y0 + (80 - c.y0) * e - Math.sin(c.t * Math.PI) * 40;
+    cx.fillStyle = c.bank ? '#fff3b0' : '#ffd166'; cx.beginPath(); cx.arc(x, y, 4 + (1 - c.t) * 2, 0, 6.283); cx.fill();
+    cx.fillStyle = 'rgba(138,90,0,0.8)'; cx.fillRect(x - 1, y - 2.5, 2, 5);
+  }
+  cx.globalCompositeOperation = 'lighter';
+  for (const p of FX.parts) { cx.globalAlpha = Math.max(0, p.life); cx.fillStyle = p.col; cx.fillRect(p.x - p.sz / 2, p.y - p.sz / 2, p.sz, p.sz); }
+  cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1;
+  cx.restore();
+  drawTop(tm);
+  for (const t of FX.texts) {
+    cx.globalAlpha = Math.max(0, Math.min(1, t.life * 1.5)); cx.textAlign = 'center'; cx.font = 'bold ' + t.size + 'px ' + FONT;
+    cx.lineWidth = 4; cx.strokeStyle = 'rgba(4,8,20,0.8)'; cx.strokeText(t.txt, t.x, t.y); cx.fillStyle = t.col; cx.fillText(t.txt, t.x, t.y);
+  }
+  cx.globalAlpha = 1;
+  if (FX.bigTxt) {
+    const b = FX.bigTxt, s = 1 + Math.max(0, (b.life - 0.8)) * 3;
+    cx.save(); cx.globalAlpha = Math.min(1, b.life * 2); cx.translate(W / 2, 472); cx.scale(s, s); cx.textAlign = 'center';
+    cx.font = 'bold 40px ' + FONT; cx.lineWidth = 7; cx.strokeStyle = 'rgba(40,20,0,0.85)'; cx.strokeText(b.txt, 0, 0);
+    cx.fillStyle = '#ffd166'; cx.fillText(b.txt, 0, 0); cx.restore();
+  }
+  // rogue wave warning
+  if (FX.rogueWarn > 0.05 && !S.over) {
+    const blink = Math.floor(FX.time / 180) % 2, inWave = S.t >= S.rogue.at;
+    cx.globalAlpha = FX.rogueWarn * (blink || inWave ? 1 : 0.5);
+    cx.fillStyle = 'rgba(255,60,90,0.85)'; rrect(W / 2 - 120, 278, 240, 22, 11); cx.fill();
+    cx.fillStyle = '#fff'; cx.font = 'bold 13px ' + FONT; cx.textAlign = 'center';
+    cx.fillText(inWave ? '🌊 ROGUE WAVE — HOLD ON' : '⚠ ROGUE WAVE IN ' + Math.max(0, (S.rogue.at - S.t) / 1000).toFixed(1) + 's', W / 2, 294);
+    cx.globalAlpha = 1;
+  }
+  // danger vignette
+  const m = margin();
+  if (!S.over && m < 1.5) {
+    const a = (0.15 + 0.35 * FX.beat) * clamp((1.5 - m) / 0.5, 0, 1);
+    const vg = cx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.7); vg.addColorStop(0, 'rgba(255,40,70,0)'); vg.addColorStop(1, 'rgba(255,40,70,' + a + ')');
+    cx.fillStyle = vg; cx.fillRect(0, 0, W, H);
+  }
+  if (FX.flash > 0.02) { cx.fillStyle = 'rgba(' + FX.flashCol + ',' + FX.flash * 0.45 + ')'; cx.fillRect(0, 0, W, H); }
+  if (FX.hintA > 0.01 && !S.over) {
+    cx.globalAlpha = FX.hintA; cx.textAlign = 'right'; cx.font = 'bold 12px ' + FONT; cx.fillStyle = '#cfe0ff';
+    cx.fillText(touchMode ? 'tap a cell, then a card' : '← ↑ ↓ → move · 1 2 3 buy · R reroll', W - 14, 818);
+    cx.globalAlpha = 1;
+  }
+  if (S.over) {
+    const a = FX.overT;
+    cx.fillStyle = 'rgba(4,14,36,' + 0.82 * a + ')'; cx.fillRect(0, 0, W, H);
+    cx.globalAlpha = a; cx.textAlign = 'center';
+    cx.fillStyle = '#5cc8ff'; cx.font = 'bold 42px ' + FONT; cx.fillText('THE TIDE TOOK YOU', W / 2, 300);
+    cx.fillStyle = '#d7ecff'; cx.font = 'bold 15px ' + FONT; wrapText(S.cause || '', W / 2, 336, 420, 20);
+    cx.fillStyle = '#fff'; cx.font = 'bold 56px ' + MONO; cx.fillText(String(S.score), W / 2, 432);
+    cx.font = 'bold 16px ' + FONT; cx.fillStyle = FX.newBest ? '#ffd166' : 'rgba(255,255,255,0.7)';
+    cx.fillText(FX.newBest ? '★ NEW BEST ★' : 'BEST ' + best, W / 2, 464);
+    cx.fillStyle = 'rgba(255,255,255,0.75)'; cx.font = '14px ' + FONT;
+    cx.fillText('peak $' + fmt(S.peak) + '  ·  ' + S.buys + ' buys  ·  best growth +' + pct(S.maxGrowth) + '/s', W / 2, 498);
+    cx.fillText('lasted ' + Math.floor(S.t / 1000) + 's against the tide', W / 2, 520);
+    const ready = performance.now() - overAt > 400 || manual;
+    cx.fillStyle = ready ? '#ffd166' : 'rgba(255,209,102,0.3)'; cx.font = 'bold 18px ' + FONT;
+    cx.fillText(touchMode ? 'tap to try again' : 'press any key to try again', W / 2, 572);
+    cx.globalAlpha = 1;
+  }
+}
+function wrapText(txt, x, y, maxW, lh) {
+  const words = txt.split(' '); let line = '', yy = y;
+  for (const w of words) { const t = line ? line + ' ' + w : w; if (cx.measureText(t).width > maxW && line) { cx.fillText(line, x, yy); line = w; yy += lh; } else line = t; }
+  if (line) cx.fillText(line, x, yy);
+}
+
+// ---------- fit canvas ----------
+function fit() {
+  const dpr = window.devicePixelRatio || 1, s = Math.min(innerWidth / W, innerHeight / H);
+  cv.style.width = (W * s) + 'px'; cv.style.height = (H * s) + 'px';
+  cv.style.marginTop = ((innerHeight - H * s) / 2) + 'px';
+  cv.width = Math.round(W * s * dpr); cv.height = Math.round(H * s * dpr);
+  cx.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
+}
+addEventListener('resize', fit); fit();
+
+// ---------- human input ----------
+let drag = null;
+function queue(a) { if (S && !S.over && S.q.length < 8) S.q.push(a); }
+function humanRestart() { if (S.over) { if (performance.now() - overAt > 400) reset(Date.now() & 0x7fffffff); return true; } return false; }
+const KEYMAP = { Digit1: 'buy1', Digit2: 'buy2', Digit3: 'buy3', Numpad1: 'buy1', Numpad2: 'buy2', Numpad3: 'buy3', KeyR: 'reroll',
+  ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right', Tab: 'next', KeyN: 'next' };
+addEventListener('keydown', e => {
+  audioInit();
+  if (humanRestart()) return;
+  const a = KEYMAP[e.code]; if (a) { e.preventDefault(); queue(a); }
+});
+function hitTest(x, y) {
+  for (let k = 0; k < 3; k++) { const cx0 = SH_X + k * (SH_W + SH_GAP); if (x >= cx0 && x <= cx0 + SH_W && y >= SH_Y && y <= SH_Y + SH_H) return { card: k }; }
+  if (x >= RR.x && x <= RR.x + RR.w && y >= RR.y - 4 && y <= RR.y + RR.h + 4) return { reroll: true };
+  const c = Math.floor((x - GX) / (CS + GAP)), r = Math.floor((y - GY) / (CS + GAP));
+  if (c >= 0 && c < 5 && r >= 0 && r < 5) return { cell: r * 5 + c };
+  return null;
+}
+function toLogical(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }; }
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault(); if (e.pointerType === 'touch') touchMode = true;
+  audioInit(); if (humanRestart()) return;
+  const p = toLogical(e), h = hitTest(p.x, p.y); if (!h) return;
+  if (h.cell != null) queue('cell' + h.cell);
+  else if (h.reroll) queue('reroll');
+  else if (h.card != null) drag = { card: h.card, x: p.x, y: p.y, moved: false };
+});
+cv.addEventListener('pointermove', e => { if (!drag) return; const p = toLogical(e); if (Math.hypot(p.x - drag.x, p.y - drag.y) > 12) drag.moved = true; });
+addEventListener('pointerup', e => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  const p = toLogical(e), h = hitTest(p.x, p.y);
+  if (d.moved && h && h.cell != null) { queue('cell' + h.cell); queue('buy' + (d.card + 1)); }   // drag a card onto a cell
+  else if (!d.moved || (h && h.card === d.card)) queue('buy' + (d.card + 1));                     // tap a card: buy onto the cursor
+});
+cv.addEventListener('contextmenu', e => e.preventDefault());
+
+// ---------- main loop ----------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(100, now - last); last = now;
+  if (!manual) { carry += dt; while (carry >= STEP - 1e-6) { step(); carry -= STEP; } }
+  render();
+  requestAnimationFrame(frame);
+}
+
+// ---------- bot API ----------
+function actions() {
+  if (S.over) return ['none'];
+  const a = ['none'];
+  for (let k = 0; k < 3; k++) if (S.shop[k] && canAfford(priceOf(S.shop[k]))) a.push('buy' + (k + 1));
+  a.push('next');
+  if (canAfford(rerollCost())) a.push('reroll');
+  return a;
+}
+const VALID = { none: 1, buy1: 1, buy2: 1, buy3: 1, next: 1, reroll: 1 };
+window.__game = {
+  reset(seed) { manual = true; reset(seed); },
+  getState() {
+    const Tb = tideBase(S.t), Te = tideEff(S.t);
+    return {
+      t: S.t, score: S.score, over: S.over, cause: S.cause, difficulty: tideRate(S.t),
+      wealth: S.W, peak: S.peak, vault: vaultCap(), tide: Te, tideBase: Tb, tideRate: tideRate(S.t), margin: margin(), income: S.F, interest: S.B, growth: growth(),
+      under: S.under, grace: GRACE, freeze: S.freeze, cursor: S.cur, count: S.count, buys: S.buys,
+      rogue: S.rogue.warned ? { at: S.rogue.at, amp: S.rogue.amp, dur: S.rogue.dur, warned: true } : null, swellNow: swell(S.t),
+      tideParams: { T0, R0, TAU, VAULT },
+      grid: S.grid.map((n, i) => n ? { t: n.t, v: n.v, o: n.o, k: n.k, mult: S.mult[i], out: S.out[i] } : null),
+      shop: S.shop.map(c => ({ t: c.t, k: c.k, o: c.o, rar: c.rar, price: priceOf(c), afford: canAfford(priceOf(c)) })),
+      rerollCost: rerollCost(), types: { SEED, MILL, BANK, LENS, FURN },
+    };
+  },
+  getActions() { return actions(); },
+  input(a) { if (a === 'none' || !VALID[a] || !actions().includes(a)) return; queue(a); },
+  tick(ms) { carry += ms; while (carry >= STEP - 1e-6) { step(); carry -= STEP; } },
+  isOver() { return S.over; },
+  score() { return S.score; },
+  snapshot() { return structuredClone({ S, carry }); },
+  restore(s) { const c = structuredClone(s); S = c.S; carry = c.carry; },
+  quiet(b) { QUIET = !!b; },
+  render() { render(); },
+};
+
+reset(Date.now() & 0x7fffffff);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

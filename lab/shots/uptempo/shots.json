@@ -1,0 +1,40 @@
+{
+ "id": "uptempo",
+ "bot": "smart",
+ "seed": 1,
+ "lengthMs": 205099.99999997218,
+ "finalScore": 101360,
+ "cause": "missed a 16th-note jack at 213 BPM — out of HP",
+ "replayMatches": true,
+ "shots": [
+  {
+   "name": "1-start",
+   "t": 1500,
+   "score": 9,
+   "over": false,
+   "file": "lab/shots/uptempo/1-start.png"
+  },
+  {
+   "name": "2-mid",
+   "t": 102550,
+   "score": 54612,
+   "over": false,
+   "file": "lab/shots/uptempo/2-mid.png"
+  },
+  {
+   "name": "3-intense",
+   "t": 203600,
+   "score": 100764,
+   "over": false,
+   "file": "lab/shots/uptempo/3-intense.png"
+  },
+  {
+   "name": "4-gameover",
+   "t": 205100,
+   "score": 101360,
+   "over": true,
+   "file": "lab/shots/uptempo/4-gameover.png"
+  }
+ ],
+ "errors": []
+}

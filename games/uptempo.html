@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>UPTEMPO</title>
+<meta name="description" content="A 4-lane synthwave rhythm game where your accuracy drives the BPM: every PERFECT floors the gas, every miss stalls the engine, and the brake costs your combo.">
+<style>
+  html,body{margin:0;height:100%;background:#07020f;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+  canvas{display:block;margin:0 auto}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+(() => {
+'use strict';
+const ID = 'uptempo';
+const W = 480, H = 840;
+const STEP = 1000 / 60;
+const cv = document.getElementById('c'), cx = cv.getContext('2d');
+
+// ---------- layout ----------
+const CXM = 240, HOR = 252, HITY = 700, BW = 440, TW = 70, VB = 4, KP = 1.25;
+const VPY = HOR - (HITY - HOR) * TW / (BW - TW);     // vanishing point of the highway edges
+const LOCK = 90;                                      // per-lane re-trigger lockout (ms)
+const START_BPM = 90;
+const COL = ['#ff3d8b', '#ffb627', '#2de2e6', '#a875ff'];
+const COLRGB = ['255,61,139', '255,182,39', '45,226,230', '168,117,255'];
+const KEYLBL = ['D', 'F', 'J', 'K'];
+const ARROWLBL = ['←', '↓', '↑', '→'];
+const LVL_NAMES = ['CRUISE', 'GROOVE', 'DRIVE', 'RUSH', 'OVERDRIVE', 'REDLINE', 'MELTDOWN'];
+const KEYS = [0, 2, 3, 5, 7, 8, 10];                 // key shift (semitones) per level: every gear is a key change up
+const PROGS = [[0, -2, 2, -1], [0, -1, -2, -1], [0, 3, -1, 2], [-2, -1, 0, 0], [0, 4, -2, 3], [0, -2, 3, 4]];   // natural-minor progressions (scale degrees)
+const STYLES = ['JACKHAMMER MIX', 'STREAM MIX', 'CHORD MIX', 'CLUB MIX'];
+const ADJ = ['NEON', 'CHROME', 'MIDNIGHT', 'TURBO', 'VELVET', 'LASER', 'SOLAR', 'STATIC', 'CRYSTAL', 'AFTERBURN'];
+const NOUN = ['DRIVE', 'HIGHWAY', 'PULSE', 'RUNNER', 'SKYLINE', 'HORIZON', 'FEVER', 'MIRAGE', 'OVERPASS', 'SIGNAL'];
+const MINOR = [0, 2, 3, 5, 7, 8, 10];
+const LANE_DEG = [0, 2, 4, 7];                        // lanes = root, 3rd, 5th, octave of the bar's chord
+
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const FONT = '"Trebuchet MS","Segoe UI",Verdana,system-ui,sans-serif';
+const MONO = 'ui-monospace,"DejaVu Sans Mono",Menlo,Consolas,monospace';
+
+// ---------- seeded RNG (state lives in S.rng) ----------
+function rnd() {
+  let t = (S.rng = (S.rng + 0x6D2B79F5) | 0);
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+// ---------- best score ----------
+function loadBest() { try { return +localStorage.getItem('funlab.' + ID + '.best') || 0; } catch (e) { return 0; } }
+function saveBest(v) { try { localStorage.setItem('funlab.' + ID + '.best', String(v)); } catch (e) {} }
+let best = loadBest();
+
+// ---------- rules ----------
+function wins(bpm) {                                  // hit windows in ms, they tighten as BPM rises
+  const late = clamp(10000 / bpm, 35, 110);
+  return { p: clamp(4000 / bpm, 15, 45), late, early: late * 1.4, grace: late * 1.4 + 70 };
+}
+function levelOf(bpm) { return bpm < 100 ? 0 : bpm < 120 ? 1 : bpm < 140 ? 2 : bpm < 160 ? 3 : bpm < 180 ? 4 : bpm < 200 ? 5 : 6; }
+function floorAt(tms) { const s = tms / 1000; return 80 + 0.25 * s + 0.0006 * s * s; }    // rising BPM floor = the doom clock (+ surges)
+function multOf(c) { return Math.min(8, 1 + Math.floor(c / 12)); }
+function drainAt(tms) { return 0.2 + tms / 83000; }   // HP per second
+
+// pattern templates per level: 8 sixteenth-steps per half bar
+// n note · 2/3 chord · s stairs · t trill · j jack (same lane) · h jack + extra note
+const TPL = [
+  ['n...n...', 'n...n...', 'n.n.n...', 'n...n.n.', 's...s...', 'n...s.s.'],
+  ['n.n.n.n.', 'n...n.n.', '2...n.n.', 'n.n.n...', 's.s.s.s.', 't.t.t.t.', 'n.n.2...'],
+  ['n.nnn.n.', 'nn..n.n.', '2.n.2.n.', 'n.n.nn.n', 'ssss.n.n', '2.n.n.nn', 't.t.tttt', 's.s.ssss'],
+  ['ssssssss', 'tttttttt', 'j.j.j.n.', '2.nn2.nn', 'nnn.2.n.', 's.s.ssss', 'ssss2.n.', '2.jj..n.'],
+  ['ssssssss', 'tttttttt', 'jjj.n.n.', '3...nnnn', '2nnn2nnn', 'nnnnnnnn', 'jj.jj.n.', 'sss.3.ss', 'jjjj.n.n'],
+  ['2sss2sss', 'jjjj.n2.', 'jjjjj.nn', '3.ss3.ss', 'nnnnnnnn', 'tttt2ttt', 'jjjjjj..', 'jjjj2nnn', 'hjhj.nn.', 'jjjjjjj.'],
+  ['hjhjhjhj', 'jjjjjjjj', '3sss3sss', 'jjjjjj2.', 'hjjjhjjj', '3n3n3n3n', 'jjjjj.jj'],
+];
+const TPLW = TPL.map(list => list.map(t => /[jh]/.test(t) ? 0 : /[st]/.test(t) ? 1 : /[23]/.test(t) ? 2 : 3));   // template class
+const KIND = { n: 'note', 2: 'chord', 3: 'triple chord', s: 'stream', t: 'trill', j: '16th-note jack', h: '16th-note jack' };
+
+// ---------- state ----------
+let S = null, FX = null;
+let QUIET = false, manual = false, carry = 0, overAt = 0, waiting = true, touchMode = false;
+try { touchMode = matchMedia('(pointer: coarse)').matches; } catch (e) {}
+
+function newState(seed) {
+  return {
+    rng: (seed | 0) || 1, t: 0, score: 0, over: false, cause: null,
+    beat: 0, bpm: START_BPM, floor: 80, hp: 100, combo: 0, maxCombo: 0,
+    notes: [], nid: 0, genBar: 0, lastLane: 1, laneLast: [-99, -99, -99, -99], stairL: 0, stairD: 1,
+    lock: [-1e6, -1e6, -1e6, -1e6], q: [], freeze: 0, brakeCD: 0, gear: 9, groove: 0, key: 0, topBpm: START_BPM,
+    perfects: 0, goods: 0, misses: 0, ghosts: 0, brakes: 0, hurt: null,
+    surge: 0, surgeGoal: 0, surgeAt: 0, surgeAmt: 0, surgeWarned: false,
+    prog: 0, root: 0, style: 3, title: '',
+  };
+}
+function newFX() {
+  return { parts: [], texts: [], rings: [], streaks: [], lane: [0, 0, 0, 0], laneMiss: [0, 0, 0, 0], shake: 0, flash: 0, flashCol: '255,255,255',
+    zoom: 0, pulse: 0, barPulse: 0, needle: START_BPM, nv: 0, disp: 0, judge: null, multPop: 0, comboPop: 0, hintA: 1, dull: 0, brake: 0,
+    overT: 0, gauge: 0, floorPush: 0, newBest: false, hpDisp: 100, jolt: 0, gearTxt: null, surgeTxt: null, surgeWarn: 0 };
+}
+function reset(seed) {
+  S = newState(seed); FX = newFX(); carry = 0; audK = -1; if (AU) AU.ok = false;
+  S.prog = (rnd() * PROGS.length) | 0; S.root = ((rnd() * 8) | 0) - 3; S.style = (rnd() * 4) | 0;   // every seed is a different song
+  S.title = ADJ[(rnd() * ADJ.length) | 0] + ' ' + NOUN[(rnd() * NOUN.length) | 0];
+  planSurge(); while (S.genBar * 4 < VB + 2) genBar();
+}
+function planSurge() { S.surgeAt = S.t + 20000 + rnd() * 40000; S.surgeAmt = Math.round(4 + rnd() * 14); S.surgeWarned = false; }
+function pickTpl(lvl) {
+  const list = TPL[lvl], cls = TPLW[lvl]; let tot = 0;
+  const wt = c => c === S.style ? 3 : 1;
+  for (const c of cls) tot += wt(c);
+  let r = rnd() * tot;
+  for (let i = 0; i < list.length; i++) { r -= wt(cls[i]); if (r < 0) return list[i]; }
+  return list[list.length - 1];
+}
+
+// ---------- chart generator (deterministic, from S.rng) ----------
+function addNote(st, l, k) {
+  S.notes.push({ id: S.nid++, b: st / 4, l, k, bar: st >> 4, j: 0 });
+  S.laneLast[l] = st; S.lastLane = l;
+}
+function freeLane(st, taken, pref) {       // a lane not used on this step and not used on the previous 16th
+  const ok = l => !(taken & (1 << l)) && S.laneLast[l] < st - 1;
+  if (pref != null && ok(pref)) return pref;
+  const start = (rnd() * 4) | 0;
+  for (let i = 0; i < 4; i++) { const l = (start + i) & 3; if (ok(l)) return l; }
+  for (let i = 0; i < 4; i++) { const l = (start + i) & 3; if (!(taken & (1 << l))) return l; }
+  return -1;
+}
+function genBar() {
+  const bar = S.genBar++, base = bar * 16;
+  if (bar === 0) { addNote(8, 1, 'n'); addNote(12, 2, 'n'); return; }   // count-in bar
+  let lvl = levelOf(S.bpm);
+  if ((bar & 7) === 7) lvl = Math.max(0, lvl - 2);          // breather at the end of each 8-bar phrase
+  else if (rnd() < 0.12) lvl = Math.min(6, lvl + 1);         // occasional spike
+  for (let h = 0; h < 2; h++) {
+    const tpl = pickTpl(lvl);
+    let jackL = -1, trA = -1, trB = -1, trI = 0;
+    for (let i = 0; i < 8; i++) {
+      const c = tpl[i], st = base + h * 8 + i;
+      if (c === '.') continue;
+      let taken = 0;
+      if (c === 'j' || c === 'h') {
+        if (jackL < 0) { jackL = freeLane(st, 0, null); if (jackL < 0) jackL = 0; }
+        addNote(st, jackL, 'j'); taken |= 1 << jackL;
+        if (c === 'h') { const l = freeLane(st, taken, null); if (l >= 0) addNote(st, l, 'h'); }
+        S.lastLane = jackL;
+      } else if (c === '2' || c === '3') {
+        const n = +c;
+        for (let k = 0; k < n; k++) { const l = freeLane(st, taken, null); if (l < 0) break; taken |= 1 << l; addNote(st, l, c); }
+      } else if (c === 's') {
+        let l = S.stairL + S.stairD;
+        if (l < 0 || l > 3) { S.stairD = -S.stairD; l = S.stairL + S.stairD; }
+        if (S.laneLast[l] >= st - 1) { const f = freeLane(st, 0, null); if (f >= 0) l = f; }
+        S.stairL = l; addNote(st, l, 's');
+      } else if (c === 't') {
+        if (trA < 0) { trA = freeLane(st, 0, null); if (trA < 0) trA = 0; trB = (trA + 1 + ((rnd() * 3) | 0)) & 3; }
+        addNote(st, (trI++ & 1) ? trB : trA, 't');
+      } else {
+        let pref = S.lastLane + (rnd() < 0.5 ? -1 : 1); if (pref < 0) pref = 1; if (pref > 3) pref = 2;
+        const l = freeLane(st, 0, rnd() < 0.6 ? pref : null); if (l >= 0) addNote(st, l, 'n');
+      }
+    }
+  }
+}
+
+// ---------- audio (lazy, fail-safe; every musical event is scheduled from the sim) ----------
+let AC = null, AU = null;
+function audioInit() {
+  try {
+    if (!AC) {
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      const m = AC.createGain(); m.gain.value = 0.78;
+      const comp = AC.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.2;
+      m.connect(comp); comp.connect(AC.destination);
+      const musF = AC.createBiquadFilter(); musF.type = 'lowpass'; musF.frequency.value = 16000; musF.Q.value = 0.8;
+      const mus = AC.createGain(); mus.connect(musF); musF.connect(m);
+      const lead = AC.createGain(); lead.connect(m);
+      const dly = AC.createDelay(1.5); dly.delayTime.value = 0.5;
+      const fb = AC.createGain(); fb.gain.value = 0.32; const dF = AC.createBiquadFilter(); dF.type = 'lowpass'; dF.frequency.value = 2600;
+      const wet = AC.createGain(); wet.gain.value = 0.28;
+      lead.connect(dly); dly.connect(dF); dF.connect(fb); fb.connect(dly); dF.connect(wet); wet.connect(m);
+      const nb = AC.createBuffer(1, AC.sampleRate, AC.sampleRate), d = nb.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      AU = { m, musF, mus, lead, dly, noise: nb, aA: 0, aS: 0, ok: false, base: 16000 };
+    }
+    if (AC.state === 'suspended') AC.resume();
+  } catch (e) { AC = null; AU = null; }
+}
+function live() { return !QUIET && AC && AU && AC.state === 'running'; }
+// The groove is scheduled ~80 ms AHEAD of the sim (and compensated for output latency) so each kick
+// is heard exactly when its beat line crosses the hit line. The cursor is audio-only, outside S.
+let audK = -1, AL = 0, AK = 0;
+function schedAudio(mpb) {
+  if (!live()) { audK = -1; return; }
+  try {
+    const now = AC.currentTime, outLat = clamp(AC.outputLatency || AC.baseLatency || 0, 0, 0.05);
+    if (!AU.ok || Math.abs(AU.aA + (S.t - AU.aS) / 1000 - now) > 0.045) { AU.aA = now; AU.aS = S.t; AU.ok = true; }
+    if (audK < 0) audK = Math.floor(S.beat * 4);
+    const kMax = Math.floor((S.beat + 80 / mpb) * 4);
+    for (let k = audK + 1; k <= kMax; k++) {
+      const simMs = S.t + (k / 4 - S.beat) * mpb;
+      playSix(k, Math.max(now, AU.aA + (simMs - AU.aS) / 1000 - outLat), mpb / 1000);
+    }
+    if (kMax > audK) audK = kMax;
+  } catch (e) { aerr(e); }
+}
+function hz(semi) { return 220 * Math.pow(2, semi / 12); }
+function degSemi(d) { const o = Math.floor(d / 7); return MINOR[((d % 7) + 7) % 7] + 12 * o; }
+function chordRoot(bar) { return PROGS[S.prog][bar & 3]; }
+function chordSemis(bar) { const r = chordRoot(bar); return [degSemi(r), degSemi(r + 2), degSemi(r + 4)]; }
+function noteSemi(n) { return degSemi(chordRoot(n.bar) + LANE_DEG[n.l]) + AK + S.root; }
+function osc(at, type, f, dur, v, dest, f2) {
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, at); if (f2) o.frequency.exponentialRampToValueAtTime(f2, at + dur * 0.9);
+  g.gain.setValueAtTime(v, at); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  o.connect(g); g.connect(dest); o.start(at); o.stop(at + dur + 0.03); return o;
+}
+function noise(at, dur, type, f, q, v, dest) {
+  const s = AC.createBufferSource(), fl = AC.createBiquadFilter(), g = AC.createGain();
+  s.buffer = AU.noise; fl.type = type; fl.frequency.value = f; fl.Q.value = q;
+  g.gain.setValueAtTime(v, at); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  s.connect(fl); fl.connect(g); g.connect(dest); s.start(at, Math.random() * 0.4); s.stop(at + dur + 0.03);
+}
+function sKick(at, v) { osc(at, 'sine', 165, 0.34, v, AU.mus, 42); noise(at, 0.012, 'highpass', 2500, 0.7, v * 0.25, AU.mus); }
+function sSnare(at, v) { noise(at, 0.17, 'highpass', 1100, 0.7, v, AU.mus); osc(at, 'triangle', 190, 0.09, v * 0.7, AU.mus, 150); }
+function sClap(at, v) { for (let i = 0; i < 3; i++) noise(at + i * 0.012, i === 2 ? 0.16 : 0.03, 'bandpass', 1500, 1.4, v, AU.mus); }
+function sHat(at, open, v) { noise(at, open ? 0.24 : 0.035, 'highpass', 7600, 0.9, v, AU.mus); }
+function sCrash(at, v) { noise(at, 1.3, 'highpass', 4200, 0.4, v, AU.mus); }
+function sBass(at, semi, dur, v) {
+  const f = hz(semi - 24), o = AC.createOscillator(), o2 = AC.createOscillator(), fl = AC.createBiquadFilter(), g = AC.createGain();
+  o.type = 'sawtooth'; o.frequency.setValueAtTime(f, at); o2.type = 'square'; o2.frequency.setValueAtTime(f / 2, at);
+  fl.type = 'lowpass'; fl.Q.value = 6; fl.frequency.setValueAtTime(180, at); fl.frequency.exponentialRampToValueAtTime(1500, at + 0.012); fl.frequency.exponentialRampToValueAtTime(240, at + dur);
+  g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(v, at + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  const g2 = AC.createGain(); g2.gain.value = 0.5;
+  o.connect(fl); o2.connect(g2); g2.connect(fl); fl.connect(g); g.connect(AU.mus);
+  o.start(at); o2.start(at); o.stop(at + dur + 0.03); o2.stop(at + dur + 0.03);
+}
+function sPad(at, semis, dur, v) {
+  const fl = AC.createBiquadFilter(), g = AC.createGain();
+  fl.type = 'lowpass'; fl.frequency.value = 1100; fl.Q.value = 0.5;
+  g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(v, at + 0.12); g.gain.setValueAtTime(v, at + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  fl.connect(g); g.connect(AU.mus);
+  for (const s of semis) for (const dt of [-7, 7]) { const o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(hz(s), at); o.detune.value = dt; o.connect(fl); o.start(at); o.stop(at + dur + 0.05); }
+}
+function sLead(f, perfect) {
+  const at = AC.currentTime, fl = AC.createBiquadFilter(), g = AC.createGain();
+  fl.type = 'lowpass'; fl.frequency.setValueAtTime(perfect ? 5200 : 1700, at); fl.frequency.exponentialRampToValueAtTime(perfect ? 1400 : 700, at + 0.25);
+  const v = perfect ? 0.13 : 0.075;
+  g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(v, at + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, at + (perfect ? 0.38 : 0.2));
+  fl.connect(g); g.connect(AU.lead);
+  const a = AC.createOscillator(), b = AC.createOscillator();
+  a.type = 'square'; b.type = 'sawtooth'; a.frequency.setValueAtTime(f, at); b.frequency.setValueAtTime(f * 2, at); b.detune.value = 9;
+  const gb = AC.createGain(); gb.gain.value = perfect ? 0.45 : 0.15;
+  a.connect(fl); b.connect(gb); gb.connect(fl); a.start(at); b.start(at); a.stop(at + 0.42); b.stop(at + 0.42);
+  if (perfect) osc(at, 'sine', f * 4, 0.12, 0.03, AU.lead);
+}
+function dullMusic(depth, rec) {                      // misses make the whole mix go dull
+  try { const p = AU.musF.frequency, t = AC.currentTime; p.cancelScheduledValues(t); p.setValueAtTime(Math.max(depth, p.value), t); p.exponentialRampToValueAtTime(depth, t + 0.03); p.setTargetAtTime(AU.base, t + 0.1, rec); } catch (e) {}
+}
+function aerr(e) { try { const a = window.__audioErr || (window.__audioErr = []); if (a.length < 20) a.push(String(e && e.message || e)); } catch (_) {} }
+function sfx(fn) { if (!live()) return; try { fn(); } catch (e) { aerr(e); } }
+
+// one call per 16th-note crossed by the sim: drums, bass, pad, delay sync
+function sixteenth(k) {                               // sim-side beat crossing: visual pulses
+  const s = k & 15;
+  if (QUIET) return;
+  if ((s & 3) === 0) FX.pulse = 1;
+  if (s === 0) FX.barPulse = 1;
+}
+function playSix(k, at, mpb) {                        // one 16th of the groove: drums, bass, pad (each gear = key change)
+  const s = k & 15, bar = k >> 4;
+  if (s === 0) { AL = levelOf(S.bpm); AK = KEYS[AL]; }
+  try {
+    const L = AL, key = AK + S.root, ch = chordSemis(bar).map(x => x + key);
+    const kickP = ['x.......x.......', 'x.....x.x.......', 'x..x....x.x.....', 'x...x...x...x...', 'x...x...x...x..x', 'x...x...x.x.x...', 'x.x.x...x.x.x.x.'][L];
+    const hatP = ['x.x.x.x.x.x.x.x.', 'x.x.x.x.x.x.x.x.', 'xxxxxxxxxxxxxxxx', 'x.xxx.xxx.xxx.xx', 'xxxxxxxxxxxxxxxx', 'xxxxxxxxxxxxxxxx', 'xxxxxxxxxxxxxxxx'][L];
+    const openP = ['................', '..............x.', '......x.......x.', '..x...x...x...x.', '..x...x...x...x.', '..x...x...x...x.', '..x...x...x...x.'][L];
+    const bassP = ['r.......r.r.....', 'r..r..r.r..r..o.', 'r.or.or.r.or.oro', 'rorororororororo', 'rorororororororo', 'rrorrrorrrorrror', 'rorororororororo'][L];
+    if (kickP[s] === 'x') sKick(at, 0.85);
+    if (s === 4 || s === 12) { sSnare(at, 0.32); if (L >= 3) sClap(at, 0.18); }
+    if (L >= 2 && (bar & 3) === 3 && (s === 13 || s === 14 || s === 15)) sSnare(at, 0.14 + (s - 12) * 0.05);
+    if (L >= 5 && (s === 7 || s === 10)) sSnare(at, 0.1);
+    if (hatP[s] === 'x' && openP[s] !== 'x') sHat(at, false, (s & 1) ? 0.05 : 0.09);
+    if (openP[s] === 'x') sHat(at, true, 0.07);
+    if (s === 0 && (bar & 7) === 0 && L >= 2) sCrash(at, 0.12);
+    const bp = bassP[s];
+    if (bp !== '.') sBass(at, ch[0] + (bp === 'o' ? 12 : 0), mpb * (L >= 3 ? 0.24 : 0.45), 0.2);
+    if (s === 0) {
+      sPad(at, ch, mpb * 4, 0.022);
+      AU.dly.delayTime.setTargetAtTime(mpb * 0.75, at, 0.05);
+      AU.base = S.hp < 30 ? 1500 : 16000;
+      AU.musF.frequency.setTargetAtTime(AU.base, at, 0.2);
+    }
+    if (S.hp < 30 && (s === 0 || s === 3)) osc(at, 'sine', 62, 0.18, 0.35, AU.m, 40);   // heartbeat when in danger
+  } catch (e) { aerr(e); }
+}
+
+// ---------- FX helpers (never touch S) ----------
+function burst(x, y, n, col, spd, g) {
+  if (QUIET) return;
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * 6.283, s = (0.3 + Math.random()) * (spd || 4);
+    FX.parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - (spd || 4) * 0.4, g: g == null ? 0.18 : g, life: 1, dl: 0.018 + Math.random() * 0.02, col, sz: 2 + Math.random() * 3 });
+  }
+}
+function floatText(x, y, txt, col, size, vy) { if (!QUIET) FX.texts.push({ x, y, txt, col, size: size || 18, life: 1, vy: vy == null ? -2.2 : vy, age: 0 }); }
+function ring(x, y, R, col, w) { if (!QUIET) FX.rings.push({ x, y, r: 6, R, col, w: w || 4, life: 1 }); }
+function shake(a) { if (!QUIET) FX.shake = Math.max(FX.shake, a); }
+function flash(a, col) { if (!QUIET) { FX.flash = Math.max(FX.flash, a); FX.flashCol = col || '255,255,255'; } }
+function judge(txt, col, big) { if (!QUIET) FX.judge = { txt, col, life: 1, age: 0, big: !!big }; }
+function laneX(l, f) { const tw = TW + (BW - TW) * f; return CXM - tw / 2 + (l + 0.5) * tw / 4; }
+
+// ---------- simulation ----------
+function press(l, w, mpb) {
+  if (S.t - S.lock[l] < LOCK) return;                  // lane still re-arming: ignored
+  let n = null, e = -1e9;
+  for (const x of S.notes) if (!x.j && x.l === l) { const ex = (S.beat - x.b) * mpb; if (ex > w.late) continue; n = x; e = ex; break; }   // +late / -early
+  if (n && e >= -w.early) {
+    S.lock[l] = S.t; hit(n, e, w); return;
+  }
+  if (n && e >= -w.grace) {                            // early-hit grace: a bit too soon is forgiven, not punished
+    if (!QUIET) { FX.lane[l] = Math.max(FX.lane[l], 0.4); floatText(laneX(l, 1), HITY - 70, 'early', '#99a', 13, -1); }
+    return;
+  }
+  S.lock[l] = S.t;                                     // ghost tap: costs combo + a little HP
+  S.ghosts++; const had = S.combo; S.combo = 0; S.hp -= 4; S.hurt = { k: 'ghost', bpm: S.bpm, t: S.t };
+  if (!QUIET) {
+    FX.laneMiss[l] = 0.7; shake(3); floatText(laneX(l, 1), HITY - 50, 'ghost', '#f68', 15, -1.5);
+    if (had >= 12) judge('COMBO LOST', '#f68');
+    sfx(() => { noise(AC.currentTime, 0.05, 'lowpass', 700, 1, 0.22, AU.m); osc(AC.currentTime, 'square', 98, 0.06, 0.05, AU.m); });
+  }
+  if (S.hp <= 0) die();
+}
+function hit(n, e, w) {
+  n.j = 1;
+  const perfect = Math.abs(e) <= w.p, oldMult = multOf(S.combo);
+  S.combo++; if (S.combo > S.maxCombo) S.maxCombo = S.combo;
+  if (perfect) { S.perfects++; S.bpm += 0.4; S.hp = Math.min(100, S.hp + 0.7); }
+  else { S.goods++; S.hp = Math.min(100, S.hp + 0.1); }
+  const mult = multOf(S.combo), gain = Math.round((perfect ? 10 : 4) * S.bpm / 100 * mult);
+  S.score += gain;
+  if (S.bpm > S.topBpm) S.topBpm = S.bpm;
+  const gear = Math.floor(S.bpm / 10);
+  const gearUp = gear > S.gear; if (gearUp) S.gear = gear;
+  if (QUIET) return;
+  const x = laneX(n.l, 1), y = HITY;
+  FX.lane[n.l] = 1;
+  burst(x, y, perfect ? 16 : 7, COL[n.l], perfect ? 5.5 : 3.5);
+  ring(x, y, perfect ? 58 : 38, COL[n.l], perfect ? 5 : 3);
+  judge(perfect ? 'PERFECT' : (e < 0 ? 'GOOD · early' : 'GOOD · late'), perfect ? '#e9fbff' : '#ffcf6a');
+  floatText(x, y - 40, '+' + gain, perfect ? COL[n.l] : '#ffcf6a', perfect ? 18 : 15);
+  FX.comboPop = 1;
+  sfx(() => sLead(hz(noteSemi(n)), perfect));
+  if (mult > oldMult) {                                   // combo tier: compounding multiplier
+    FX.multPop = 1; FX.zoom = 0.045 + mult * 0.004; flash(0.25, COLRGB[n.l]); shake(5);
+    floatText(CXM, HITY - 230, '×' + mult + ' MULTIPLIER', '#fff36b', 30, -1.2);
+    burst(70, 92, 30, '#fff36b', 6, 0.05);
+    sfx(() => { const t = AC.currentTime; [0, 4, 7, 12].forEach((s, i) => osc(t + i * 0.045, 'triangle', hz(AK + S.root + 12 + s), 0.25, 0.08, AU.lead)); noise(t, 0.6, 'highpass', 5000, 0.4, 0.07, AU.m); });
+  }
+  if (gearUp && S.bpm >= 100) {                           // speedometer: every +10 BPM is a gear change
+    FX.gauge = 1; FX.gearTxt = { txt: (gear * 10) + ' BPM', life: 1 }; shake(4); flash(0.12, '255,120,200');
+    burst(CXM, 140, 26, '#ff7ad1', 5, 0.03);
+    sfx(() => { const t = AC.currentTime; const s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain(); s.buffer = AU.noise; f.type = 'bandpass'; f.Q.value = 3; f.frequency.setValueAtTime(500, t); f.frequency.exponentialRampToValueAtTime(5000, t + 0.35); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.42); s.connect(f); f.connect(g); g.connect(AU.m); s.start(t); s.stop(t + 0.45); });
+  }
+}
+function miss(n) {
+  n.j = 1;
+  S.misses++; const had = S.combo; S.combo = 0;
+  S.bpm = Math.max(S.floor, S.bpm - 3); S.hp -= 12; S.hurt = { k: 'miss', kind: KIND[n.k] || 'note', bpm: S.bpm, t: S.t };
+  if (!QUIET) {
+    FX.laneMiss[n.l] = 1; shake(9); flash(0.18, '255,40,70'); FX.dull = 1; FX.jolt = 1;
+    judge(had >= 12 ? 'MISS · COMBO ' + had + ' LOST' : 'MISS', '#ff4d6d', true);
+    floatText(laneX(n.l, 1), HITY - 30, '-3 BPM', '#ff4d6d', 15, -1.2);
+    burst(laneX(n.l, 1), HITY, 10, '#555066', 2.5);
+    sfx(() => { const t = AC.currentTime, f = hz(noteSemi(n) - 1);
+      const o = AC.createOscillator(), fl = AC.createBiquadFilter(), g = AC.createGain(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f * 0.97, t); o.frequency.exponentialRampToValueAtTime(f * 0.8, t + 0.25);
+      fl.type = 'lowpass'; fl.frequency.value = 420; g.gain.setValueAtTime(0.16, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28); o.connect(fl); fl.connect(g); g.connect(AU.m); o.start(t); o.stop(t + 0.3);
+      noise(t, 0.12, 'lowpass', 260, 1, 0.35, AU.m); dullMusic(380, 0.28); });
+  }
+  if (S.hp <= 0) die();
+}
+function brake() {
+  if (S.brakeCD > 0 || S.bpm <= S.floor + 0.5) {
+    if (!QUIET) { FX.floorPush = 1; floatText(CXM, 215, S.brakeCD > 0 ? 'brake cooling' : 'ON THE FLOOR', '#ff5a7a', 15, -0.8); }
+    return;
+  }
+  const lost = S.combo;
+  S.bpm = Math.max(S.floor, S.bpm - 10); S.combo = 0; S.freeze = 150; S.brakeCD = 1000; S.brakes++;
+  if (!QUIET) {
+    FX.brake = 1; shake(8); flash(0.3, '90,200,255'); FX.zoom = -0.035; FX.gauge = 1;
+    judge('BRAKE  −10 BPM', '#7fe3ff', true);
+    if (lost > 0) floatText(CXM, 600, 'combo ' + lost + ' spent', '#7fe3ff', 16, -0.8);
+    for (let l = 0; l < 4; l++) burst(laneX(l, 1), HITY, 6, '#7fe3ff', 4, 0.02);
+    sfx(() => { const t = AC.currentTime; osc(t, 'sawtooth', 420, 0.4, 0.12, AU.m, 45); noise(t, 0.22, 'bandpass', 900, 0.8, 0.18, AU.m); dullMusic(300, 0.18); });
+  }
+}
+function die() {
+  if (S.over) return;
+  S.hp = 0; S.over = true;
+  const h = S.hurt || { k: 'drain', bpm: S.bpm }, b = Math.round(h.bpm || S.bpm);
+  S.cause = h.k === 'miss' ? 'missed a ' + h.kind + ' at ' + b + ' BPM — out of HP'
+    : h.k === 'ghost' ? 'ghost-tapped your last HP away at ' + b + ' BPM'
+    : 'HP drained out at ' + b + ' BPM — too few PERFECTs to heal';
+  if (QUIET) return;
+  shake(24); flash(0.8, '255,60,90'); FX.zoom = 0.08;
+  for (let l = 0; l < 4; l++) burst(laneX(l, 1), HITY, 30, COL[l], 8, 0.12);
+  if (S.score > best) { best = S.score; saveBest(best); FX.newBest = true; }
+  overAt = performance.now();
+  sfx(() => { const t = AC.currentTime; osc(t, 'sawtooth', 300, 1.1, 0.2, AU.m, 30); osc(t, 'square', 150, 0.9, 0.1, AU.m, 20); noise(t, 1.2, 'lowpass', 1400, 0.6, 0.3, AU.m); dullMusic(200, 1.5); });
+}
+
+function step() {
+  if (!QUIET) fxStep();
+  if (S.over) return;
+  S.t += STEP;
+  if (S.brakeCD > 0) S.brakeCD -= STEP;
+  if (!S.surgeWarned && S.t >= S.surgeAt - 3000) {
+    S.surgeWarned = true;
+    if (!QUIET) { FX.surgeWarn = 1; sfx(() => { const t = AC.currentTime; for (let i = 0; i < 3; i++) osc(t + i * 0.16, 'square', 880, 0.09, 0.05, AU.m); }); }
+  }
+  if (S.t >= S.surgeAt) {
+    S.surgeGoal += S.surgeAmt;
+    if (!QUIET) { FX.surgeTxt = { txt: 'TEMPO SURGE +' + S.surgeAmt, life: 1 }; FX.floorPush = 1; shake(10); flash(0.25, '255,60,90'); burst(CXM, 150, 40, '#ff4d6d', 6, 0.04);
+      sfx(() => { const t = AC.currentTime; osc(t, 'sawtooth', 60, 0.9, 0.18, AU.m, 240); noise(t, 0.8, 'bandpass', 600, 0.6, 0.15, AU.m); }); }
+    planSurge();
+  }
+  S.surge += (S.surgeGoal - S.surge) * 0.02;
+  S.floor = floorAt(S.t) + S.surge;
+  if (S.bpm < S.floor) { S.bpm = S.floor; if (!QUIET) FX.floorPush = Math.max(FX.floorPush, 0.5); }
+  const mpb = 60000 / S.bpm;
+  if (S.freeze > 0) S.freeze -= STEP;                   // brake hitstop: the song itself holds its breath
+  else {
+    const pb = S.beat; S.beat += STEP / mpb;
+    const k0 = Math.floor(pb * 4), k1 = Math.floor(S.beat * 4);
+    for (let k = k0 + 1; k <= k1; k++) sixteenth(k);
+    if (!QUIET) schedAudio(mpb);
+  }
+  while (S.genBar * 4 < S.beat + VB + 1.5) genBar();
+  const w = wins(S.bpm);
+  if (S.q.length) {
+    const q = S.q; S.q = [];
+    for (const a of q) { if (a === 'brake') brake(); else press(+a[1], w, mpb); if (S.over) return; }
+  }
+  let judged = false;
+  for (const n of S.notes) {
+    if (n.j) { judged = true; continue; }
+    if ((S.beat - n.b) * mpb > w.late) { miss(n); judged = true; if (S.over) return; }
+  }
+  if (judged) S.notes = S.notes.filter(n => !n.j);
+  S.hp -= drainAt(S.t) * STEP / 1000;
+  if (S.hp <= 0) { if (!S.hurt || S.t - S.hurt.t > 1500) S.hurt = { k: 'drain', bpm: S.bpm, t: S.t }; die(); }
+}
+
+// ---------- FX advance (inside step, cosmetic only) ----------
+function fxStep() {
+  for (const p of FX.parts) { p.x += p.vx; p.y += p.vy; p.vy += p.g; p.vx *= 0.985; p.life -= p.dl; }
+  FX.parts = FX.parts.filter(p => p.life > 0); if (FX.parts.length > 600) FX.parts.splice(0, FX.parts.length - 600);
+  for (const t of FX.texts) { t.y += t.vy; t.vy *= 0.94; t.life -= 0.017; t.age++; }
+  FX.texts = FX.texts.filter(t => t.life > 0);
+  for (const r of FX.rings) { r.r += (r.R - r.r) * 0.2; r.life -= 0.05; }
+  FX.rings = FX.rings.filter(r => r.life > 0);
+  for (let l = 0; l < 4; l++) { FX.lane[l] *= 0.86; FX.laneMiss[l] *= 0.9; }
+  FX.shake *= 0.86; FX.flash *= 0.88; FX.zoom *= 0.9; FX.pulse *= 0.88; FX.barPulse *= 0.93; FX.multPop *= 0.9; FX.comboPop *= 0.84;
+  FX.dull *= 0.94; FX.brake *= 0.93; FX.gauge *= 0.92; FX.floorPush *= 0.92; FX.jolt *= 0.8;
+  if (FX.judge) { FX.judge.life -= 0.022; FX.judge.age++; if (FX.judge.life <= 0) FX.judge = null; }
+  if (FX.gearTxt) { FX.gearTxt.life -= 0.012; if (FX.gearTxt.life <= 0) FX.gearTxt = null; }
+  if (FX.surgeTxt) { FX.surgeTxt.life -= 0.01; if (FX.surgeTxt.life <= 0) FX.surgeTxt = null; }
+  if (FX.surgeWarn > 0) FX.surgeWarn = S.surgeWarned && S.t < S.surgeAt ? 1 : FX.surgeWarn * 0.9;
+  FX.nv += (S.bpm - FX.needle) * 0.09; FX.nv *= 0.72; FX.needle += FX.nv;           // needle spring
+  const d = S.score - FX.disp; FX.disp = d > 0 ? FX.disp + Math.max(1, Math.ceil(d * 0.14)) : S.score;   // odometer roll-up
+  FX.hpDisp += (S.hp - FX.hpDisp) * 0.15;
+  if (S.over) FX.overT = Math.min(1, FX.overT + 0.035);
+  if (S.t > 6000) FX.hintA = Math.max(0, FX.hintA - 0.012);
+  // speed streaks: more and faster the higher the BPM
+  if (!S.over && !S.freeze) {
+    const rate = (S.bpm - 95) / 50;
+    if (rate > 0 && Math.random() < rate) FX.streaks.push({ d: VB, side: Math.random() < 0.5 ? -1 : 1, off: 1.05 + Math.random() * 1.6, len: 0.25 + Math.random() * 0.5 });
+    const db = STEP / (60000 / S.bpm) * 1.6;
+    for (const s of FX.streaks) s.d -= db;
+    FX.streaks = FX.streaks.filter(s => s.d > -1.2);
+  }
+}
+
+// ---------- render ----------
+const STARS = []; for (let i = 0; i < 70; i++) STARS.push({ x: Math.random() * W, y: Math.random() * (HOR - 10), r: Math.random() * 1.4 + 0.3, p: Math.random() * 6.28 });
+let skyG = null, groundG = null, sunG = null;
+function pf(d) { const z = d / VB; return z <= 0 ? 1 - z * (1 + KP) : (1 - z) / (1 + KP * z); }
+function yAt(f) { return HOR + (HITY - HOR) * f; }
+function halfW(f) { return (TW + (BW - TW) * f) / 2; }
+function rrect(x, y, w, h, r) { cx.beginPath(); cx.moveTo(x + r, y); cx.arcTo(x + w, y, x + w, y + h, r); cx.arcTo(x + w, y + h, x, y + h, r); cx.arcTo(x, y + h, x, y, r); cx.arcTo(x, y, x + w, y, r); cx.closePath(); }
+
+function drawBackground(tm) {
+  if (!skyG) {
+    skyG = cx.createLinearGradient(0, 0, 0, HOR); skyG.addColorStop(0, '#07020f'); skyG.addColorStop(0.55, '#1c0636'); skyG.addColorStop(1, '#4a0d4f');
+    groundG = cx.createLinearGradient(0, HOR, 0, H); groundG.addColorStop(0, '#1a0428'); groundG.addColorStop(1, '#05010b');
+    sunG = cx.createLinearGradient(0, HOR - 70, 0, HOR); sunG.addColorStop(0, '#ffe066'); sunG.addColorStop(0.5, '#ff7a59'); sunG.addColorStop(1, '#ff2e88');
+  }
+  cx.fillStyle = skyG; cx.fillRect(-20, -20, W + 40, HOR + 20);
+  for (const s of STARS) { cx.globalAlpha = 0.35 + 0.35 * Math.sin(tm / 600 + s.p); cx.fillStyle = '#fff'; cx.fillRect(s.x, s.y, s.r, s.r); }
+  cx.globalAlpha = 1;
+  // sun pulses with the kick
+  const pr = 62 * (1 + FX.pulse * 0.05);
+  cx.save(); cx.beginPath(); cx.rect(0, 0, W, HOR); cx.clip();
+  cx.globalAlpha = 0.35 + FX.pulse * 0.25; cx.fillStyle = '#ff2e88'; cx.beginPath(); cx.arc(CXM, HOR, pr * 1.35, 0, 6.283); cx.fill();
+  cx.globalAlpha = 1; cx.fillStyle = sunG; cx.beginPath(); cx.arc(CXM, HOR, pr, Math.PI, 0); cx.fill();
+  cx.fillStyle = '#2a0838';
+  for (let i = 0; i < 5; i++) { const yy = HOR - 8 - i * 9, hh = 4 - i * 0.6; cx.fillRect(CXM - pr - 2, yy, pr * 2 + 4, hh); }
+  cx.restore();
+  // mountains
+  cx.fillStyle = '#12031f';
+  cx.beginPath(); cx.moveTo(0, HOR); for (let x = 0; x <= W; x += 24) { const m = Math.abs(x - CXM) < 70 ? 0 : (Math.sin(x * 0.05) * 0.5 + 0.5) * 26 + (Math.sin(x * 0.13 + 1) * 0.5 + 0.5) * 12; cx.lineTo(x, HOR - m); } cx.lineTo(W, HOR); cx.fill();
+  // ground
+  cx.fillStyle = groundG; cx.fillRect(-20, HOR, W + 40, H - HOR + 20);
+  // perspective grid: horizontal lines at every beat flow toward you at song speed
+  const b0 = Math.floor(S.beat);
+  cx.lineWidth = 1.2;
+  for (let b = b0 - 2; b <= b0 + VB; b++) {
+    const d = b - S.beat; if (d > VB) continue; const f = pf(d); const y = yAt(f); if (y > H) continue;
+    const bar = (b % 4) === 0;
+    cx.strokeStyle = 'rgba(255,60,190,' + (0.08 + f * (bar ? 0.4 : 0.18) + FX.barPulse * 0.1) + ')';
+    cx.beginPath(); cx.moveTo(0, y); cx.lineTo(W, y); cx.stroke();
+  }
+  cx.strokeStyle = 'rgba(255,60,190,0.16)';
+  for (let i = -9; i <= 9; i++) { const xb = CXM + i * 70; cx.beginPath(); cx.moveTo(CXM + (xb - CXM) * 0.02, HOR); cx.lineTo(CXM + (xb - CXM) * 1.9, H); cx.stroke(); }
+  // speed streaks
+  cx.lineCap = 'round';
+  for (const s of FX.streaks) {
+    const f1 = pf(Math.max(-1.2, s.d)), f2 = pf(Math.min(VB, s.d + s.len));
+    const x1 = CXM + s.side * halfW(f1) * s.off, x2 = CXM + s.side * halfW(f2) * s.off;
+    cx.strokeStyle = 'rgba(140,240,255,' + (0.25 + f1 * 0.4) + ')'; cx.lineWidth = 1 + f1 * 2.5;
+    cx.beginPath(); cx.moveTo(x2, yAt(f2)); cx.lineTo(x1, yAt(f1)); cx.stroke();
+  }
+  cx.lineCap = 'butt';
+}
+
+function drawHighway() {
+  const fb = pf(-0.35), yb = yAt(fb);
+  // deck
+  cx.beginPath(); cx.moveTo(CXM - TW / 2, HOR); cx.lineTo(CXM + TW / 2, HOR); cx.lineTo(CXM + halfW(fb), yb); cx.lineTo(CXM - halfW(fb), yb); cx.closePath();
+  cx.fillStyle = 'rgba(10,3,22,0.82)'; cx.fill();
+  // lane glows (press / miss)
+  for (let l = 0; l < 4; l++) {
+    const a = FX.lane[l], m = FX.laneMiss[l];
+    if (a < 0.02 && m < 0.02) continue;
+    const g = cx.createLinearGradient(0, HOR, 0, HITY);
+    const rgb = m > a ? '255,40,70' : COLRGB[l], al = Math.max(a, m);
+    g.addColorStop(0, 'rgba(' + rgb + ',0)'); g.addColorStop(1, 'rgba(' + rgb + ',' + (0.42 * al) + ')');
+    cx.fillStyle = g;
+    const t0 = TW / 4, t1 = BW / 4;
+    cx.beginPath(); cx.moveTo(CXM - TW / 2 + l * t0, HOR); cx.lineTo(CXM - TW / 2 + (l + 1) * t0, HOR); cx.lineTo(CXM - BW / 2 + (l + 1) * t1, HITY); cx.lineTo(CXM - BW / 2 + l * t1, HITY); cx.closePath(); cx.fill();
+  }
+  // beat lines inside the deck
+  const b0 = Math.floor(S.beat);
+  for (let b = b0; b <= b0 + VB; b++) {
+    const d = b - S.beat; if (d < -0.3 || d > VB) continue;
+    const f = pf(d), y = yAt(f), hw = halfW(f), bar = (b % 4) === 0;
+    cx.strokeStyle = bar ? 'rgba(255,255,255,' + (0.1 + f * 0.25) + ')' : 'rgba(255,255,255,' + (0.03 + f * 0.08) + ')';
+    cx.lineWidth = bar ? 2 : 1; cx.beginPath(); cx.moveTo(CXM - hw, y); cx.lineTo(CXM + hw, y); cx.stroke();
+  }
+  // lane dividers + edges
+  for (let i = 0; i <= 4; i++) {
+    const x0 = CXM - TW / 2 + i * TW / 4, x1 = CXM - halfW(fb) + i * halfW(fb) / 2;
+    const edge = i === 0 || i === 4;
+    cx.strokeStyle = edge ? 'rgba(255,90,200,' + (0.7 + FX.pulse * 0.3) + ')' : 'rgba(255,255,255,0.1)';
+    cx.lineWidth = edge ? 3 : 1; cx.beginPath(); cx.moveTo(x0, HOR); cx.lineTo(x1, yb); cx.stroke();
+  }
+}
+
+function drawNotes() {
+  const list = S.notes;
+  // chord connectors
+  for (let i = 0; i + 1 < list.length; i++) {
+    const a = list[i], b = list[i + 1];
+    if (a.b !== b.b) continue;
+    const d = a.b - S.beat; if (d > VB || d < -0.4) continue;
+    const f = pf(d), y = yAt(f);
+    cx.strokeStyle = 'rgba(255,255,255,' + (0.15 + 0.35 * f) + ')'; cx.lineWidth = 2 + 3 * f;
+    cx.beginPath(); cx.moveTo(laneX(a.l, f), y); cx.lineTo(laneX(b.l, f), y); cx.stroke();
+  }
+  for (let i = list.length - 1; i >= 0; i--) {
+    const n = list[i], d = n.b - S.beat;
+    if (d > VB || d < -0.45) continue;
+    const f = pf(d), y = yAt(f), lw = halfW(f) / 2, x = laneX(n.l, f);
+    const w = lw * 0.84, h = Math.max(3, 24 * f + 2);
+    const al = clamp((VB - d) * 1.4, 0, 1) * (d < 0 ? clamp(1 + d * 2.4, 0, 1) : 1);
+    cx.globalAlpha = al * 0.35; cx.fillStyle = COL[n.l]; rrect(x - w / 2 - 4 * f, y - h / 2 - 4 * f, w + 8 * f, h + 8 * f, 6 * f + 1); cx.fill();
+    cx.globalAlpha = al; rrect(x - w / 2, y - h / 2, w, h, 5 * f + 1); cx.fill();
+    cx.fillStyle = 'rgba(255,255,255,0.75)'; cx.fillRect(x - w / 2 + 3 * f, y - h / 2 + 2 * f, w - 6 * f, Math.max(1, 4 * f));
+    if (n.k === 'j' && f > 0.2) { cx.fillStyle = 'rgba(20,0,30,0.55)'; cx.fillRect(x - w * 0.3, y - 1.5 * f, w * 0.6, 3 * f); }
+  }
+  cx.globalAlpha = 1;
+}
+
+function drawReceptors() {
+  const tw = BW / 4;
+  // hit line
+  cx.strokeStyle = 'rgba(255,255,255,' + (0.55 + FX.pulse * 0.45) + ')'; cx.lineWidth = 3;
+  cx.beginPath(); cx.moveTo(CXM - BW / 2, HITY); cx.lineTo(CXM + BW / 2, HITY); cx.stroke();
+  for (let l = 0; l < 4; l++) {
+    const x = CXM - BW / 2 + l * tw, a = FX.lane[l], m = FX.laneMiss[l];
+    const locked = S.t - S.lock[l] < LOCK;
+    cx.fillStyle = 'rgba(' + COLRGB[l] + ',' + (0.12 + a * 0.6) + ')';
+    rrect(x + 6, HITY - 14, tw - 12, 28, 8); cx.fill();
+    cx.strokeStyle = m > 0.05 ? 'rgba(255,60,80,' + (0.5 + m * 0.5) + ')' : COL[l]; cx.lineWidth = 2.5 + a * 2; cx.stroke();
+    // key pads
+    const py = HITY + 26;
+    cx.fillStyle = 'rgba(' + COLRGB[l] + ',' + (0.08 + a * 0.35) + ')';
+    rrect(x + 8, py, tw - 16, 64, 12); cx.fill();
+    cx.strokeStyle = 'rgba(' + COLRGB[l] + ',' + (locked ? 0.25 : 0.55) + ')'; cx.lineWidth = 2; cx.stroke();
+    cx.fillStyle = locked ? 'rgba(255,255,255,0.35)' : '#fff'; cx.textAlign = 'center';
+    if (touchMode) { cx.font = 'bold 15px ' + FONT; cx.fillText('TAP', x + tw / 2, py + 38); }
+    else { cx.font = 'bold 24px ' + FONT; cx.fillText(KEYLBL[l], x + tw / 2, py + 33); cx.font = '14px ' + FONT; cx.fillStyle = 'rgba(255,255,255,0.5)'; cx.fillText(ARROWLBL[l], x + tw / 2, py + 53); }
+  }
+}
+
+function drawGauge() {
+  const gx = CXM, gy = 148, R = 84;
+  const A0 = Math.PI * 0.86, A1 = Math.PI * 2.14, lo = 60, hi = 260;
+  const ang = v => A0 + (clamp(v, lo, hi) - lo) / (hi - lo) * (A1 - A0);
+  cx.save();
+  const sc = 1 + FX.gauge * 0.06; cx.translate(gx, gy); cx.scale(sc, sc); cx.translate(-gx, -gy);
+  cx.fillStyle = 'rgba(8,2,18,0.78)'; cx.beginPath(); cx.arc(gx, gy, R + 10, Math.PI * 0.8, Math.PI * 2.2); cx.closePath(); cx.fill();
+  cx.lineWidth = 9; cx.strokeStyle = 'rgba(255,255,255,0.08)'; cx.beginPath(); cx.arc(gx, gy, R - 6, A0, A1); cx.stroke();
+  // speed band
+  const g = cx.createLinearGradient(gx - R, 0, gx + R, 0); g.addColorStop(0, '#2de2e6'); g.addColorStop(0.55, '#ff3d8b'); g.addColorStop(1, '#ffe066');
+  cx.strokeStyle = g; cx.beginPath(); cx.arc(gx, gy, R - 6, A0, ang(FX.needle)); cx.stroke();
+  // red zone = rising floor
+  cx.lineWidth = 13; cx.strokeStyle = 'rgba(255,40,70,' + (0.7 + FX.floorPush * 0.3) + ')';
+  cx.beginPath(); cx.arc(gx, gy, R + 3, A0, ang(S.floor)); cx.stroke();
+  // meltdown zone
+  cx.lineWidth = 4; cx.strokeStyle = 'rgba(255,224,102,0.6)'; cx.setLineDash([3, 4]); cx.beginPath(); cx.arc(gx, gy, R + 3, ang(200), A1); cx.stroke(); cx.setLineDash([]);
+  // ticks
+  cx.lineWidth = 2; cx.fillStyle = 'rgba(255,255,255,0.6)'; cx.font = 'bold 10px ' + FONT; cx.textAlign = 'center';
+  for (let v = lo; v <= hi; v += 10) {
+    const a = ang(v), big = v % 40 === 20 || v === 60 || v === 260;
+    const r1 = R - (big ? 18 : 13), r2 = R - 11;
+    cx.strokeStyle = v <= S.floor ? 'rgba(255,80,100,0.9)' : 'rgba(255,255,255,0.45)';
+    cx.beginPath(); cx.moveTo(gx + Math.cos(a) * r1, gy + Math.sin(a) * r1); cx.lineTo(gx + Math.cos(a) * r2, gy + Math.sin(a) * r2); cx.stroke();
+    if (v % 40 === 20) cx.fillText(String(v), gx + Math.cos(a) * (R - 29), gy + Math.sin(a) * (R - 29) + 4);
+  }
+  // needle
+  const jit = S.bpm > 170 && !S.over ? (Math.random() - 0.5) * (S.bpm - 170) * 0.0016 : 0;
+  const na = ang(FX.needle) + jit;
+  cx.strokeStyle = '#fff'; cx.lineWidth = 4; cx.lineCap = 'round';
+  cx.shadowColor = '#ff3d8b'; cx.shadowBlur = 12;
+  cx.beginPath(); cx.moveTo(gx - Math.cos(na) * 10, gy - Math.sin(na) * 10); cx.lineTo(gx + Math.cos(na) * (R - 8), gy + Math.sin(na) * (R - 8)); cx.stroke();
+  cx.shadowBlur = 0; cx.lineCap = 'butt';
+  cx.fillStyle = '#ff3d8b'; cx.beginPath(); cx.arc(gx, gy, 7, 0, 6.283); cx.fill();
+  // digital readout
+  cx.fillStyle = '#fff'; cx.font = 'bold 34px ' + MONO; cx.textAlign = 'center';
+  cx.fillText(String(Math.round(S.bpm)), gx, gy - 22);
+  cx.font = 'bold 11px ' + FONT; cx.fillStyle = 'rgba(255,255,255,0.65)'; cx.fillText('BPM', gx, gy - 6);
+  cx.restore();
+  // gear name + floor readout
+  const lv = levelOf(S.bpm);
+  cx.textAlign = 'center'; cx.font = 'bold 13px ' + FONT;
+  cx.fillStyle = lv >= 5 ? '#ffe066' : lv >= 3 ? '#ff7ad1' : '#8fe9ff';
+  cx.fillText(LVL_NAMES[lv], gx, gy + 20);
+  cx.font = '11px ' + FONT; cx.fillStyle = 'rgba(255,110,130,' + (0.75 + FX.floorPush * 0.25) + ')';
+  cx.fillText('FLOOR ' + Math.round(S.floor), gx, gy + 35);
+  if (FX.gearTxt) {
+    const t = FX.gearTxt, a = Math.min(1, t.life * 2), s = 1 + (1 - t.life) * 0.4;
+    cx.save(); cx.globalAlpha = a; cx.translate(gx, gy - 70); cx.scale(s, s);
+    cx.font = 'bold 15px ' + FONT; cx.fillStyle = '#ffd1f0'; cx.fillText('GEAR UP · ' + t.txt, 0, 0); cx.restore();
+  }
+  if (FX.surgeWarn > 0.05 && !S.over) {
+    const blink = Math.floor(S.t / 160) % 2;
+    cx.globalAlpha = FX.surgeWarn * (blink ? 1 : 0.45); cx.font = 'bold 14px ' + FONT; cx.fillStyle = '#ff4d6d';
+    cx.fillText('⚠ TEMPO SURGE INCOMING', gx, 240); cx.globalAlpha = 1;
+  }
+  if (FX.surgeTxt) {
+    const t = FX.surgeTxt, s = 1 + (1 - t.life) * 0.25;
+    cx.save(); cx.globalAlpha = Math.min(1, t.life * 2); cx.translate(CXM, 300); cx.scale(s, s);
+    cx.font = 'bold 30px ' + FONT; cx.lineWidth = 5; cx.strokeStyle = 'rgba(20,0,10,0.8)'; cx.strokeText(t.txt, 0, 0);
+    cx.fillStyle = '#ff4d6d'; cx.fillText(t.txt, 0, 0); cx.font = 'bold 13px ' + FONT; cx.fillStyle = '#ffc2cd'; cx.fillText('the floor just jumped', 0, 22); cx.restore();
+  }
+}
+
+function drawHUD() {
+  // score (left), odometer roll-up
+  cx.textAlign = 'left'; cx.fillStyle = 'rgba(255,255,255,0.6)'; cx.font = 'bold 12px ' + FONT; cx.fillText('SCORE', 16, 26);
+  cx.fillStyle = '#fff'; cx.font = 'bold 30px ' + MONO; cx.fillText(String(Math.floor(FX.disp)), 14, 56);
+  const mult = multOf(S.combo);
+  const ms = 1 + FX.multPop * 0.5;
+  cx.save(); cx.translate(16, 92); cx.scale(ms, ms);
+  cx.font = 'bold 26px ' + FONT; cx.fillStyle = mult >= 6 ? '#ffe066' : mult >= 3 ? '#ff7ad1' : '#8fe9ff';
+  cx.fillText('×' + mult, 0, 0); cx.restore();
+  cx.font = 'bold 13px ' + FONT; cx.fillStyle = 'rgba(255,255,255,0.75)';
+  cx.fillText(S.combo + ' combo', 62, 90);
+  // progress to next multiplier
+  if (mult < 8) { const p = (S.combo % 12) / 12; cx.fillStyle = 'rgba(255,255,255,0.15)'; cx.fillRect(62, 96, 72, 4); cx.fillStyle = '#ff7ad1'; cx.fillRect(62, 96, 72 * p, 4); }
+  // best (right)
+  cx.textAlign = 'right'; cx.fillStyle = 'rgba(255,255,255,0.6)'; cx.font = 'bold 12px ' + FONT; cx.fillText('BEST', W - 16, 26);
+  cx.fillStyle = '#ffe066'; cx.font = 'bold 22px ' + MONO; cx.fillText(String(Math.max(best, S.score)), W - 16, 52);
+  // brake button (right)
+  const canB = S.brakeCD <= 0 && S.bpm > S.floor + 0.5 && !S.over;
+  const bx = W - 112, by = 70, bw = 96, bh = 40;
+  cx.fillStyle = canB ? 'rgba(90,200,255,' + (0.16 + FX.brake * 0.5) + ')' : 'rgba(255,255,255,0.05)';
+  rrect(bx, by, bw, bh, 10); cx.fill(); cx.strokeStyle = canB ? '#7fe3ff' : 'rgba(255,255,255,0.2)'; cx.lineWidth = 2; cx.stroke();
+  cx.textAlign = 'center'; cx.fillStyle = canB ? '#dff8ff' : 'rgba(255,255,255,0.35)'; cx.font = 'bold 15px ' + FONT;
+  cx.fillText('BRAKE', bx + bw / 2, by + 18); cx.font = '10px ' + FONT; cx.fillText(touchMode ? 'tap sky · −10' : 'SPACE · −10', bx + bw / 2, by + 32);
+  // HP bar
+  const hx = 16, hy = 214, hw = 130;
+  cx.textAlign = 'left'; cx.font = 'bold 11px ' + FONT; cx.fillStyle = 'rgba(255,255,255,0.6)'; cx.fillText('HP', hx, hy - 6);
+  cx.fillStyle = 'rgba(255,255,255,0.1)'; rrect(hx, hy, hw, 10, 5); cx.fill();
+  const hp = clamp(FX.hpDisp, 0, 100) / 100, low = S.hp < 30;
+  cx.fillStyle = low ? (Math.floor(S.t / 200) % 2 ? '#ff4d6d' : '#ff9aa9') : hp > 0.6 ? '#4dffb0' : '#ffd166';
+  if (hp > 0) { rrect(hx, hy, hw * hp, 10, 5); cx.fill(); }
+  // accuracy stats (right)
+  cx.textAlign = 'right'; cx.font = '11px ' + FONT; cx.fillStyle = 'rgba(255,255,255,0.55)';
+  cx.fillText('PERFECT ' + S.perfects + '  MISS ' + S.misses, W - 16, 224);
+}
+
+function render() {
+  const tm = performance.now();
+  cx.save();
+  cx.fillStyle = '#07020f'; cx.fillRect(0, 0, W, H);
+  if (FX.shake > 0.3) cx.translate((Math.random() - 0.5) * FX.shake, (Math.random() - 0.5) * FX.shake);
+  const z = 1 + FX.zoom + FX.pulse * 0.006;
+  cx.translate(CXM, 520); cx.scale(z, z); cx.translate(-CXM, -520 + FX.jolt * 6);
+  drawBackground(tm);
+  drawHighway();
+  drawNotes();
+  drawReceptors();
+  // big combo counter in the highway
+  if (S.combo >= 5 && !S.over) {
+    const s = 1 + FX.comboPop * 0.18;
+    cx.save(); cx.translate(CXM, 430); cx.scale(s, s); cx.textAlign = 'center';
+    cx.globalAlpha = 0.22 + FX.comboPop * 0.2; cx.fillStyle = '#fff'; cx.font = 'bold 64px ' + MONO; cx.fillText(String(S.combo), 0, 0);
+    cx.globalAlpha = 0.35; cx.font = 'bold 14px ' + FONT; cx.fillText('COMBO', 0, 24); cx.restore();
+  }
+  if (S.t < 7000 && !S.over && !(waiting && !manual)) {
+    const a = Math.min(1, (7000 - S.t) / 1500) * Math.min(1, S.t / 300 + 0.3);
+    cx.globalAlpha = a; cx.textAlign = 'center'; cx.fillStyle = '#ffd1f0'; cx.font = 'bold 13px ' + FONT;
+    cx.fillText('NOW PLAYING', CXM, 318); cx.font = 'bold 26px ' + FONT; cx.fillStyle = '#fff'; cx.fillText('“' + S.title + '”', CXM, 348);
+    cx.font = 'bold 12px ' + FONT; cx.fillStyle = '#c9a8ff'; cx.fillText(STYLES[S.style], CXM, 368); cx.globalAlpha = 1;
+  }
+  // rings + particles
+  for (const r of FX.rings) { cx.globalAlpha = r.life; cx.strokeStyle = r.col; cx.lineWidth = r.w * r.life; cx.beginPath(); cx.ellipse(r.x, r.y, r.r, r.r * 0.45, 0, 0, 6.283); cx.stroke(); }
+  cx.globalCompositeOperation = 'lighter';
+  for (const p of FX.parts) { cx.globalAlpha = Math.max(0, p.life); cx.fillStyle = p.col; cx.fillRect(p.x - p.sz / 2, p.y - p.sz / 2, p.sz, p.sz); }
+  cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1;
+  // judgment pop
+  if (FX.judge) {
+    const j = FX.judge, s = (j.big ? 1.25 : 1) * (1 + Math.max(0, 0.5 - j.age * 0.08));
+    cx.save(); cx.translate(CXM, 560); cx.scale(s, s); cx.globalAlpha = Math.min(1, j.life * 2);
+    cx.textAlign = 'center'; cx.font = 'bold 30px ' + FONT; cx.lineWidth = 5; cx.strokeStyle = 'rgba(10,0,20,0.8)';
+    cx.strokeText(j.txt, 0, 0); cx.fillStyle = j.col; cx.fillText(j.txt, 0, 0); cx.restore();
+  }
+  for (const t of FX.texts) {
+    cx.globalAlpha = Math.max(0, Math.min(1, t.life * 1.6)); cx.textAlign = 'center'; cx.font = 'bold ' + t.size + 'px ' + FONT;
+    cx.lineWidth = 4; cx.strokeStyle = 'rgba(10,0,20,0.7)'; cx.strokeText(t.txt, t.x, t.y); cx.fillStyle = t.col; cx.fillText(t.txt, t.x, t.y);
+  }
+  cx.globalAlpha = 1;
+  cx.restore();
+  // dull / brake / low-HP tints (screen space)
+  if (FX.dull > 0.02) { cx.fillStyle = 'rgba(40,40,60,' + FX.dull * 0.35 + ')'; cx.fillRect(0, 0, W, H); }
+  if (FX.brake > 0.02) { cx.fillStyle = 'rgba(60,170,255,' + FX.brake * 0.18 + ')'; cx.fillRect(0, 0, W, H); }
+  if (S.hp < 30 && !S.over) {
+    const a = (0.25 + 0.2 * Math.sin(tm / 130)) * (1 - S.hp / 30);
+    const vg = cx.createRadialGradient(CXM, H / 2, H * 0.3, CXM, H / 2, H * 0.75); vg.addColorStop(0, 'rgba(255,0,40,0)'); vg.addColorStop(1, 'rgba(255,0,40,' + a + ')');
+    cx.fillStyle = vg; cx.fillRect(0, 0, W, H);
+  }
+  drawGauge();
+  drawHUD();
+  if (FX.flash > 0.02) { cx.fillStyle = 'rgba(' + FX.flashCol + ',' + FX.flash * 0.5 + ')'; cx.fillRect(0, 0, W, H); }
+  // hint
+  if (FX.hintA > 0.01 && !S.over) {
+    cx.globalAlpha = FX.hintA; cx.textAlign = 'center'; cx.font = 'bold 14px ' + FONT; cx.fillStyle = '#e8d9ff';
+    cx.fillText(touchMode ? 'tap the lanes on the beat  ·  tap the sky to BRAKE' : 'D F J K  or  ← ↓ ↑ →  on the beat  ·  SPACE = BRAKE', CXM, H - 14);
+    cx.globalAlpha = 1;
+  }
+  if (waiting && !manual) {
+    const p = 0.6 + 0.4 * Math.sin(tm / 240);
+    cx.fillStyle = 'rgba(5,0,12,0.55)'; cx.fillRect(0, 300, W, 200);
+    cx.textAlign = 'center'; cx.fillStyle = '#fff'; cx.font = 'bold 44px ' + FONT; cx.fillText('UPTEMPO', CXM, 372);
+    cx.globalAlpha = p; cx.fillStyle = '#ff7ad1'; cx.font = 'bold 18px ' + FONT;
+    cx.fillText(touchMode ? 'TAP TO DROP THE BEAT' : 'PRESS ANY KEY TO DROP THE BEAT', CXM, 410); cx.globalAlpha = 1;
+    cx.fillStyle = '#cbb8ee'; cx.font = '14px ' + FONT;
+    cx.fillText('PERFECT hits speed the song up. Misses slow it down.', CXM, 446);
+    cx.fillText('The red floor keeps rising. Survive the tempo.', CXM, 468);
+  }
+  if (S.over) {
+    const a = FX.overT;
+    cx.fillStyle = 'rgba(6,0,14,' + 0.84 * a + ')'; cx.fillRect(0, 0, W, H);
+    cx.globalAlpha = a; cx.textAlign = 'center';
+    cx.fillStyle = '#ff4d6d'; cx.font = 'bold 46px ' + FONT; cx.fillText('THE BEAT DROPPED', CXM, 300);
+    cx.fillStyle = '#ffd1dc'; cx.font = 'bold 16px ' + FONT;
+    wrapText(S.cause || '', CXM, 336, 420, 21);
+    cx.fillStyle = '#fff'; cx.font = 'bold 54px ' + MONO; cx.fillText(String(S.score), CXM, 430);
+    cx.font = 'bold 16px ' + FONT; cx.fillStyle = FX.newBest ? '#ffe066' : 'rgba(255,255,255,0.7)';
+    cx.fillText(FX.newBest ? '★ NEW BEST ★' : 'BEST ' + best, CXM, 462);
+    cx.fillStyle = 'rgba(255,255,255,0.75)'; cx.font = '15px ' + FONT;
+    cx.fillText('top speed ' + Math.round(S.topBpm) + ' BPM  ·  max combo ' + S.maxCombo + '  ·  ' + Math.floor(S.t / 1000) + 's', CXM, 496);
+    cx.fillText('perfect ' + S.perfects + '  good ' + S.goods + '  miss ' + S.misses + '  brakes ' + S.brakes, CXM, 518);
+    const ready = performance.now() - overAt > 400 || manual;
+    cx.fillStyle = ready ? '#8fe9ff' : 'rgba(143,233,255,0.3)'; cx.font = 'bold 18px ' + FONT;
+    cx.fillText(touchMode ? 'tap to go again' : 'press any key to go again', CXM, 570);
+    cx.globalAlpha = 1;
+  }
+}
+function wrapText(txt, x, y, maxW, lh) {
+  const words = txt.split(' '); let line = '', yy = y;
+  for (const w of words) { const t = line ? line + ' ' + w : w; if (cx.measureText(t).width > maxW && line) { cx.fillText(line, x, yy); line = w; yy += lh; } else line = t; }
+  if (line) cx.fillText(line, x, yy);
+}
+
+// ---------- fit canvas ----------
+function fit() {
+  const dpr = window.devicePixelRatio || 1, s = Math.min(innerWidth / W, innerHeight / H);
+  cv.style.width = (W * s) + 'px'; cv.style.height = (H * s) + 'px';
+  cv.style.marginTop = ((innerHeight - H * s) / 2) + 'px';
+  cv.width = Math.round(W * s * dpr); cv.height = Math.round(H * s * dpr);
+  cx.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
+  skyG = null;
+}
+addEventListener('resize', fit); fit();
+
+// ---------- human input ----------
+function queue(a) { if (S && !S.over && S.q.length < 8) S.q.push(a); }
+function humanGate() {               // returns true if the input was consumed by start / restart
+  if (waiting && !manual) { waiting = false; last = performance.now(); return true; }
+  if (S.over) { if (performance.now() - overAt > 400) reset(Date.now() & 0x7fffffff); return true; }
+  return false;
+}
+const KEYMAP = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3, ArrowLeft: 0, ArrowDown: 1, ArrowUp: 2, ArrowRight: 3 };
+addEventListener('keydown', e => {
+  audioInit();
+  if (e.code === 'Space' || e.code in KEYMAP) e.preventDefault();
+  if (e.repeat) return;
+  if (humanGate()) return;
+  if (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') { queue('brake'); return; }
+  const l = KEYMAP[e.code]; if (l != null) queue('l' + l);
+});
+function pointer(e) {
+  e.preventDefault();
+  if (e.pointerType === 'touch') touchMode = true;
+  audioInit();
+  if (humanGate()) return;
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W, y = (e.clientY - r.top) / r.height * H;
+  if (y < HOR) { queue('brake'); return; }
+  const l = clamp(Math.floor((x - (CXM - BW / 2)) / (BW / 4)), 0, 3);
+  queue('l' + l);
+}
+cv.addEventListener('pointerdown', pointer);
+cv.addEventListener('contextmenu', e => e.preventDefault());
+
+// ---------- main loop ----------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(100, now - last); last = now;
+  if (!manual && !waiting) { carry += dt; while (carry >= STEP - 1e-6) { step(); carry -= STEP; } }
+  render();
+  requestAnimationFrame(frame);
+}
+
+// ---------- bot API ----------
+function actions() { if (S.over) return ['none']; const a = ['none', 'l0', 'l1', 'l2', 'l3']; if (S.brakeCD <= 0 && S.bpm > S.floor + 0.5) a.push('brake'); return a; }
+window.__game = {
+  reset(seed) { manual = true; waiting = false; reset(seed); },
+  getState() {
+    const mpb = 60000 / S.bpm, w = wins(S.bpm);
+    return {
+      t: S.t, score: S.score, over: S.over, cause: S.cause, difficulty: S.bpm,
+      bpm: S.bpm, floor: S.floor, hp: S.hp, combo: S.combo, mult: multOf(S.combo), beat: S.beat, mpb, freeze: S.freeze,
+      brakeCD: S.brakeCD, canBrake: S.brakeCD <= 0 && S.bpm > S.floor + 0.5, level: levelOf(S.bpm), step: STEP, lockMs: LOCK,
+      win: { perfect: w.p, early: w.early, late: w.late, grace: w.grace },
+      locks: S.lock.map(x => Math.max(0, LOCK - (S.t - x))),
+      style: S.style, surgeIn: S.surgeAt - S.t, surgeAmt: S.surgeWarned ? S.surgeAmt : 0, surgePending: S.surgeGoal - S.surge,
+      perfects: S.perfects, goods: S.goods, misses: S.misses, ghosts: S.ghosts, brakes: S.brakes,
+      notes: S.notes.filter(n => !n.j).map(n => ({ id: n.id, l: n.l, b: n.b, k: n.k, dt: (n.b - S.beat) * mpb })),
+    };
+  },
+  getActions() { return actions(); },
+  input(a) { if (a === 'none' || !actions().includes(a)) return; queue(a); },
+  tick(ms) { carry += ms; while (carry >= STEP - 1e-6) { step(); carry -= STEP; } },
+  isOver() { return S.over; },
+  score() { return S.score; },
+  snapshot() { return structuredClone({ S, carry }); },
+  restore(s) { const c = structuredClone(s); S = c.S; carry = c.carry; },
+  quiet(b) { QUIET = !!b; },
+  render() { render(); },
+};
+
+reset(Date.now() & 0x7fffffff);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

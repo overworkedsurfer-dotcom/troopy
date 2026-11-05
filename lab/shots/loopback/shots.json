@@ -1,0 +1,40 @@
+{
+ "id": "loopback",
+ "bot": "smart",
+ "seed": 1,
+ "lengthMs": 307000,
+ "finalScore": 492594,
+ "cause": "hit by ghost #5 (you, 38s ago)",
+ "replayMatches": true,
+ "shots": [
+  {
+   "name": "1-start",
+   "t": 1500,
+   "score": 0,
+   "over": false,
+   "file": "lab/shots/loopback/1-start.png"
+  },
+  {
+   "name": "2-mid",
+   "t": 153500,
+   "score": 111514,
+   "over": false,
+   "file": "lab/shots/loopback/2-mid.png"
+  },
+  {
+   "name": "3-intense",
+   "t": 305500,
+   "score": 485314,
+   "over": false,
+   "file": "lab/shots/loopback/3-intense.png"
+  },
+  {
+   "name": "4-gameover",
+   "t": 307000,
+   "score": 492594,
+   "over": true,
+   "file": "lab/shots/loopback/4-gameover.png"
+  }
+ ],
+ "errors": []
+}

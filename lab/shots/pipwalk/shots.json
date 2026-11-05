@@ -1,0 +1,40 @@
+{
+ "id": "pipwalk",
+ "bot": "smart",
+ "seed": 3,
+ "lengthMs": 100625,
+ "finalScore": 14671,
+ "cause": "mauled by a Wolf on floor 14",
+ "replayMatches": true,
+ "shots": [
+  {
+   "name": "1-start",
+   "t": 1500,
+   "score": 36,
+   "over": false,
+   "file": "lab/shots/pipwalk/1-start.png"
+  },
+  {
+   "name": "2-mid",
+   "t": 50375,
+   "score": 4100,
+   "over": false,
+   "file": "lab/shots/pipwalk/2-mid.png"
+  },
+  {
+   "name": "3-intense",
+   "t": 99125,
+   "score": 14609,
+   "over": false,
+   "file": "lab/shots/pipwalk/3-intense.png"
+  },
+  {
+   "name": "4-gameover",
+   "t": 100625,
+   "score": 14671,
+   "over": true,
+   "file": "lab/shots/pipwalk/4-gameover.png"
+  }
+ ],
+ "errors": []
+}
