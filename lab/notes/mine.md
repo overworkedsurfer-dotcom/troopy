@@ -100,3 +100,9 @@ None of them scrolls horizontally. The smallest text is the KICKBACK and LOOPBAC
 
 ## Verified: the first key doesn't re-roll (human mode)
 I loaded tiltwell, spellsnake, junkorbit and magsumo in real time and pressed one key. Piece, next, tiles, stars, pole and CPU name were unchanged; only time and movement advanced. The critic's "first screen differs" note comes from the play tool's seed switch, which is now fixed in `lab/play.js`.
+
+## COMPOUND, after the hard rework (Phase 4)
+- The score is now "10 × your margin per second". The big central "×2.92 ABOVE THE TIDE" *is* the score rate, so the critic's "I couldn't tell what I was maximizing" is solved. Selecting a card lights a heat-map of the cells where it helps, and the cursor jumps to the ★ best one. That turns the "read the biggest green number" calculator into "see the combo".
+- "CAN'T AFFORD: that buy would sink you under the tide" is a clear, kind guard. A 4×4 board with one badge per tile is far more legible.
+- I fixed one thing myself: the ×2 milestone banner fired at t = 0.2 s, because runs start at about ×3, and it covered the board. It now arms only after you dip below ×1.6.
+- Builder's play data: mash runs scored 1.2–1.5k (dead at about 1:10) and deliberate runs 16–25k (3:15–4:40). The bots show a 56× skill gap, up from 18×. Gut score moves from 6.5 to 7.5.

@@ -22,8 +22,8 @@ const CX = 270, CY = 392, RA = 262, RL = 206, LX = CX, LY = CY + RL;   // system
 const TS = 1.25, KREF = 6e5 * TS * TS;   // force ~ k / r^1.5 (spirograph rosettes); planets are soft-cored gas giants
 const HALO = 2.7, DRAG = 5 * TS, CAP_PX = 52, SAFE_PX = 14, LAUNCH_F = 0.45;
 const AIM_MAX = 1.40, AIM_V0 = 0.9, AIM_VMAX = 1.9, AIM_RAMP = 350;
-const COOL = 600, BUF = 260, LIVE = 3200, LHIT = 11, CHIT = 6, SHIT = 18, INV = 2200, SHOCK = 80;
-const MAX_BODIES = 70, SAFE_MAX = 12, SAFE_FADE = 3000;
+const COOL = 600, BUF = 260, LIVE = 3200, LHIT = 13, CHIT = 6, SHIT = 18, INV = 1500, SHOCK = 80;
+const MAX_BODIES = 70, SAFE_MAX = 12, SAFE_FADE = 3000, STREAK_MAX = 12;
 function e2of(p) { return 100 + 0.81 * p.r * p.r; }
 const PCOL = [['#ffb48a', '#ff7a4d', '#7a2a1c'], ['#c5b8ff', '#8a74ff', '#2e2170'], ['#9ff5df', '#2fd6b0', '#0d5246']];
 const cv = document.getElementById('c'), cx = cv.getContext('2d');
@@ -262,6 +262,7 @@ function stepFX() {
   for (let i = 0; i < 3; i++) FX.heartPop[i] *= 0.93;
   FX.streakPop *= 0.9; FX.streakLost *= 0.95;
   if (FX.banner) { FX.banner.life -= 0.007; if (FX.banner.life <= 0) FX.banner = null; }
+  if ((FX.hintA < 1 && S.t > 2500) || S.t > 25000) FX.hintA = Math.max(0, FX.hintA - STEP / 2500);   // hint fades in sim time
   FX.tick++;
 }
 function recordTrails() {
@@ -416,8 +417,9 @@ function fire() {
 }
 function streakUp(b) {
   if (!b.live || b.ok) return;
-  b.ok = true; S.st.hitShots++; S.streak = Math.min(8, S.streak + 1);
-  if (!QUIET) { FX.streakPop = 1; floatText(LX, LY - 50, 'STREAK ×' + mult().toFixed(1) + (S.streak >= 8 ? ' MAX!' : '!'), '#7df9ff', 19 + S.streak * 1.5); tone(880 + S.streak * 90, 0.1, 'sine', 0.045, null, 0.1); }
+  b.ok = true; S.st.hitShots++;
+  const up = S.streak < STREAK_MAX; S.streak = Math.min(STREAK_MAX, S.streak + 1);
+  if (!QUIET && up) { FX.streakPop = 1; floatText(LX, LY - 50, 'STREAK ×' + mult().toFixed(1) + (S.streak >= STREAK_MAX ? ' MAX!' : '!'), '#7df9ff', 19 + S.streak * 1.5); tone(880 + S.streak * 90, 0.1, 'sine', 0.045, null, 0.1); }
 }
 function loseStreak(why) {
   if (S.streak > 0 && !QUIET) { FX.streakLost = 1; floatText(LX, LY - 50, 'STREAK BROKEN', '#ff5e7e', 24); tone(300, 0.25, 'triangle', 0.05, 0.5); }
@@ -445,6 +447,9 @@ function settle(b, TH) {
     if (n > SAFE_MAX && old) retire(old);
   } else {
     b.loose = true; S.st.missed++;
+    // the miss tumbles off its line, so it comes back on a new path (not down your own firing lane)
+    const tw = (0.3 + 0.3 * rnd()) * (rnd() < 0.5 ? -1 : 1), c = Math.cos(tw), sn = Math.sin(tw);
+    const vx = b.vx * c - b.vy * sn, vy = b.vx * sn + b.vy * c; b.vx = vx; b.vy = vy;
     setEnergy(b, looseEnergy(), 'up');
     ring(b.x, b.y, '#ff9f43', 4, 38, 3); burst(b.x, b.y, 12, '#ff9f43', 2.5);
     floatText(b.x, b.y - 14, 'MISS: #' + b.n + ' IS LOOSE', '#ffae5e', 18);
@@ -739,7 +744,8 @@ function render() {
   if (!S.over) for (const t of FX.texts) {
     const u = (1 - t.life) / 0.12, s = u < 1 ? 0.4 + 0.6 * (1 + 2.7 * Math.pow(u - 1, 3) + 1.7 * Math.pow(u - 1, 2)) : 1;
     cx.globalAlpha = Math.min(1, t.life * 2.2); cx.font = font(Math.round(t.size * s));
-    cx.lineWidth = 4; cx.strokeStyle = 'rgba(5,4,15,0.85)'; cx.strokeText(t.txt, t.x, t.y); cx.fillStyle = t.col; cx.fillText(t.txt, t.x, t.y);
+    const hw = cx.measureText(t.txt).width / 2 + 6, tx = Math.max(hw, Math.min(W - hw, t.x));
+    cx.lineWidth = 4; cx.strokeStyle = 'rgba(5,4,15,0.85)'; cx.strokeText(t.txt, tx, t.y); cx.fillStyle = t.col; cx.fillText(t.txt, tx, t.y);
   }
   cx.globalAlpha = 1;
   cx.restore();
@@ -769,7 +775,7 @@ function drawHUD(now, pulse) {
     cx.textAlign = 'left'; cx.font = font(19);
     cx.fillStyle = sl > 0.2 ? 'rgba(255,94,126,' + (0.4 + sl * 0.6) + ')' : S.streak ? '#7df9ff' : '#6f6d9a';
     cx.fillText('×' + mult().toFixed(1) + (sl > 0.2 ? ' STREAK LOST' : ' STREAK'), 0, 0); cx.restore();
-    for (let i = 0; i < 8; i++) { cx.fillStyle = i < S.streak ? '#7df9ff' : 'rgba(125,249,255,0.15)'; cx.fillRect(16 + i * 16, 96, 12, 5); }
+    for (let i = 0; i < STREAK_MAX; i++) { cx.fillStyle = i < S.streak ? '#7df9ff' : 'rgba(125,249,255,0.15)'; cx.fillRect(16 + i * 12, 96, 9, 5); }
   }
   cx.textAlign = 'center'; cx.font = font(18); cx.fillStyle = '#ffd84a'; cx.fillText('LEVEL ' + S.level, W / 2, 72);
   cx.fillStyle = 'rgba(255,216,74,0.18)'; cx.fillRect(W / 2 - 70, 80, 140, 6);
@@ -870,7 +876,6 @@ function frame(now) {
   let sdt = dt;
   if (FX.slowmo > 0) { FX.slowmo -= dt; sdt = dt * 0.3; }   // presentation-only slow-mo (real-time play)
   if (!manual) { carry += sdt; while (carry >= STEP) { step(); carry -= STEP; } }
-  if ((FX.hintA < 1 && S.t > 2500) || S.t > 25000) FX.hintA = Math.max(0, FX.hintA - dt / 2500);
   render();
   requestAnimationFrame(frame);
 }
