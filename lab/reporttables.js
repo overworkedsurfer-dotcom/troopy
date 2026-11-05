@@ -34,3 +34,12 @@ const tot = v => Object.values(v.games).reduce((s, g) => s + Object.values(g.bot
 const errs = v => Object.values(v.games).reduce((s, g) => s + g.signals.consoleErrors + g.signals.sessionErrors, 0);
 o += `\nSessions: ${tot(v1)} in round 1 and ${tot(v2)} in round 2. Console or session errors: ${errs(v1)} and ${errs(v2)}. No bot in any session survived the 15-minute cap.\n`;
 process.stdout.write(o);
+
+// weight sensitivity
+const schemes = [['Official (0.30 bot, 0.35 critic, 0.35 me)', [.3, .35, .35]], ['Equal thirds', [1 / 3, 1 / 3, 1 / 3]], ['Bots only', [1, 0, 0]], ['Blind critic only', [0, 1, 0]], ['My score only', [0, 0, 1]], ['Humans only (critic + me)', [0, .5, .5]]];
+let s2 = '\n### Does the winner survive other weightings?\n\n| Weighting | 1st | 2nd | 3rd |\n|---|---|---|---|\n';
+for (const [n, [b, c, m]] of schemes) {
+  const r = sc.games.map(g => ({ n: g.name, v: b * g.bot + c * g.critic + m * g.mine })).sort((x, y) => y.v - x.v);
+  s2 += `| ${n} | ${r[0].n} (${r[0].v.toFixed(2)}) | ${r[1].n} (${r[1].v.toFixed(2)}) | ${r[2].n} (${r[2].v.toFixed(2)}) |\n`;
+}
+process.stdout.write(s2);

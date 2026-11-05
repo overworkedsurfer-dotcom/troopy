@@ -246,8 +246,9 @@ function pressCard(k) { if (!S.shop[k]) return; if (S.sel !== k) select(k); else
 function select(k) {
   if (!S.shop[k]) return;
   S.sel = k; S.arm = -1;
+  { const h = heatMap(); if (h && h.bestI >= 0) S.cur = h.bestI; }   // the cursor jumps to ★ best, so pressing again builds where the panel says
   if (QUIET) return;
-  FX.cardPop[k] = 1; FX.selA = 0;
+  FX.cardPop[k] = 1; FX.selA = 0; FX.tile[S.cur] = Math.max(FX.tile[S.cur], 0.6);
   sfx(t => { tone(t, 'triangle', 660, 0.07, 0.06); tone(t + 0.05, 'triangle', 990, 0.09, 0.05); });
 }
 function place() {
