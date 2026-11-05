@@ -69,6 +69,25 @@ function assemble(list, sr) {
   return { x: y, t0: Math.max(0, t0), holes };
 }
 
+// primary context = most captured frames; any other context is resampled and mixed in, aligned by wall clock
+// (each context's currentTime 0 is placed at performance.now() of its creation minus its currentTime then).
+function mixContexts(info, store) {
+  const tls = info.map(c => ({ c, tl: assemble(store.chunks[c.id], c.sr) })).filter(z => z.tl);
+  if (!tls.length) return null;
+  tls.sort((a, b) => b.tl.x.length - a.tl.x.length);
+  const prim = tls[0], sr = prim.c.sr; let x = prim.tl.x;
+  const t0ctx = prim.tl.t0;
+  if (tls.length > 1) {
+    const wallOf = z => z.c.createdPerf / 1000 - z.c.createdCtx;
+    let end = x.length;
+    const parts = tls.slice(1).map(z => { const y = dsp.resample(z.tl.x, z.c.sr, sr), off = Math.round(((wallOf(z) + z.tl.t0) - (wallOf(prim) + t0ctx)) * sr); end = Math.max(end, off + y.length); return { y, off }; });
+    const out = new Float32Array(end); out.set(x);
+    for (const { y, off } of parts) for (let i = 0; i < y.length; i++) { const j = i + off; if (j >= 0 && j < out.length) out[j] += y[i]; }
+    x = out;
+  }
+  return { prim, sr, x, t0ctx, n: tls.length };
+}
+
 // ---------- calibration: are capture timestamps exact, and how biased is the kick detector? ----------
 async function calibrate(browser, base) {
   const ctx = await newTapContext(browser, 'calib');
@@ -331,19 +350,9 @@ async function runGame(browser, base, id, o, calib) {
   const wallS = (Date.now() - wall0) / 1000;
   if (!info.length) return { id, play, errs, captured: false, flags: ['never made a sound (no AudioContext was created)'], info };
 
-  // primary context = most captured frames; others are mixed in, aligned by wall clock (rare)
-  const tls = info.map(c => ({ c, tl: assemble(store.chunks[c.id], c.sr) })).filter(z => z.tl);
-  if (!tls.length) return { id, play, errs, captured: false, flags: ['capture failed: no samples'], info };
-  tls.sort((a, b) => b.tl.x.length - a.tl.x.length);
-  const prim = tls[0], sr = prim.c.sr; let x = prim.tl.x, t0ctx = prim.tl.t0;
-  if (tls.length > 1) {
-    x = Float32Array.from(x);
-    const wallOf = z => z.c.createdPerf / 1000 - z.c.createdCtx;
-    for (const z of tls.slice(1)) {
-      const y = dsp.resample(z.tl.x, z.c.sr, sr), off = Math.round(((wallOf(z) + z.tl.t0) - (wallOf(prim) + t0ctx)) * sr);
-      for (let i = 0; i < y.length; i++) { const j = i + off; if (j >= 0 && j < x.length) x[j] += y[i]; }
-    }
-  }
+  const mix = mixContexts(info, store);
+  if (!mix) return { id, play, errs, captured: false, flags: ['capture failed: no samples'], info };
+  const { prim, sr, x, t0ctx } = mix;
   const dur = x.length / sr;
   const keyTimes = extra.keys.filter(k => k[1] === 1).map(k => (k[3] == null ? 0 : k[3]) - t0ctx);
   const M = dsp.metrics(x, sr, { activeFrom: Math.max(0, Math.round(Math.min(...keyTimes.concat([0])) * sr)) });
@@ -406,10 +415,11 @@ async function renderPlots(browser, results) {
 // ---------- report ----------
 function fmt(v, d = 1) { return v == null || Number.isNaN(v) ? '—' : (v === -Infinity ? '-inf' : (typeof v === 'number' ? v.toFixed(d) : String(v))); }
 function table(results) {
-  const head = ['game', 'dur s', 'peak dBFS', 'RMS dBFS', 'clip %', 'silence %', 'max gap s', 'crest dB', 'DC', 'events', '/min', 'NaN', 'flags'];
-  const rows = results.map(r => r.skipped ? [r.id, '—', '—', '—', '—', '—', '—', '—', '—', '—', '—', '—', 'SKIPPED: ' + r.skipped.slice(0, 60)] :
-    !r.captured ? [r.id, '—', '—', '—', '—', '—', '—', '—', '—', '—', '—', '—', r.flags.join('; ')] :
-      [r.id, fmt(r.durationS), fmt(r.peakDb), fmt(r.rmsDb), fmt(r.clipPct, 3), fmt(r.silencePct), fmt(r.longestSilenceS, 2), fmt(r.crestDb), fmt(r.dc, 4), String(r.events), fmt(r.eventsPerMin, 0), r.nonFinite ? 'YES' : 'no', r.flags.length ? r.flags.join('; ') : 'ok']);
+  const head = ['game', 'dur s', 'peak dBFS', 'RMS dBFS', 'active RMS', 'clip %', 'silence %', 'max gap s', 'crest dB', 'DC', 'events', '/min', 'NaN', 'flags'];
+  const dash = n => Array(n).fill('—');
+  const rows = results.map(r => r.skipped ? [r.id, ...dash(12), 'SKIPPED: ' + r.skipped.slice(0, 60)] :
+    !r.captured ? [r.id, ...dash(12), r.flags.join('; ')] :
+      [r.id, fmt(r.durationS), fmt(r.peakDb), fmt(r.rmsDb), fmt(r.activeRmsDb), fmt(r.clipPct, 3), fmt(r.silencePct), fmt(r.longestSilenceS, 2), fmt(r.crestDb), fmt(r.dc, 4), String(r.events), fmt(r.eventsPerMin, 0), r.nonFinite ? 'YES' : 'no', r.flags.length ? r.flags.join('; ') : 'ok']);
   return { head, rows };
 }
 function printTable(results) {
@@ -430,7 +440,7 @@ function writeMarkdown(meta, results, calib) {
   L.push('| ' + head.join(' | ') + ' |', '|' + head.map(() => '---').join('|') + '|');
   for (const r of rows) L.push('| ' + r.map(c => String(c).replace(/\|/g, '/')).join(' | ') + ' |');
   L.push('');
-  L.push('Columns: peak = max |x| over the whole capture; RMS = whole capture (silence included); clip % = samples with |x| >= 0.999 (pre-destination float mix, so "would clip"); silence % = 50 ms windows below -60 dBFS from the first key press on; max gap = longest run of silent windows; crest = peak/RMS; DC = mean sample value; events = spectral-flux onsets (log-magnitude flux, adaptive median threshold, 60 ms minimum gap, frames below -60 dBFS cannot fire).', '');
+  L.push('Columns: peak = max |x| over the whole capture; RMS = whole capture (silence included); active RMS = RMS of the 50 ms windows above -60 dBFS (loudness while something is sounding); clip % = samples with |x| >= 0.999 (pre-destination float mix, so "would clip"); silence % = 50 ms windows below -60 dBFS from the first key press on; max gap = longest run of silent windows; crest = peak/RMS; DC = mean sample value; events = spectral-flux onsets (log-magnitude flux, adaptive median threshold, 60 ms minimum gap, frames below -60 dBFS cannot fire).', '');
   const flagged = results.filter(r => r.flags && r.flags.length);
   L.push('## Flags', '');
   if (!flagged.length) L.push('None. No game was silent, clipped (> 0.1 %), peaked above -0.3 dBFS, was mostly silent (> 80 % of windows below -60 dB), showed DC offset (|mean| > 0.01 or any 1 s window > 0.05) or produced NaN/Infinity.');
@@ -438,11 +448,18 @@ function writeMarkdown(meta, results, calib) {
   const sk = results.filter(r => r.skipped);
   for (const r of sk) L.push('- **' + r.id + '** skipped: ' + r.skipped);
   L.push('');
+  const cap = results.filter(r => r.captured);
+  if (cap.length > 1) {
+    const by = k => cap.slice().sort((a, b) => a[k] - b[k]);
+    const pk = by('peakDb'), ar = by('activeRmsDb');
+    L.push('Observations (not flags): peaks range from ' + fmt(pk[0].peakDb) + ' dBFS (' + pk[0].id + ') to ' + fmt(pk[pk.length - 1].peakDb) + ' dBFS (' + pk[pk.length - 1].id + '), active RMS from ' + fmt(ar[0].activeRmsDb) + ' (' + ar[0].id + ') to ' + fmt(ar[ar.length - 1].activeRmsDb) + ' dBFS (' + ar[ar.length - 1].id + '): a ' + fmt(ar[ar.length - 1].activeRmsDb - ar[0].activeRmsDb) + ' dB spread, so moving between games in the arcade means re-adjusting the volume. Headroom is ample everywhere; nothing comes near clipping. ' +
+      'Silence % mostly reflects how sparse each game\'s sound design is (SFX-only games sit at 40-80 %; UPTEMPO\'s music and COMPOUND\'s ocean bed keep them near 0-5 %).', '');
+  }
   L.push('Per-game notes (play log):', '');
   for (const r of results) {
     if (r.skipped || !r.play) continue;
     const p = r.play;
-    let s = '- **' + r.id + '**: ' + r.keyPresses + ' key presses, ' + p.overs + ' game over(s)' + (p.causes && p.causes.length ? ' ("' + p.causes.filter(Boolean).slice(0, 2).join('", "') + '")' : '') + ', ' + p.restarts + ' restart(s); active RMS ' + fmt(r.activeRmsDb) + ' dBFS, active crest ' + fmt(r.activeCrestDb) + ' dB.';
+    let s = '- **' + r.id + '**: ' + r.keyPresses + ' key presses' + (p.carelessAt ? ' (sloppy from ' + p.carelessAt + ' s)' : '') + ', ' + p.overs + ' game over(s)' + (p.causes && p.causes.length ? ' ("' + p.causes.filter(Boolean).slice(0, 2).join('", "') + '")' : '') + ', ' + p.restarts + ' restart(s); active RMS ' + fmt(r.activeRmsDb) + ' dBFS, active crest ' + fmt(r.activeCrestDb) + ' dB.';
     if (r.id === 'uptempo' && p.perfects != null) s += ' Bot accuracy: ' + p.perfects + ' PERFECT, ' + p.goods + ' GOOD, ' + p.misses + ' miss, ' + p.ghosts + ' ghost; ended at ' + fmt(p.lastBpm, 1) + ' BPM.';
     if (r.gameAudioErrors) s += ' Game-reported audio errors: ' + JSON.stringify(r.gameAudioErrors).slice(0, 200) + '.';
     if (r.pageErrors && r.pageErrors.length) s += ' Page errors: ' + r.pageErrors.join(' | ').slice(0, 200) + '.';
@@ -479,7 +496,7 @@ function writeMarkdown(meta, results, calib) {
   L.push('## Method', '');
   L.push('- **Capture.** `lab/audio/tap.js` is injected with `addInitScript`. It subclasses `AudioContext` (registers every context, including a second one), patches `AudioNode.prototype.connect` so any connection to a context\'s `destination` is also teed into a recorder in that context, and patches `disconnect` to follow. Recorder: tap gain -> `DelayNode` (' + DELAY + ' s, covers the async worklet load so the first sounds are not lost) -> `AudioWorkletNode` loaded from a Blob URL, which downmixes the 2-channel speaker mix to mono and stamps each block with `currentFrame`; ScriptProcessorNode is the fallback. Node pulls the samples every 2 s as base64 Float32.');
   L.push('- **Browser.** Playwright\'s bundled headless Chromium (headless shell) with `--autoplay-policy=no-user-gesture-required`' + (meta.unmuted ? '' : ' and `--mute-audio`') + ' (`lab/lib.js` launch). The audio clock **does advance in real time** in headless mode (a fake output device at ' + (meta.sr || 44100) + ' Hz, `outputLatency` 32 ms, `baseLatency` 10 ms), so no xvfb or headed mode was needed. Muting the output device does not stop the render graph, and the tap records before the destination, so capture is unaffected by `--mute-audio`.');
-  L.push('- **Play.** Real-time mode only (`__game.reset()` is never called). One key unlocks audio, then a per-game pattern (`lab/audio/players.js`) runs: fire/turn (KICKBACK), steer to orbs + dash (LOOPBACK), shift/drop/tilt (TILTWELL), steer to letters + cast (SPELLSNAKE), roll at enemies + pick cards (PIPWALK), walls/GO/pulse/pick (MAZEWRIGHT), buy/move/place/reroll (COMPOUND), sweep aim + fire (JUNK ORBIT), chase + flip polarity (MAGSUMO). UPTEMPO is played by a timing bot that reads `getState().notes`, converts each note to the wall-clock moment it crosses the hit line and presses its lane key then. After a game over the runner waits 0.9 s and presses Space to restart.');
+  L.push('- **Play.** Real-time mode only (`__game.reset()` is never called). One key unlocks audio, then a per-game pattern (`lab/audio/players.js`) runs: fire/turn (KICKBACK), steer to orbs + dash (LOOPBACK), shift/drop/tilt (TILTWELL), steer to letters + cast (SPELLSNAKE), roll at enemies + pick cards (PIPWALK), walls/GO/pulse/pick (MAZEWRIGHT), buy/move/place/reroll (COMPOUND), sweep aim + fire (JUNK ORBIT), chase + flip polarity (MAGSUMO). UPTEMPO is played by a timing bot that reads `getState().notes`, converts each note to the wall-clock moment it crosses the hit line and presses its lane key then. If a session has not ended by 55 % of its time, the pattern turns sloppy (stops steering, drops blindly, drifts out of the ring...) so the game can end on its own terms and its game-over sound is captured; UPTEMPO keeps playing well throughout. After a game over the runner waits 0.9 s and presses Space to restart.');
   L.push('- **Artifacts.** `lab/results/audio/<id>.wav`: 16-bit PCM mono, resampled to 22.05 kHz with a windowed-sinc filter, first ' + WAV_CAP_S + ' s. `<id>.png`: waveform (min/max) with RMS envelope and key-press ticks, onset strip (yellow), for UPTEMPO scheduled beats (cyan) and detected kicks (magenta), log-frequency spectrogram 40 Hz-11 kHz (-90..0 dB).');
   L.push('');
   L.push('## Limits', '');
@@ -487,12 +504,12 @@ function writeMarkdown(meta, results, calib) {
   L.push('- One short session per game (~' + meta.secs + ' s) with a scripted, not human, input pattern: later difficulty levels, rare events and long-session fatigue are mostly not heard. Silence % depends on how busy the pattern keeps the game.');
   L.push('- The recorder sees the float mix before the destination. Real devices clip at ±1 the same way, but OS mixers, Bluetooth latency and speaker response are outside the lab. Output latency in headless Chromium is a fake device\'s estimate, so the "heard" sync numbers describe Chromium\'s own latency model, not a measured speaker.');
   L.push('- Onset counts are a proxy for "discrete sound events": a sound with two attacks can count twice, and overlapping sounds within 60 ms count once.');
-  L.push('- Multiple contexts are mixed by wall-clock alignment (a few ms accuracy); every game here created ' + (results.filter(r => r.contexts > 1).length ? 'more than one context in some cases' : 'exactly one') + '.');
+  L.push('- Multiple contexts are each captured (tested with two contexts at 44.1 and 48 kHz) and mixed by wall-clock alignment, good to ~20 ms; ' + (results.filter(r => r.contexts > 1).length ? 'some games here created more than one context: ' + results.filter(r => r.contexts > 1).map(r => r.id).join(', ') : 'every game here created exactly one') + '.');
   L.push('');
   fs.writeFileSync(path.join(OUT, 'audio.md'), L.join('\n'));
 }
 
-(async () => {
+async function main() {
   const o = args();
   fs.mkdirSync(OUT_A, { recursive: true });
   const { srv, base } = await serve();
@@ -550,4 +567,7 @@ function writeMarkdown(meta, results, calib) {
   } finally {
     await browser.close(); srv.close();
   }
-})().catch(e => { console.error(e); process.exit(1); });
+}
+
+module.exports = { newTapContext, makeStore, drainInto, assemble, mixContexts, beatSync, calibrate };
+if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });

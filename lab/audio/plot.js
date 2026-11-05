@@ -26,8 +26,6 @@ module.exports = function drawAudioPlot(d) {
     g.fillStyle = '#8b93a7'; g.textAlign = 'right'; g.fillText(String(dB), L - 4, y);
   }
   g.setLineDash([]); g.textAlign = 'left';
-  // UPTEMPO: scheduled beats as faint cyan lines through the level panel
-  if (d.beats) { g.strokeStyle = 'rgba(77,227,255,0.35)'; for (const t of d.beats) if (t >= 0 && t <= T) { g.beginPath(); g.moveTo(Math.round(X(t)) + 0.5, wy0); g.lineTo(Math.round(X(t)) + 0.5, wy0 + wh); g.stroke(); } }
   const n = d.env.mn.length;
   g.fillStyle = '#4f7fe0';
   for (let i = 0; i < n; i++) {
@@ -37,11 +35,19 @@ module.exports = function drawAudioPlot(d) {
   // clipped columns in red
   g.fillStyle = '#ff4d4d';
   for (let i = 0; i < n; i++) if (d.env.mx[i] >= 0.999 || d.env.mn[i] <= -0.999) g.fillRect(L + i * PW / n, wy0, Math.max(1, PW / n), 4);
+  // UPTEMPO: scheduled beats as faint cyan lines through the level panel
+  if (d.beats) { g.lineWidth = 1; g.strokeStyle = 'rgba(77,227,255,0.45)'; for (const t of d.beats) if (t >= 0 && t <= T) { g.beginPath(); g.moveTo(Math.round(X(t)) + 0.5, wy0); g.lineTo(Math.round(X(t)) + 0.5, wy0 + wh); g.stroke(); } }
   // RMS envelope
   g.strokeStyle = '#ffb347'; g.lineWidth = 1.3; g.beginPath();
   for (let i = 0; i < n; i++) { const x = L + (i + 0.5) * PW / n, y = Y(d.env.rms[i]); i ? g.lineTo(x, y) : g.moveTo(x, y); }
   g.stroke();
-  g.fillStyle = '#7f9ff0'; g.fillText('peak', 4, wy0 + 8); g.fillStyle = '#ffb347'; g.fillText('rms', 4, wy0 + 20); g.fillStyle = '#8b93a7'; g.fillText('dBFS', 4, wy0 + 32);
+  // legend, inside the panel's top-right corner
+  const lx = L + PW - 262, ly = wy0 + 3;
+  g.fillStyle = 'rgba(13,15,20,0.85)'; g.fillRect(lx, ly, 258, 14);
+  g.fillStyle = '#4f7fe0'; g.fillRect(lx + 6, ly + 4, 10, 7); g.fillStyle = '#c9d3ea'; g.fillText('peak', lx + 20, ly + 7.5);
+  g.fillStyle = '#ffb347'; g.fillRect(lx + 56, ly + 7, 12, 2); g.fillStyle = '#c9d3ea'; g.fillText('50 ms RMS', lx + 72, ly + 7.5);
+  g.fillStyle = '#8b93a7'; g.fillText('dBFS (-60 dashed)', lx + 150, ly + 7.5);
+  g.fillText('dBFS', 4, wy0 + wh / 2);
 
   // ---- marker strips: key presses, onsets, (UPTEMPO) beats + kicks ----
   const strips = [['keys', 'rgba(200,200,210,0.75)', d.keys], ['onsets', '#ffe14d', d.onsets]];

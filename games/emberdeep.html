@@ -16,10 +16,10 @@
 (() => {
 'use strict';
 const ID = 'emberdeep';
-const W = 480, H = 800, STEP = 1000 / 60;
+const W = 480, H = 830, STEP = 1000 / 60;
 const COLS = 15, ROWS = 21, CELL = 30, MX = 15, MY = 102, NT = COLS * ROWS, MAPW = COLS * CELL, MAPH = ROWS * CELL;
 const BAR_Y = MY + MAPH + 4;
-const WALL = 0, FLOOR = 1, STAIRS = 2, BRAZ = 3, BRAZ_LIT = 4;
+const WALL = 0, FLOOR = 1, STAIRS = 2, BRAZ = 3, BRAZ_LIT = 4, MAXHP = 16;
 const cv = document.getElementById('c'), cx = cv.getContext('2d');
 const FONT = "'Trebuchet MS', 'Segoe UI', Verdana, sans-serif";
 const F = (sz, w) => (w || '700') + ' ' + sz + 'px ' + FONT;
@@ -137,7 +137,7 @@ const RELICS = {
   phoenix:  { name: 'Phoenix Ash', code: 'PA', col: '#ff7a2a', w: 0.6, unique: true, txt: 'The first time you would be snuffed, rekindle to full.' },
   teeth:    { name: 'Coal Teeth', code: 'CT', col: '#d89a7a', w: 1.0, txt: 'Bump kills restore 1 light.' },
   brand:    { name: 'Firebrand', code: 'FB', col: '#ff6a3a', w: 1.0, txt: 'Bumps deal +1 and count as fire (Lantern, combos).' },
-  hearth:   { name: 'Hearth Pact', code: 'HP', col: '#ffcf8a', w: 0.9, txt: 'Braziers also give +2 max light and pay 30 × depth.' },
+  hearth:   { name: 'Hearth Pact', code: 'HP', col: '#ffcf8a', w: 0.9, txt: 'Braziers also give +1 max light and pay 30 × depth.' },
   kindle:   { name: 'Rekindle', code: '+5', col: '#ffe6a8', w: 1.5, heal: true, txt: 'No relic: restore 5 light right now.' },
 };
 
@@ -154,7 +154,7 @@ function newState(seed) {
     px: 0, py: 0, ox: 0, oy: 0, mt: -1e9, act: null, hp: 10, maxHp: 10, oil: 0,
     flareT: 0, flareR: 7, flareId: 0, flareKills: 0, bestCombo: 0,
     relic: { lantern: 0, iron: 0, kindling: 0, heart: 0, purse: 0, bellows: 0, tallow: 0, crown: 0, wick: 0, phoenix: 0, teeth: 0, brand: 0, hearth: 0 },
-    embers: 0, emberMult: 1, kills: 0, turn: 0, ft: 0, doomAt: 70, gloom: 0,
+    embers: 0, emberMult: 1, kills: 0, turn: 0, ft: 0, doomAt: 70, gloom: 0, spawnT: 1, gnawT: 9,
     lock: 0, freeze: 0, buf: null, pendEnemy: false, cards: null, hurtT: -1e9, picked: [],
   };
 }
@@ -215,7 +215,7 @@ function mkEnemy(type, x, y) {
   if (type === 'moth') { hp = d >= 6 ? 2 : 1; atk = 1; }
   else if (type === 'husk') { hp = 4 + Math.floor(d / 2); atk = d >= 7 ? 3 : 2; }
   else if (type === 'shade') { hp = 2 + Math.floor(d / 6); atk = d >= 6 ? 2 : 1; }
-  else { const n = Math.max(1, Math.round(d / 4)); hp = 16 + 8 * (n - 1); atk = 2 + (n - 1); }
+  else { const n = Math.max(1, Math.round(d / 4)); hp = 14 + 8 * (n - 1); atk = 2 + (n - 1); }
   return { id: S.nid++, type, x, y, ox: x, oy: y, mt: -1e9, hp, maxHp: hp, atk, awake: type === 'shade' || type === 'moth',
     aware: false, ready: false, acts: 0, cyc: 0, ph2: false, mark: null, hitT: -1e9, dead: false };
 }
@@ -298,7 +298,7 @@ function genFloor() {
   for (let k = 0; k < nE; k++) { const i = take(ip); if (i >= 0) S.items.push({ x: i % COLS, y: (i / COLS) | 0, k: 'ember' }); }
   if (rnd() < 0.45) { const i = take(ip); if (i >= 0) S.items.push({ x: i % COLS, y: (i / COLS) | 0, k: 'oil' }); }
   S.seen = new Array(NT).fill(0); S.vis = new Array(NT).fill(0);
-  S.gloom = 0; S.ft = 0; S.flareT = 0; S.flareKills = 0;
+  S.gloom = 0; S.ft = 0; S.flareT = 0; S.flareKills = 0; S.spawnT = 1; S.gnawT = Math.max(2, 9 - Math.floor(d / 2));
   S.doomAt = Math.max(16, 76 - 6 * d) + (boss ? 14 : 0);
   S.floorSeed = (S.rng >>> 0) % 1000003;
   computeVis(); wakeCheck();
@@ -440,7 +440,7 @@ function lightBrazier(i) {
   S.map[i] = BRAZ_LIT;
   const bx = i % COLS, by = (i / COLS) | 0;
   for (const b of S.braz) if (b.x === bx && b.y === by) b.lit = true;
-  if (S.relic.hearth) { S.maxHp += 2 * S.relic.hearth; addScore(30 * S.depth * S.relic.hearth, tX(bx), tY(by) - 48, C.gold); }
+  if (S.relic.hearth) { S.maxHp = Math.min(MAXHP, S.maxHp + S.relic.hearth); addScore(30 * S.depth * S.relic.hearth, tX(bx), tY(by) - 48, C.gold); }
   const healed = S.maxHp - S.hp; S.hp = S.maxHp;
   const r = S.room[i]; let woke = 0;
   if (r >= 0) {
@@ -477,7 +477,7 @@ function doPick(i) {
   if (k === 'kindle') S.hp = Math.min(S.maxHp, S.hp + 5);
   else {
     S.relic[k]++; S.picked.push(k);
-    if (k === 'heart') { S.maxHp += 2; S.hp += 2; }
+    if (k === 'heart') { S.maxHp = Math.min(MAXHP, S.maxHp + 2); S.hp = Math.min(S.maxHp, S.hp + 2); }
     if (k === 'wick') { S.maxHp = Math.max(4, S.maxHp - 2); S.hp = Math.min(S.hp, S.maxHp); }
   }
   S.cards = null; S.depth++;
@@ -514,6 +514,7 @@ function doFlare() {
 }
 function dmgEnemy(e, dmg, fire, src) {
   if (e.dead) return;
+  if (fire && e.type === 'warden') dmg *= 2;   // the Warden is iron and old oil: fire bites twice
   e.hp -= dmg; e.hitT = S.t;
   if (!QUIET) {
     const x = tX(e.x), y = tY(e.y);
@@ -526,9 +527,13 @@ function dmgEnemy(e, dmg, fire, src) {
 function killEnemy(e, fire, src) {
   e.dead = true; S.kills++;
   const x = tX(e.x), y = tY(e.y);
+  S.freeze = Math.max(S.freeze, e.type === 'warden' ? 260 : 70);
+  if (e.doom) {   // the rising dark is not a resource: its Shades pay nothing
+    if (!QUIET) { ftext(x, y - 28, 'the dark gives nothing', C.violet, 11); burst(x, y, 16, '#7a62c8', 3, { add: false }); SND.kill(); }
+    return;
+  }
   const base = { moth: 4, husk: 10, shade: 8, warden: 120 }[e.type];
   addScore(base * S.depth, x, y - 30, '#ffe0b0', 13);
-  S.freeze = Math.max(S.freeze, e.type === 'warden' ? 260 : 70);
   if (fire && S.flareT > 0) {
     S.flareKills++; const k = S.flareKills;
     if (k >= 2) {
@@ -677,15 +682,19 @@ function doomTick() {
   if (S.ft < S.doomAt) { if (S.ft === S.doomAt - 8 && !QUIET) { ftext(tX(S.px), tY(S.py) - 40, 'the dark stirs...', C.violet, 14, { dec: 0.01 }); SND.gloom(); } return; }
   const k = S.ft - S.doomAt;
   if (k === 0 && !QUIET) { banner('THE DARK RISES', 'Shades gather and your light shrinks: find the stairs', C.violet); SND.doom(); flash(0.3, '#3a1a6a'); }
-  const se = Math.max(2, 6 - Math.floor(d / 3)), ge = Math.max(4, 9 - Math.floor(d / 2));
-  if (k % se === 0 && S.en.filter(e => !e.dead && e.type === 'shade').length < 2 + Math.floor(d / 2)) spawnShade();
-  if (k % ge === ge - 1) {
+  // the longer you linger, the faster it comes: spawn and gnaw intervals shrink, gnaw damage grows (hard ceiling)
+  if (--S.spawnT <= 0) {
+    S.spawnT = Math.max(2, 6 - Math.floor(d / 3) - Math.floor(k / 15));
+    if (S.en.filter(e => !e.dead && e.type === 'shade').length < 2 + Math.floor(d / 2) + Math.floor(k / 20)) { const e = spawnShade(); if (e) e.doom = true; }
+  }
+  if (--S.gnawT <= 0) {
+    S.gnawT = Math.max(2, 9 - Math.floor(d / 2) - Math.floor(k / 12));
     if (rawLight() > 1) { S.gloom++; if (!QUIET) { ftext(tX(S.px), tY(S.py) - 40, 'the dark presses in', C.violet, 13, { dec: 0.012 }); SND.gloom(); } }
-    else hurtPlayer(1, null, 'swallowed by the rising dark');
+    else hurtPlayer(1 + Math.floor(k / 40), null, 'swallowed by the rising dark');
   }
 }
 function hurtPlayer(dmg, e, verb) {
-  const L0 = lightR(), hp0 = S.hp;
+  const L0 = baseLight(), hp0 = S.hp;
   S.hp -= dmg; S.hurtT = S.t;
   S.freeze = Math.max(S.freeze, 60 + Math.min(5, dmg) * 18);
   if (!QUIET) {
@@ -1107,7 +1116,7 @@ function flarePip(x, y, s, on, col) {
   cx.fillStyle = on ? col : 'rgba(255,200,150,0.12)';
   cx.beginPath(); cx.moveTo(x, y - s); cx.quadraticCurveTo(x + s * 0.75, y - s * 0.1, x + s * 0.5, y + s * 0.45); cx.quadraticCurveTo(x, y + s * 0.8, x - s * 0.5, y + s * 0.45); cx.quadraticCurveTo(x - s * 0.75, y - s * 0.1, x, y - s); cx.fill();
 }
-function flareBtn() { return { x: 352, y: BAR_Y + 6, w: 116, h: 52 }; }
+function flareBtn() { return { x: 12, y: BAR_Y + 28, w: 132, h: 56 }; }   // bottom-left: the bottom-right corner belongs to the Arcade link
 function drawHUD(t) {
   const hg = cx.createLinearGradient(0, 0, 0, MY);
   hg.addColorStop(0, '#120b0a'); hg.addColorStop(1, '#0a0607');
@@ -1162,21 +1171,21 @@ function drawHUD(t) {
   cx.strokeStyle = cf ? 'rgba(255,240,200,0.7)' : 'rgba(255,200,150,0.15)'; cx.lineWidth = 1.5; rr(cx, b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1, 12); cx.stroke();
   txt('FLARE', b.x + b.w / 2, b.y + 19, F(18, '900'), cf ? '#2a1006' : '#6e5d50');
   txt(free ? 'free (oil)' : (cf ? '−' + flareCost() + ' light' : 'too dim') + (isTouch ? '' : ' · SPACE'), b.x + b.w / 2, b.y + 38, F(10, '800'), cf ? '#3a1606' : '#6e5d50');
-  // relics row
+  // relics row (kept left of x=362: the bottom-right corner is reserved for the Arcade link)
   const keys = Object.keys(S.relic).filter(k => S.relic[k] > 0);
   if (keys.length) {
-    let rx = 14;
+    let rx = 156, ry = BAR_Y + 30;
     for (const k of keys) {
       const R = RELICS[k], wbox = S.relic[k] > 1 ? 40 : 30;
-      if (rx + wbox > 344) break;
-      cx.fillStyle = 'rgba(255,255,255,0.06)'; rr(cx, rx, BAR_Y + 8, wbox, 20, 6); cx.fill();
-      cx.strokeStyle = R.col; cx.lineWidth = 1.2; rr(cx, rx + 0.5, BAR_Y + 8.5, wbox - 1, 19, 6); cx.stroke();
-      txt(R.code + (S.relic[k] > 1 ? '×' + S.relic[k] : ''), rx + wbox / 2, BAR_Y + 18.5, F(10, '900'), R.col);
+      if (rx + wbox > 362) { if (ry > BAR_Y + 40) break; rx = 156; ry += 26; }
+      cx.fillStyle = 'rgba(255,255,255,0.06)'; rr(cx, rx, ry, wbox, 20, 6); cx.fill();
+      cx.strokeStyle = R.col; cx.lineWidth = 1.2; rr(cx, rx + 0.5, ry + 0.5, wbox - 1, 19, 6); cx.stroke();
+      txt(R.code + (S.relic[k] > 1 ? '\u00d7' + S.relic[k] : ''), rx + wbox / 2, ry + 10.5, F(10, '900'), R.col);
       rx += wbox + 5;
     }
-  } else txt('no relics yet · take the stairs to choose one', 14, BAR_Y + 18, F(11, '700'), C.faint, 'left');
+  } else { txt('no relics yet:', 156, BAR_Y + 40, F(11, '700'), C.faint, 'left'); txt('take the stairs to pick one', 156, BAR_Y + 56, F(11, '700'), C.faint, 'left'); }
   cx.globalAlpha = FX.hintA;
-  txt(isTouch ? 'swipe / tap beside you · bump = attack · wall = wait' : 'arrows/WASD move · bump = attack · wall = wait', 14, BAR_Y + 42, F(11, '700'), C.dim, 'left');
+  txt(isTouch ? 'swipe / tap beside you to move \u00b7 bump = attack \u00b7 wall = wait' : 'arrows / WASD move \u00b7 bump = attack \u00b7 wall = wait \u00b7 SPACE = flare', 14, BAR_Y + 13, F(11, '700'), C.dim, 'left');
   cx.globalAlpha = 1;
 }
 function cardRect(i) { return { x: 34, y: MY + 96 + i * 146, w: W - 68, h: 128 }; }
@@ -1371,6 +1380,6 @@ reset(Date.now() & 0x7fffffff);
 requestAnimationFrame(frame);
 })();
 </script>
-<a href="../index.html" id="funlab-home" aria-label="Back to the Fun Lab arcade" style="position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:calc(8px + env(safe-area-inset-left,0px));z-index:10;font:600 12px/1 system-ui,-apple-system,sans-serif;color:#fff;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:6px 10px;text-decoration:none;opacity:.7">&#9666; Arcade</a>
+<a href="../index.html" id="funlab-home" aria-label="Back to the Fun Lab arcade" style="position:fixed;bottom:calc(8px + env(safe-area-inset-bottom,0px));right:calc(8px + env(safe-area-inset-right,0px));z-index:10;font:600 12px/1 system-ui,-apple-system,sans-serif;color:#fff;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:6px 10px;text-decoration:none;opacity:.7">&#9666; Arcade</a>
 </body>
 </html>
