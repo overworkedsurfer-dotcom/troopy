@@ -145,3 +145,54 @@ Setup: `lab/play.js` stepped-time server on port 8844, at most 15 screenshots pe
 - **Placement ambiguity:** "pick a card: its best cell glows · press again to build" reads as if a second press builds on the glowing best cell, but it seems to build at the cursor (the panel says "FURNACE here: +5.44%/s · ★ best spot +10.9%/s").
 - Costs given in "tide" units (e.g. "0.81 tide") take a while to decode.
 - Long waits between affordable purchases make the middle of a run feel idle.
+
+---
+
+## 4. kickback
+
+**What it is (as I understood it):** a lone ship in a circular arena ringed by an electric rim. ← → rotate and Space fires. There is no thrust: "recoil is your only engine", so every shot pushes you backwards. Rocks split when shot, and orange seekers spawn from warning arcs on the rim. Touching the rim kills you, but skimming it raises the multiplier ("SKIM RIM = MULT"). Firing builds HEAT and overheating LOCKS the gun. Kills in quick succession build a CHAIN.
+
+| Run | Score | Length | Cause | Mode |
+|---|---|---|---|---|
+| 1 (seed 204) | 420 | ~41 s, wave 3 | "caught by a seeker" | Deliberate: calibrated turning (about 180° per 0.4 s), lined up and split the first rock (+20), noticed recoil had carried me to the rim, turned and fired to brake. Then a "turret" loop: fire, turn 180°, fire, so the recoils cancel. Stats: 9 kills, 3 point-blank, peak ×1.0. |
+| 2 (restart) | 1930 | ~26 s, wave 2 | "smashed by a big rock" | **Blind probe**: random rotate/fire every 200 ms. It hit a CHAIN ×7 near the end and jumped from 260 to 1930 in about 7 s. |
+| 3 (restart) | 240 | ~30 s | "smashed by a big rock" | Deliberate "spin-and-spray" (a full rotation of fire cancels recoil, pausing for heat). Poor. |
+| 4 (restart) | 340 | ~20 s | "clipped by a rock shard" | **Blind probe #2**, to check variance. |
+
+(I also used one extra restart to test drifting to the rim on purpose. There is friction, so it takes more shots than expected, and I never triggered the rim multiplier.)
+
+**Did I improve?** No. Deliberate 420 and 240 vs random 1930 and 340. Scores look dominated by whether a CHAIN happens, and random mashing found one while I didn't. This is the twitchiest game of the set, and stepped time hurt: one 50 ms tick of rotation is about 20° of aim.
+
+| # | Principle | Score | Why |
+|---|---|---|---|
+| 1 | Readable in 5 s | 2 | "← → rotate · SPACE fire · recoil is your only engine / don't touch the electric rim · skim it for multiplier" on the first frame, and any key starts. |
+| 2 | Clear goal, visible score | 2 | Score, best, wave, a big ×mult and a HEAT bar. Goal: "shoot rocks and seekers, using recoil to move, without touching the rim." |
+| 3 | Juicy feedback | 2 | Rocks split with a floating "+20" and debris, the rim crackles, the screen flashes red on death, a "CHAIN ×7" banner, a heat bar that reads "LOCKED", and a velocity arrow plus aim tracer on the ship. |
+| 4 | Forgiving input | 1 | A rim shield at wave start and a dotted aim tracer. Turning is very fast with no aim assist I could notice, and I could not see what killed me coming. |
+| 5 | Fair, legible failure | 2 | "caught by a seeker", "smashed by a big rock", "clipped by a rock shard": specific causes, plus a stats line. |
+| 6 | Instant retry | 2 | "press any key / tap to retry". Play is live immediately. |
+| 7 | Interesting decisions | 0 | Random beat or matched me (1930/340 vs 420/240). The decisions exist (which way to fire when it also moves you), but my deliberate choices did not pay. Strong caveat: twitch aiming in stepped time. |
+| 8 | Pattern to learn | 1 | I learned recoil-steering and recoil-cancelling, but the scoring systems the stats line points to ("point-blank", "peak ×") stayed opaque. |
+| 9 | Escalation | 1 | Waves, seekers arriving, and the rim shield fading. My sessions were short (20–41 s). |
+| 10 | Not solved | 2 | No strategy lasted. |
+| 11 | Risk and reward | 2 | Skimming the deadly rim for a multiplier, point-blank kills, and heat lock for over-firing all create real tension. I just couldn't exploit it. |
+| 12 | Few verbs, deep use | 2 | The best verb design in the set: two verbs, and fire is weapon, engine and brake. Pure *Downwell*. |
+| 13 | Variety | 2 | Rock and seeker spawns differ visibly run to run. |
+| 14 | Reward cadence / compounding | 1 | CHAIN and rim multipliers compound, but in deliberate play I went 10+ s without a scoring event. |
+| 15 | One more go | 2 | "★ NEW BEST ★" plus stats on the game-over panel. The recoil hook makes me want to try at real speed. |
+
+**Total 24/30, so total/3 = 8.0 and Fun score = 8.**
+
+**Primary MDA aesthetic felt:** Challenge, with Sensation from the recoil physics.
+
+**Best moment:** finally lining up the first rock and watching it split for "+20". Then realising I was drifting into the rim, spinning 180° and firing *away* from it to brake. The verb clicking into a second use felt great.
+
+**Worst moment:** discovering that a random masher's CHAIN ×7 outscored everything I had carefully done by 4.6×.
+
+**Would I play a 4th run?** Yes. I did, and a 5th. At real speed with a keyboard I think it's a strong game, and I want to learn to skim the rim.
+
+**Bugs, glitches, confusion:** no console errors.
+- The game-over stats mention "point-blank" and "peak ×1.0", but nothing taught me how point-blank scoring or the multiplier work before I died.
+- Turning is very fast (about 450°/s), which makes small aim corrections hard.
+- The heat "LOCKED" state happened without my noticing it building.
+- The ship has friction, so drifting to the rim to skim takes more shots than the text suggests.
