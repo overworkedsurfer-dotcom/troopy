@@ -1,5 +1,7 @@
 // Bots for games/magsumo.html (they drive P1 in the solo CPU gauntlet).
 // Actions: none, up, down, left, right (held steering), flip (one-shot polarity flip; keeps the held steering).
+// Semantics worth knowing: right after your own slam (me.brace > 0) steering INTO the foe braces you (much less
+// recoil); past the ring edge you teeter for a short grace, and steering inward then gets an assist.
 module.exports = {
   bots: {
     random: {
@@ -11,13 +13,14 @@ module.exports = {
     },
 
     // Rule of thumb: stay off the edge, get between the opponent and the centre, slam when point-blank and
-    // on the inside, and switch to attract when you are the outer puck (so you don't get repelled off).
+    // on the inside (then brace by steering into the foe), and switch to attract when you are the outer puck.
     heuristic: {
       decisionMs: 100,
       decide: function (G, rng, mem) {
         const s = G.getState();
         if (s.over || s.phase !== 'fight') return 'none';
         const m = s.me, f = s.foe, c = s.center;
+        const dir = (dx, dy) => Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
         const la = 0.3, mx = m.x + m.vx * la, my = m.y + m.vy * la, fx = f.x + f.vx * la, fy = f.y + f.vy * la;
         const rm = Math.hypot(mx - c.x, my - c.y), rf = Math.hypot(fx - c.x, fy - c.y) || 1;
         const d = Math.hypot(f.x - m.x, f.y - m.y);
@@ -26,12 +29,13 @@ module.exports = {
           if (s.attract && d < s.slamRange && meIn) return 'flip';
           if (!s.attract && !meIn && d < 150) return 'flip';
         }
+        if (m.brace > 0 && m.teeter <= 0) return dir(f.x - m.x, f.y - m.y);      // brace after our own slam
         let tx, ty;
         if (rm > s.ringR - 60) { tx = c.x; ty = c.y; }
         else { const back = Math.min(60, rf * 0.8); tx = c.x + (fx - c.x) / rf * (rf - back); ty = c.y + (fy - c.y) / rf * (rf - back); }
         const dx = tx - mx, dy = ty - my;
         if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return 'none';
-        return Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+        return dir(dx, dy);
       },
     },
 
@@ -43,6 +47,7 @@ module.exports = {
       decide: function (G, rng, mem) {
         const s = G.getState();
         if (s.over || s.phase !== 'fight') return 'none';
+        const dir = (dx, dy) => Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
         function policy(st) {
           const m = st.me, f = st.foe, c = st.center;
           const la = 0.3, mx = m.x + m.vx * la, my = m.y + m.vy * la, fx = f.x + f.vx * la, fy = f.y + f.vy * la;
@@ -53,11 +58,11 @@ module.exports = {
             if (st.attract && d < st.slamRange && meIn) return 'flip';
             if (!st.attract && !meIn && d < 150) return 'flip';
           }
+          if (m.brace > 0 && m.teeter <= 0) return dir(f.x - m.x, f.y - m.y);
           let tx, ty;
           if (rm > st.ringR - 60) { tx = c.x; ty = c.y; }
           else { const back = Math.min(60, rf * 0.8); tx = c.x + (fx - c.x) / rf * (rf - back); ty = c.y + (fy - c.y) / rf * (rf - back); }
-          const dx = tx - mx, dy = ty - my;
-          return Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+          return dir(tx - mx, ty - my);
         }
         const acts = G.getActions();
         const snap = G.snapshot();

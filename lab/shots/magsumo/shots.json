@@ -2,9 +2,9 @@
  "id": "magsumo",
  "bot": "smart",
  "seed": 1,
- "lengthMs": 231600,
- "finalScore": 13972,
- "cause": "magnet-slammed off the ice by PERMAFROST (round 13)",
+ "lengthMs": 150100,
+ "finalScore": 11372,
+ "cause": "the ring shrank out from under you (round 14)",
  "replayMatches": true,
  "shots": [
   {
@@ -16,22 +16,22 @@
   },
   {
    "name": "2-mid",
-   "t": 115800,
-   "score": 8260,
+   "t": 75100,
+   "score": 7287,
    "over": false,
    "file": "lab/shots/magsumo/2-mid.png"
   },
   {
    "name": "3-intense",
-   "t": 230100,
-   "score": 13972,
+   "t": 148600,
+   "score": 11372,
    "over": false,
    "file": "lab/shots/magsumo/3-intense.png"
   },
   {
    "name": "4-gameover",
-   "t": 231600,
-   "score": 13972,
+   "t": 150100,
+   "score": 11372,
    "over": true,
    "file": "lab/shots/magsumo/4-gameover.png"
   }

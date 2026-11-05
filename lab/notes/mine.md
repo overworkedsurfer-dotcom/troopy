@@ -111,3 +111,18 @@ I loaded tiltwell, spellsnake, junkorbit and magsumo in real time and pressed on
 - The first frame states the new contract: "hit a star → SAFE orbit (scores for you) · miss → LOOSE debris that hunts you · shoot it to SAVE". The preview line now shows "×2" when it passes through two stars. I fired it, got "×2 CHAIN +600" and ×1.5 STREAK, and my comet settled blue and safe.
 - Late game (level 12, ×7 streak): the incoming wreck gets a red ring around the launcher, a 1.3 s countdown and a dashed line. That's real counterplay, which the critic said was missing. I capped the floating texts at 4 (largest and newest first), because the level-12 frame had six overlapping score pops.
 - Builder's data: the skill gap went from 5.5× to 59×, and random survives 29.5 s instead of 56 s. Spam on seeds 7/8/9 scored 2.8k/570/300, against 4.8k/3.3k/11.2k for deliberate play. Aim matters now. Gut score moves from 7.0 to 7.5.
+
+## MAGSUMO, after the hard rework (Phase 4): mixed verdict
+- Round 2 run: 140 pts. I lost rounds 1–3 against "PEBBLE the Wall".
+  - Round 1: I deliberately ran a blind fixed-direction loop (it should lose, and it did).
+  - Round 2: I braced the *wrong* way. I steered outward while the CPU was below-right of me, and slid out.
+  - Round 3: I braced correctly (straight into the CPU) and stayed centred while it flew to a glowing red edge, then over-chased it and slid out alongside it.
+- **Better:** every loss was clearly *my* error, which is an improvement on round 1, where I couldn't explain my deaths. The new readability layer works:
+  - force arrows on the puck
+  - a "SPACE = SLAM!" cue at point-blank range
+  - the "SLAM pushes BOTH of you · brace: keep steering INTO them" tip
+  - a "BRACED +10" reward
+  - a labelled RING SHRINKS bar
+  - a grippier early ice feel
+- **Still hard:** in stepped play I won 0 of 3 rounds. The builder's scripted deliberate first-timer won round 1 on 98 of 100 seeds and won 3 of 3 by hand. Blind keys won 0 of 9. My losses came from chasing too close to the edge, which is a skill problem the game now explains. Even so, the gap between "understood" and "executed" is the widest in the set.
+- Gut score moves from 6.5 to 7.0. It's a better game, but still the one I'd most want a human tester on, because the stepped play tool hurts twitchy physics games the most.

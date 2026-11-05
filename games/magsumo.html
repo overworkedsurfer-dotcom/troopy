@@ -20,9 +20,9 @@ const W = 540, H = 840;                        // logical resolution
 const STEP = 1000 / 60, SUBS = 2, DT = 1 / 60 / SUBS;
 const CX = 270, CY = 450, PR = 22;             // arena centre, puck radius
 const K_MAG = 1.6e6, A_MAX = 1200, RESTITUTION = 0.8;
-const SLAM_RANGE = 16, SLAM_V = 190, SLAM_RECOIL = 0.2, BRACE_MS = 450, BRACE_DOT = 0.35;
-const TEETER = 350, TBAND = 24, ASSIST = 650, RMIN = 58;   // edge grace: ms in the teeter band, band width, inward assist
-const P_THRUST = 320, P_FLIPCD = 520, FLIP_BUF = 150, VS_TARGET = 5;
+const SLAM_RANGE = 16, SLAM_V = 190, SLAM_RECOIL = 0.3, BRACE_MS = 450, BRACE_DOT = 0.35;
+const TEETER = 350, TBAND = 24, ASSIST = 900, RMIN = 58;   // edge grace: ms in the teeter band, band width, inward assist
+const P_THRUST = 320, P_FLIPCD = 520, FLIP_BUF = 150, SLAM_BUF = 220, SLAM_HOLD = 400, VS_TARGET = 5;
 const NAMES = ['PEBBLE', 'SLUSH', 'CURLER', 'ICEBOX', 'MAGNETO', 'TUNDRA', 'GLACIER', 'AURORA', 'ZAMBONI', 'BLIZZARD', 'PERMAFROST', 'ABSOLUTE ZERO'];
 const COL = { N: '#ff4d5e', Nd: '#9e1730', S: '#3da5ff', Sd: '#0f4f99', p1: '#ffd23f', p2: '#5ef2c2', cpu: '#c39bff', ice: '#e8f7ff', ink: '#0b1226' };
 const cv = document.getElementById('c'), cx = cv.getContext('2d');
@@ -114,28 +114,28 @@ const keys = {};                                   // human keyboard
 const touchIn = [{ x: 0, y: 0 }, { x: 0, y: 0 }];  // human touch sticks
 let touchUI = false;
 
-function puck(x, y, q, m, thrust, flipcd) { return { x, y, vx: 0, vy: 0, ix: 0, iy: 0, q, m, thrust, flipcd, cd: 0, buf: 0, teeter: 0, brace: 0, bk: 0, out: false, hit: null }; }
+function puck(x, y, q, m, thrust, flipcd) { return { x, y, vx: 0, vy: 0, ix: 0, iy: 0, q, m, thrust, flipcd, cd: 0, buf: 0, hold: 0, teeter: 0, inT: 0, brace: 0, bk: 0, out: false, hit: null }; }
 // The gauntlet teaches: LV1 is always the Wall, LV2 the Dancer, LV3 the Brawler, LV4 the Trickster; seeded after that.
 const STYLES = [
-  { tag: 'the Wall', mass: 1.35, thrust: 0.8, react: 1.1, flipcd: 1.1, back: 0.8, pSlam: 0, pDef: 0.08, pPush: 0.5, edge: -8, tip: 'heavy & slow · pull it in, flip point-blank to SLAM it out' },
+  { tag: 'the Wall', mass: 1.35, thrust: 0.95, react: 1.1, flipcd: 1.1, back: 0.8, pSlam: 0, pDef: 0.08, pPush: 0.9, edge: -8, tip: 'heavy & slow · pull it in, flip point-blank to SLAM it out' },
   { tag: 'the Dancer', mass: 0.75, thrust: 1.22, react: 0.85, flipcd: 1, back: 1.2, pSlam: 0, pDef: 0.05, pPush: 0.1, edge: 12, tip: 'light & quick · hold the centre, let it come to you' },
   { tag: 'the Brawler', mass: 1.3, thrust: 0.92, react: 1, flipcd: 1, back: 0.55, pSlam: 0.12, pDef: 0, pPush: 0, edge: 0, tip: 'it slams too · steer INTO a slam to brace' },
   { tag: 'the Trickster', mass: 1, thrust: 1, react: 0.95, flipcd: 0.7, back: 1, pSlam: 0.05, pDef: 0.18, pPush: 0.2, edge: 0, tip: 'flips back · slam it while its ring is charging' },
 ];
-function cpuStats(L, st) {
-  const b = baseStats(L), y = STYLES[st || 0];
-  return { name: b.name, tag: y.tag, tip: y.tip, react: b.react * y.react, thrust: b.thrust * y.thrust, mass: b.mass * y.mass, flipcd: b.flipcd * y.flipcd,
+function cpuStats(L, st, form) {     // form: seeded per-round shape from LV4 up (plays about a level weaker / stronger)
+  const b = baseStats(L >= 4 ? Math.max(3.5, L + (form || 0)) : L), y = STYLES[st || 0];
+  return { name: cpuName(L), tag: y.tag, tip: y.tip, react: b.react * y.react, thrust: b.thrust * y.thrust, mass: b.mass * y.mass, flipcd: b.flipcd * y.flipcd,
     pSlam: b.pSlam > 0 ? Math.min(0.98, b.pSlam + y.pSlam) : 0, pDef: Math.min(0.95, b.pDef + y.pDef * (1 - b.gentle)), noise: b.noise, back: b.back * y.back,
-    edge: b.edge + y.edge, passive: b.passive, brace: b.brace, pPush: y.pPush };
+    edge: b.edge + y.edge, passive: b.passive, brace: b.brace, pPush: y.pPush, dizzy: b.dizzy };
 }
+function cpuName(L) { return NAMES[(L - 1) % NAMES.length] + (L > NAMES.length ? ' ' + 'I'.repeat(1 + Math.floor((L - 1) / NAMES.length)) : ''); }
 function baseStats(L) {
   const gentle = L <= 1 ? 1 : L === 2 ? 0.65 : L === 3 ? 0.3 : 0;     // LV1-2: slow, passive, never slam
   return {
-    name: NAMES[(L - 1) % NAMES.length] + (L > NAMES.length ? ' ' + 'I'.repeat(1 + Math.floor((L - 1) / NAMES.length)) : ''),
     gentle, react: Math.max(60, 390 - 30 * L) * (1 + 0.6 * gentle), thrust: 225 + 13 * L, mass: 1 + 0.07 * (L - 1), flipcd: Math.max(360, 900 - 50 * L),
     pSlam: L <= 2 ? 0 : Math.min(0.97, (0.3 + 0.07 * L) * (1 - 0.6 * gentle)), pDef: Math.min(0.9, (0.15 + 0.07 * L) * (1 - 0.8 * gentle)),
     noise: Math.max(0.04, 0.75 - 0.065 * L) * (1 + 0.4 * gentle), back: Math.max(26, 100 - 7 * L), edge: Math.min(80, 40 + 4 * L),
-    passive: 0.6 * gentle, brace: Math.max(0, Math.min(0.9, (L - 4) * 0.15)),
+    passive: 0.6 * gentle, brace: Math.max(0, Math.min(0.9, (L - 4) * 0.15)), dizzy: 650 * gentle,
   };
 }
 // Ice per round: grippy and slow early, the full slippery ice by about round 6. F scales every force so the
@@ -166,12 +166,15 @@ function startRound(first) {
   S.round++;
   const solo = S.mode === 'solo';
   if (solo && S.styleL !== S.level) { S.style = S.level <= 4 ? S.level - 1 : Math.floor(rnd() * STYLES.length); S.styleL = S.level; }
-  const L = solo ? S.level : 4, cs = cpuStats(L, S.style);
+  const L = solo ? S.level : 4;
+  S.form = solo && L >= 4 ? Math.round((rnd() * 2.5 - 1) * (1 + 0.25 * (L - 4)) * 100) / 100 : 0;   // wider swings later
+  const cs = cpuStats(L, S.style, S.form);
+  S.foeL = L;
   S.ice = iceFor(S.round, S.mode);
   S.R0 = solo ? Math.max(170, 252 - 7 * (S.round - 1)) : 245;
-  S.ringT = solo ? Math.max(13, 30 - 2.2 * (S.round - 1)) : 26;      // seconds until the ring is at its smallest
+  S.ringT = solo ? Math.max(13, 22 - 1.2 * (S.round - 1)) : 26;      // seconds until the ring is at its smallest
   S.ringR = S.R0; S.fightT = 0;
-  const d = S.R0 * 0.62, p1 = S.p[0], p2 = S.p[1];
+  const d = S.R0 * 0.69, p1 = S.p[0], p2 = S.p[1];
   // round 1 is always the same layout (you below, N vs S, attracting) so the first screen is the one you play
   const a = solo && S.round === 1 ? 0 : rnd() * 0.8 - 0.4;
   const q1 = solo && S.round === 1 ? 1 : (rnd() < 0.5 ? 1 : -1);
@@ -180,10 +183,10 @@ function startRound(first) {
   else Object.assign(p2, puck(CX - Math.sin(a) * d, CY - Math.cos(a) * d, 0, 1, P_THRUST, P_FLIPCD));
   p2.q = solo && S.round === 1 ? -p1.q : (rnd() < 0.65 ? -p1.q : p1.q);   // usually start attracting: instant action
   S.cpu = { think: 300, dx: 0, dy: 0 };
-  S.phase = 'count'; S.phaseT = first ? 800 : 750; S.roundPts = 0; S.clutchUsed = false;
+  S.phase = 'count'; S.phaseT = first ? 700 : 650; S.roundPts = 0; S.clutchUsed = false;
   if (!QUIET && FX) {
     FX.trails = [[], []];
-    if (solo) banner('ROUND ' + S.round, 'vs ' + cs.name + ' ' + cs.tag + '  (LV ' + L + ')', COL.cpu, S.level <= 4 ? cs.tip : null);
+    if (solo) banner('ROUND ' + S.round, 'vs ' + cs.name + ' ' + cs.tag + '  (LV ' + L + ')' + (S.form > 0.8 ? ' · in top form!' : S.form < -0.5 ? ' · looks sloppy' : ''), COL.cpu, S.level <= 4 ? cs.tip : null);
     else banner('ROUND ' + S.round, 'P1 ' + S.vs[0] + ' — ' + S.vs[1] + ' P2   ·   first to ' + VS_TARGET, '#ffffff');
     SFX.beep(false);
   }
@@ -218,6 +221,16 @@ function mult() { return 1 + 0.5 * Math.min(6, S.streak); }
 function polCol(q, dark) { return q > 0 ? (dark ? COL.Nd : COL.N) : (dark ? COL.Sd : COL.S); }
 function who(i) { return S.mode === 'solo' ? (i === 0 ? 'YOU' : 'CPU') : 'P' + (i + 1); }
 function assisted(i) { return i === 0 || S.mode !== 'solo'; }      // the edge assist is for human-controlled pucks
+function gap(i) { const p = S.p[i], o = S.p[1 - i]; return Math.hypot(o.x - p.x, o.y - p.y); }
+function inSlam(i) { return S.p[i].q !== S.p[1 - i].q && gap(i) < 2 * PR + SLAM_RANGE; }
+function slamSoon(i) {      // attracting, closing fast, and about to touch
+  const p = S.p[i], o = S.p[1 - i], r = gap(i) || 1;
+  if (p.q === o.q || !assisted(i)) return false;
+  const closing = ((o.x - p.x) * (p.vx - o.vx) + (o.y - p.y) * (p.vy - o.vy)) / r;
+  if (closing > 40 && r < 2 * PR + SLAM_RANGE + closing * SLAM_BUF / 1000) return true;
+  const il = Math.hypot(p.ix || 0, p.iy || 0) || 1, toward = ((p.ix || 0) * (o.x - p.x) + (p.iy || 0) * (o.y - p.y)) / (il * r);
+  return toward > 0.3 && closing > -30 && r < 2 * PR + SLAM_RANGE + 22 + Math.max(0, closing) * 0.4;   // steering into them: a little early is fine
+}
 
 // ---------- input resolution ----------
 function humanDir(i) {
@@ -244,7 +257,7 @@ function stepFX() {
   FX.rings = FX.rings.filter(r => r.life > 0);
   FX.shake *= 0.86; FX.flash *= 0.88; FX.zoom *= 0.88; FX.crowd *= 0.94;
   for (let i = 0; i < 2; i++) { FX.squash[i] *= 0.84; FX.flipPop[i] *= 0.88; FX.rdy[i] *= 0.9; }
-  if (FX.banner) { FX.banner.life -= FX.banner.tip ? 0.0075 : 0.011; if (FX.banner.life <= 0) FX.banner = null; }
+  if (FX.banner) { FX.banner.life -= S && S.phase === 'fight' ? 0.03 : FX.banner.tip ? 0.0075 : 0.011; if (FX.banner.life <= 0) FX.banner = null; }
   if (FX.tip) { FX.tip.life -= 0.0045; if (FX.tip.life <= 0) FX.tip = null; }
 }
 
@@ -255,7 +268,7 @@ function step() {
   S.t += STEP;
   if (S.phase === 'count') {
     S.phaseT -= STEP;
-    if (S.phaseT <= 0) { S.phase = 'fight'; if (!QUIET) { floatText(CX, CY - 10, 'GO!', '#ffffff', 46); SFX.beep(true); } }
+    if (S.phaseT <= 0) { S.phase = 'fight'; if (!QUIET) { floatText(CX, CY + 62, 'GO!', '#ffffff', 46); SFX.beep(true); } }
     else if (!QUIET && Math.floor((S.phaseT + STEP) / 500) !== Math.floor(S.phaseT / 500)) SFX.beep(false);
     S.flipQ = [false, false];
     return;
@@ -284,8 +297,11 @@ function step() {
     const p = S.p[i];
     if (p.cd > 0) { p.cd -= STEP; if (p.cd <= 0 && !QUIET) { FX.rdy[i] = 1; if (i === 0) SFX.ready(); } }
     if (p.brace > 0) p.brace -= STEP;
-    if (S.flipQ[i]) { S.flipQ[i] = false; p.buf = FLIP_BUF; }
-    if (p.buf > 0) { if (p.cd <= 0) { p.buf = 0; doFlip(i); } else p.buf -= STEP; }
+    if (S.flipQ[i]) { S.flipQ[i] = false; p.buf = FLIP_BUF; p.hold = slamSoon(i) ? SLAM_HOLD : 0; }
+    if (p.buf > 0) {
+      if (p.hold > 0 && !inSlam(i) && slamSoon(i)) { p.hold -= STEP; if (p.hold > 0) continue; }   // forgiveness: wait for contact
+      if (p.cd <= 0) { p.buf = 0; p.hold = 0; doFlip(i); } else p.buf -= STEP;
+    }
   }
   physics(1);
   if (!QUIET) { recordTrails(); edgeFX(); }
@@ -295,11 +311,12 @@ function step() {
     const p = S.p[i], r = Math.hypot(p.x - CX, p.y - CY);
     if (r > S.ringR + TBAND) { if (i === 0) out0 = true; else out1 = true; }
     else if (r > S.ringR) {
-      p.teeter += STEP;
+      // the full grace while you steer back in (half-speed once you're heading back); a human reaction window, then it runs fast
+      p.teeter += STEP * (p.inT > 0 ? ((p.x - CX) * p.vx + (p.y - CY) * p.vy < 0 ? 0.5 : 1) : p.teeter < 250 ? 1 : 2.2);
       if (p.teeter > TEETER) { if (i === 0) out0 = true; else out1 = true; }
     } else {
       if (p.teeter > 90 && !p.out) clutch(i);
-      p.teeter = 0;
+      p.teeter = 0; p.inT = 0;
     }
   }
   if (out0 && out1) {        // both going at once: the one farther out falls first
@@ -323,18 +340,21 @@ function physics(scale) {
       let mf = f, fr = ice.fr;
       if (p.brace > 0) {     // after your own slam: brace by steering INTO the other puck
         const into = sgn * (ix * nx + iy * ny);
-        if (into > BRACE_DOT) {
-          mf *= 0.25; fr += 3 * ice.fr;
+        if (into > BRACE_DOT) {        // dig in: kill the recoil (velocity away from them), keep your chase
+          mf *= 0.25;
+          const tx = sgn * nx, ty = sgn * ny, away = -(p.vx * tx + p.vy * ty);
+          const c = away * Math.min(1, (away > 0 ? 3 : 0.8) * ice.fr * dt); p.vx += tx * c; p.vy += ty * c;
           if (p.bk === 1) braced(j);
-        } else mf *= 0.6;
+        } else mf *= 0.85;
       }
       let ax = ix * p.thrust * F + sgn * mf * nx / p.m, ay = iy * p.thrust * F + sgn * mf * ny / p.m;
-      if (p.teeter > 0 && !p.out && assisted(j) && S.ice.assist > 0 && S.fightT < S.ringT * 1000) {   // edge assist: steering inward while teetering pulls you back
+      if (p.teeter > 0 && !p.out) {
         const pr = Math.hypot(p.x - CX, p.y - CY) || 1, ox = (p.x - CX) / pr, oy = (p.y - CY) / pr, din = -(ix * ox + iy * oy);
-        if (din > 0.25) {
-          const as = ASSIST * F * din * S.ice.assist; ax -= ox * as; ay -= oy * as;
+        p.inT = din > 0.3 ? (p.inT || 0) + dt * 1000 : 0;
+        if (din > 0.3 && assisted(j) && S.ice.assist > 0 && S.fightT < S.ringT * 1000) {   // edge assist: steering inward while teetering pulls you back
+          const ramp = S.ice.assist * Math.min(1, p.inT / 50), as = ASSIST * F * din * ramp; ax -= ox * as; ay -= oy * as;
           const vo = p.vx * ox + p.vy * oy;
-          if (vo > 0) { const c = vo * Math.min(1, 9 * dt); p.vx -= ox * c; p.vy -= oy * c; }
+          if (vo > 0) { const c = vo * Math.min(1, 9 * dt) * ramp; p.vx -= ox * c; p.vy -= oy * c; }
           if (!QUIET && Math.random() < 0.3) FX.parts.push({ x: p.x + ox * PR, y: p.y + oy * PR, vx: ox * 2 + (Math.random() - 0.5) * 2, vy: oy * 2 + (Math.random() - 0.5) * 2, life: 0.7, dec: 0.04, col: '#bfefff', sz: 3, g: 0 });
         }
       }
@@ -385,11 +405,15 @@ function doFlip(i) {
     // MAGNET SLAM: point-blank attract -> repel. It pushes BOTH pucks; steering into it braces you.
     const F = S.ice.F, il = Math.hypot(p.ix || 0, p.iy || 0) || 1, into = ((p.ix || 0) * nx + (p.iy || 0) * ny) / il;
     const firstSlam = S.st.slams + S.st.slammed === 0;
-    o.vx += nx * SLAM_V * F / o.m; o.vy += ny * SLAM_V * F / o.m;
+    // the slam overrides the closing speed: the victim always flies off at the full kick
+    const ov = o.vx * nx + o.vy * ny, pv = p.vx * nx + p.vy * ny;
+    if (ov < 0) { o.vx -= nx * ov; o.vy -= ny * ov; }
+    if (pv > 0) { p.vx -= nx * pv; p.vy -= ny * pv; }
+    const kick = SLAM_V * Math.sqrt(F * S.ice.fr) / o.m; o.vx += nx * kick; o.vy += ny * kick;
     const rc = SLAM_V * F * (into > BRACE_DOT ? 0.05 : SLAM_RECOIL) / p.m;
     p.vx -= nx * rc; p.vy -= ny * rc;
     p.brace = BRACE_MS; p.bk = 1;
-    o.hit = { by: i, kind: 'slam', t: S.t };
+    o.hit = { by: i, kind: 'slam', t: S.t, braced: into > BRACE_DOT };
     S.freeze = Math.max(S.freeze, firstSlam && S.mode === 'solo' ? 220 : 110);
     if (i === 0) { const pts = Math.round(20 * mult()); S.score += pts; S.roundPts += pts; S.st.slams++; }
     else S.st.slammed++;
@@ -416,7 +440,7 @@ function clutch(i) {
 }
 
 function causeFor(i) {
-  const p = S.p[i], h = p.hit, foe = S.mode === 'solo' ? cpuStats(S.level, S.style).name : 'P' + (2 - i);
+  const p = S.p[i], h = p.hit, foe = S.mode === 'solo' ? cpuName(S.level) : 'P' + (2 - i);
   const age = h ? S.t - h.t : 1e9;
   if (h && h.kind === 'slam' && age < 2200) return 'magnet-slammed off the ice by ' + foe;
   if (p.brace > 0 && p.bk === 1) return 'flew off on your own slam\'s recoil (steer into it to brace)';
@@ -426,8 +450,8 @@ function causeFor(i) {
 }
 
 function ringOut(out0, out1) {
-  S.phase = 'end'; S.phaseT = 1100;
-  S.freeze = 200;                               // hitstop on ring-out, then slow-mo
+  S.phase = 'end'; S.phaseT = 900;
+  S.freeze = 160;                               // hitstop on ring-out, then slow-mo
   S.st.ringouts++;
   for (let i = 0; i < 2; i++) if ((i === 0 ? out0 : out1)) S.p[i].out = true;
   if (!QUIET) {
@@ -478,7 +502,8 @@ function finish(cause) {
 
 // ---------- CPU opponent (deterministic: uses the seeded RNG) ----------
 function cpuThink() {
-  const cs = cpuStats(S.level, S.style), me = S.p[1], foe = S.p[0], R = S.ringR;
+  const cs = cpuStats(S.level, S.style, S.form), me = S.p[1], foe = S.p[0], R = S.ringR;
+  if (dizzyMs() > 0) { S.cpu.think = 60; S.cpu.dx = 0; S.cpu.dy = 0; return; }   // gentle CPUs reel after a slam
   S.cpu.think = cs.react * (0.75 + 0.5 * rnd());
   const la = 0.28;
   const mx = me.x + me.vx * la, my = me.y + me.vy * la, fx = foe.x + foe.vx * la, fy = foe.y + foe.vy * la;
@@ -489,8 +514,8 @@ function cpuThink() {
     const back = Math.min(cs.back, rF * 0.8);
     tx = CX + (fx - CX) / rF * (rF - back); ty = CY + (fy - CY) / rF * (rF - back);
     if (Math.hypot(tx - mx, ty - my) < 24) { tx = fx; ty = fy; }
-    // gentle CPUs hang back near the centre, but pounce when you drift toward the edge
-    passive = cs.passive * Math.max(0, Math.min(1, (R - 85 - rF) / 40));
+    // gentle CPUs hang back near the centre, but engage when you come close and pounce when you drift toward the edge
+    passive = cs.passive * Math.max(0, Math.min(1, (R - 85 - rF) / 40)) * Math.max(0, Math.min(1, (Math.hypot(fx - mx, fy - my) - 90) / 60));
     if (passive > 0) { tx += (CX - tx) * passive; ty += (CY - ty) * passive; }
   }
   let dx = tx - mx, dy = ty - my; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
@@ -508,12 +533,18 @@ function cpuThink() {
     else if (attract && d < 2 * PR + SLAM_RANGE + 10 && !meIn) { if (cs.pSlam > 0 && u < cs.pDef * 0.6) slam = true; }
     else if (!attract && !meIn && d < 150) { if (u < cs.pDef) S.flipQ[1] = true; }
     else if (!attract && meIn && d > 190) { if (u < 0.12 + cs.pDef * 0.2) S.flipQ[1] = true; }
-    else if (attract && meIn && d > 2 * PR + SLAM_RANGE + 24 && d < 210) { if (u < cs.pPush) S.flipQ[1] = true; }   // hold the centre: push you away
+    else if (attract && meIn && d > 2 * PR + SLAM_RANGE + 24 && d < 250) { if (u < cs.pPush) S.flipQ[1] = true; }   // hold the centre: push you away
     if (slam) {
       S.flipQ[1] = true;
       if (rnd() < cs.brace) { const l = d || 1; S.cpu.dx = (foe.x - me.x) / l; S.cpu.dy = (foe.y - me.y) / l; }
     }
   }
+}
+
+function dizzyMs() {     // how long the (gentle) CPU still reels from your last slam
+  const h = S.p[1].hit;
+  if (S.mode !== 'solo' || !h || h.kind !== 'slam' || h.by !== 0 || !h.braced) return 0;   // only a BRACED slam makes it reel
+  return Math.max(0, cpuStats(S.level, S.style, S.form).dizzy - (S.t - h.t));
 }
 
 // ---------- cosmetic trails / edge ----------
@@ -532,7 +563,7 @@ function edgeFX() {
 function magFelt(i) {
   const p = S.p[i], o = S.p[1 - i], dx = o.x - p.x, dy = o.y - p.y, r = Math.hypot(dx, dy) || 1, rr = Math.max(r, 2 * PR);
   let f = Math.min(A_MAX, K_MAG / (rr * rr)) * (p.q === o.q ? -1 : 1) * S.ice.F / p.m;
-  if (p.brace > 0) f *= p.bk === 2 ? 0.25 : 0.6;
+  if (p.brace > 0) f *= p.bk === 2 ? 0.25 : 0.85;
   return { x: dx / r * f, y: dy / r * f, rel: Math.abs(f) / (p.thrust * S.ice.F), attract: f > 0 };
 }
 
@@ -655,7 +686,7 @@ function render() {
   // pucks
   for (let i = 0; i < 2; i++) {
     const p = S.p[i];
-    let sc = 1; if (p.out) sc = Math.max(0.3, S.phaseT / 1100);
+    let sc = 1; if (p.out) sc = Math.max(0.3, S.phaseT / 900);
     const sq = FX.squash[i] * 0.25, fp = FX.flipPop[i];
     cx.save(); cx.translate(p.x, p.y); cx.scale(sc * (1 + sq + fp * 0.25), sc * (1 - sq + fp * 0.25));
     if (p.teeter > 0 && !p.out) cx.rotate(Math.sin(now / 40) * 0.12);
@@ -673,9 +704,17 @@ function render() {
     cx.fillStyle = '#ffffff'; cx.font = font(22); cx.textAlign = 'center'; cx.textBaseline = 'middle';
     cx.fillText(p.q > 0 ? 'N' : 'S', 0, 1); cx.textBaseline = 'alphabetic';
     cx.restore();
-    if (!p.out) {
+    if (!p.out && !(p.teeter > 0 && assisted(i))) {     // (while teetering, the STEER IN arrow takes its place)
       cx.font = font(14); cx.textAlign = 'center'; cx.lineWidth = 3; cx.strokeStyle = 'rgba(11,18,38,0.7)';
-      const lb = who(i); cx.strokeText(lb, p.x, p.y - PR - 16); cx.fillStyle = idc; cx.fillText(lb, p.x, p.y - PR - 16);
+      const o = S.p[1 - i], below = o.y < p.y && o.y > p.y - 90 && Math.abs(o.x - p.x) < 50, ly = below ? p.y + PR + 26 : p.y - PR - 16;
+      const lb = who(i); cx.strokeText(lb, p.x, ly); cx.fillStyle = idc; cx.fillText(lb, p.x, ly);
+    }
+    if (i === 1 && !p.out && S.phase === 'fight' && dizzyMs() > 0) {   // reeling from your slam: orbiting stars
+      cx.fillStyle = '#fff3b0';
+      for (let k = 0; k < 3; k++) {
+        const a = now / 140 + k * 2.094, sx = p.x + Math.cos(a) * (PR + 6), sy = p.y - PR - 4 + Math.sin(a) * 6;
+        cx.beginPath(); for (let j = 0; j < 10; j++) { const rr = j % 2 ? 2.2 : 5, aa = j * 0.628 - 1.571; cx.lineTo(sx + Math.cos(aa) * rr, sy + Math.sin(aa) * rr); } cx.closePath(); cx.fill();
+      }
     }
     if (p.teeter > 0 && !p.out) {
       cx.strokeStyle = 'rgba(255,60,80,' + (0.5 + 0.5 * pulse) + ')'; cx.lineWidth = 3; cx.beginPath(); cx.arc(p.x, p.y, PR + 14, -Math.PI / 2, -Math.PI / 2 + 6.283 * (1 - p.teeter / TEETER)); cx.stroke();
@@ -686,6 +725,26 @@ function render() {
         cx.strokeText('STEER IN!', p.x + ux * (PR + 78), p.y + uy * (PR + 78) + 5); cx.fillStyle = '#7df9ff'; cx.fillText('STEER IN!', p.x + ux * (PR + 78), p.y + uy * (PR + 78) + 5);
       }
     }
+  }
+  // slam range: while you attract, a faint ring around the foe shows "point-blank"
+  if (S.phase === 'fight') for (let i = 0; i < 2; i++) {
+    const p = S.p[i], o = S.p[1 - i];
+    if (!assisted(i) || p.out || o.out || p.q === o.q || inSlam(i)) continue;
+    const g = gap(i); if (g > 190) continue;
+    cx.globalAlpha = 0.25 + 0.45 * (1 - g / 190); cx.strokeStyle = '#fff3b0'; cx.lineWidth = 2; cx.setLineDash([3, 6]);
+    cx.beginPath(); cx.arc(o.x, o.y, 2 * PR + SLAM_RANGE - PR + 2, 0, 6.283); cx.stroke(); cx.setLineDash([]); cx.globalAlpha = 1;
+  }
+  // slam cue: attracting, touching and your flip is ready -> flipping now is a MAGNET SLAM
+  if (S.phase === 'fight') for (let i = 0; i < 2; i++) {
+    const p = S.p[i], o = S.p[1 - i];
+    if (!assisted(i) || p.out || o.out || p.cd > 0 || !inSlam(i)) continue;
+    const mx = (p.x + o.x) / 2, my = (p.y + o.y) / 2, r = gap(i) || 1, ux = (o.x - p.x) / r, uy = (o.y - p.y) / r;
+    cx.strokeStyle = 'rgba(255,243,176,' + (0.55 + 0.45 * pulse) + ')'; cx.lineWidth = 3; cx.setLineDash([5, 5]);
+    cx.beginPath(); cx.arc(mx, my, PR * 2 + 6 + 3 * pulse, 0, 6.283); cx.stroke(); cx.setLineDash([]);
+    const tx = mx - uy * 62, ty = my + ux * 62 + 5;
+    cx.font = font(16); cx.textAlign = 'center'; cx.lineWidth = 4; cx.strokeStyle = 'rgba(11,18,38,0.85)';
+    const lb = S.mode === 'solo' ? (touchUI ? 'FLIP = SLAM!' : 'SPACE = SLAM!') : 'SLAM!';
+    cx.strokeText(lb, tx, ty); cx.fillStyle = '#fff3b0'; cx.fillText(lb, tx, ty);
   }
   // force arrow on your puck(s): the magnetic pull / push you feel right now (blue = pull, red = push)
   if (S.phase !== 'end') for (let i = 0; i < 2; i++) {
@@ -711,8 +770,8 @@ function render() {
   if (S.phase === 'count' && !S.over) {
     const n = Math.ceil(S.phaseT / 500), u = S.wait ? 0.3 + 0.2 * pulse : 1 - (S.phaseT % 500) / 500, word = S.wait || n > 1 ? 'READY' : 'SET';
     cx.globalAlpha = 1 - u * 0.6; cx.font = font(Math.round(60 + 30 * u)); cx.lineWidth = 6; cx.strokeStyle = 'rgba(11,18,38,0.8)';
-    cx.strokeText(word, CX, CY + 20); cx.fillStyle = '#ffffff'; cx.fillText(word, CX, CY + 20); cx.globalAlpha = 1;
-    if (S.wait) { cx.font = font(18); cx.lineWidth = 4; cx.strokeText(touchUI ? 'drag to start' : 'steer (WASD / arrows) to start', CX, CY + 56); cx.fillStyle = COL.p1; cx.fillText(touchUI ? 'drag to start' : 'steer (WASD / arrows) to start', CX, CY + 56); }
+    cx.strokeText(word, CX, CY + 62); cx.fillStyle = '#ffffff'; cx.fillText(word, CX, CY + 62); cx.globalAlpha = 1;
+    if (S.wait) { const w = touchUI ? 'drag to start' : 'steer (WASD / arrows) to start'; cx.font = font(18); cx.lineWidth = 4; cx.strokeText(w, CX, CY + 96); cx.fillStyle = COL.p1; cx.fillText(w, CX, CY + 96); }
   }
   cx.restore();
   if (FX.flash > 0.02) { cx.fillStyle = 'rgba(' + FX.flashCol + ',' + (FX.flash * 0.45) + ')'; cx.fillRect(0, 0, W, H); }
@@ -744,12 +803,12 @@ function drawHUD(now, pulse) {
     cx.textAlign = 'right'; cx.font = font(24); cx.fillStyle = COL.p1; cx.fillText(String(Math.max(best, S.score)), W - 16, 38);
     cx.font = font(14); cx.fillStyle = '#8fa0c8'; cx.fillText('BEST', W - 16, 56);
     for (let i = 0; i < 3; i++) { heartPath(W / 2 - 34 + i * 34, 14, 22); if (i < S.hearts) { cx.fillStyle = '#ff4d5e'; cx.fill(); } else { cx.strokeStyle = 'rgba(255,77,94,0.4)'; cx.lineWidth = 2; cx.stroke(); } }
-    const cs = cpuStats(S.level, S.style);
+    const cs = cpuStats(S.foeL || S.level, S.style);
     cx.textAlign = 'center'; cx.font = font(17); cx.fillStyle = COL.cpu;
     cx.fillText('ROUND ' + S.round + ' · vs ' + cs.name + ' ' + cs.tag, W / 2, 68);
     cx.font = font(15); cx.fillStyle = S.streak ? '#7df9ff' : '#5e6c92'; cx.fillText('win streak ×' + mult().toFixed(1), W / 2, 88);
     polBadge(16, 104, S.p[0], 'YOU', COL.p1, 'left'); polBadge(W - 16, 104, S.p[1], 'CPU', COL.cpu, 'right');
-    if (S.level <= 4 && !S.over && !(FX.banner && FX.banner.tip)) { cx.font = font(13, 'normal'); cx.fillStyle = 'rgba(195,155,255,0.85)'; cx.fillText(cs.tip, W / 2, 168); }
+    if ((S.foeL || S.level) <= 4 && !S.over && !(FX.banner && FX.banner.tip)) { cx.textAlign = 'center'; cx.font = font(13, 'normal'); cx.fillStyle = 'rgba(195,155,255,0.9)'; cx.fillText(cs.tip, W / 2, 166, W - 40); }
   } else {
     cx.textAlign = 'center'; cx.font = font(44);
     cx.fillStyle = COL.p1; cx.fillText(String(S.vs[0]), W / 2 - 60, 52); cx.fillStyle = '#8fa0c8'; cx.font = font(28); cx.fillText('—', W / 2, 48);
@@ -802,9 +861,10 @@ function drawHUD(now, pulse) {
   if (FX.banner) {
     const b = FX.banner, u = 1 - b.life, e = u < 0.12 ? 1 - Math.pow(1 - u / 0.12, 3) : 1, a = Math.min(1, b.life * 4);
     cx.globalAlpha = a; cx.textAlign = 'center'; cx.font = font(Math.round(46 * (0.6 + 0.4 * e)));
-    cx.lineWidth = 7; cx.strokeStyle = 'rgba(11,18,38,0.85)'; cx.strokeText(b.txt, W / 2, 250); cx.fillStyle = b.col; cx.fillText(b.txt, W / 2, 250);
-    cx.font = font(18); cx.lineWidth = 5; cx.strokeText(b.sub, W / 2, 280); cx.fillStyle = '#f4f7ff'; cx.fillText(b.sub, W / 2, 280);
-    if (b.tip) { cx.font = font(16); cx.strokeText(b.tip, W / 2, 306); cx.fillStyle = '#e3d2ff'; cx.fillText(b.tip, W / 2, 306); }
+    const by = 352;      // between the two pucks (the CPU starts near the top of the ring)
+    cx.lineWidth = 7; cx.strokeStyle = 'rgba(11,18,38,0.85)'; cx.strokeText(b.txt, W / 2, by); cx.fillStyle = b.col; cx.fillText(b.txt, W / 2, by);
+    cx.font = font(18); cx.lineWidth = 5; cx.strokeText(b.sub, W / 2, by + 30); cx.fillStyle = '#f4f7ff'; cx.fillText(b.sub, W / 2, by + 30);
+    if (b.tip) { cx.font = font(16); cx.strokeText(b.tip, W / 2, by + 56, W - 40); cx.fillStyle = '#e3d2ff'; cx.fillText(b.tip, W / 2, by + 56, W - 40); }
     cx.globalAlpha = 1;
   }
   if (S.over) {
@@ -819,7 +879,7 @@ function drawHUD(now, pulse) {
       cx.fillStyle = '#f4f7ff'; cx.font = font(38); cx.fillText(String(S.score), W / 2, 440);
       cx.font = font(15); cx.fillStyle = '#8fa0c8'; cx.fillText('SCORE', W / 2, 460);
       cx.font = font(21); cx.fillStyle = COL.p1; cx.fillText((FX.newBest ? 'NEW BEST! ' : 'BEST ') + best, W / 2, 496);
-      cx.font = font(15, 'normal'); cx.fillStyle = '#b6c6ea'; cx.fillText(S.wins + ' rounds won · ' + S.st.slams + ' slams · ' + S.st.braced + ' braced · beat up to ' + baseStats(Math.max(1, S.level - 1)).name, W / 2, 528, W - 90);
+      cx.font = font(15, 'normal'); cx.fillStyle = '#b6c6ea'; cx.fillText(S.wins + ' rounds won · ' + S.st.slams + ' slams · ' + S.st.braced + ' braced' + (S.wins ? ' · beat up to ' + cpuName(S.level - 1) : ''), W / 2, 528, W - 90);
     } else {
       cx.font = font(40); cx.fillStyle = '#f4f7ff'; cx.fillText(S.vs[0] + ' — ' + S.vs[1], W / 2, 450);
       cx.fillStyle = 'rgba(94,242,194,0.15)'; cx.strokeStyle = COL.p2; cx.lineWidth = 2; cx.beginPath(); if (cx.roundRect) cx.roundRect(BTN1P.x - 90, BTN1P.y - 22, 180, 44, 12); else cx.rect(BTN1P.x - 90, BTN1P.y - 22, 180, 44); cx.fill(); cx.stroke();
@@ -908,7 +968,7 @@ window.__game = {
       t: S.t, score: S.score, over: S.over, cause: S.over ? S.cause : null, difficulty: S.level + S.round * 0.5,
       phase: S.phase, round: S.round, level: S.level, wins: S.wins, hearts: S.hearts, streak: S.streak, mode: S.mode,
       center: { x: CX, y: CY }, ringR: S.ringR, R0: S.R0, band: TBAND, teeterMs: TEETER, puckR: PR, slamRange: 2 * PR + SLAM_RANGE, ice: S.ice.fr,
-      me: pk(S.p[0]), foe: pk(S.p[1]), attract: S.p[0].q !== S.p[1].q, cpu: cpuStats(S.level, S.style).name, style: S.style,
+      me: pk(S.p[0]), foe: pk(S.p[1]), attract: S.p[0].q !== S.p[1].q, cpu: cpuName(S.level), style: S.style, form: S.form || 0,
     };
   },
   getActions() { return S.over ? ['none'] : ['none', 'up', 'down', 'left', 'right', 'flip']; },
