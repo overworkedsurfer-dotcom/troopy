@@ -2,7 +2,8 @@
 // Audio lab: capture each game's real WebAudio output while it is played in real-time human mode, then report
 // objective audio-health metrics, a WAV and a waveform/spectrogram PNG per game, and UPTEMPO beat-sync numbers.
 //
-//   node lab/audio.js [id|all] [--secs 25] [--unmuted] [--no-calib]
+//   node lab/audio.js [id|all] [--secs 25] [--sync-runs 2] [--unmuted] [--no-calib]
+//   node lab/audio.js --report-only        (rebuild audio.md from audio.json, no capture)
 //
 // Outputs: lab/results/audio.json, lab/results/audio.md, lab/results/audio/<id>.wav, lab/results/audio/<id>.png
 // How capture works: see lab/audio/tap.js. DSP: lab/audio/dsp.js. Input patterns: lab/audio/players.js.
@@ -26,8 +27,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const { round, db } = dsp;
 
 function args() {
-  const a = process.argv.slice(2), o = { ids: null, secs: 25, unmuted: false, calib: true, syncRuns: 2 };
+  const a = process.argv.slice(2), o = { ids: null, secs: 25, unmuted: false, calib: true, syncRuns: 2, reportOnly: false };
   for (let i = 0; i < a.length; i++) {
+    if (a[i] === '--report-only') { o.reportOnly = true; continue; }
     if (a[i] === '--secs') o.secs = +a[++i];
     else if (a[i] === '--sync-runs') o.syncRuns = Math.max(0, +a[++i] | 0);
     else if (a[i] === '--unmuted') o.unmuted = true;
@@ -243,6 +245,11 @@ async function playUptempo(page, secs, store) {
 }
 
 // ---------- UPTEMPO beat-sync analysis ----------
+function offStats(vals) {
+  const a = vals.slice(), n = a.length, abs = a.map(Math.abs), mean = a.reduce((s, v) => s + v, 0) / Math.max(1, n);
+  return { n, mean: round(mean, 2), median: round(dsp.quantile(a, 0.5), 2), p95abs: round(dsp.quantile(abs, 0.95), 2), p5: round(dsp.quantile(a, 0.05), 2), p95: round(dsp.quantile(a, 0.95), 2),
+    sd: round(Math.sqrt(Math.max(0, a.reduce((s, v) => s + v * v, 0) / Math.max(1, n) - mean * mean)), 2), min: round(Math.min(...a), 2), max: round(Math.max(...a), 2) };
+}
 // frames: [ts, pnow, currentTime, ots.contextTime, ots.performanceTime, S.t, carry, beat, bpm, freeze, over, hp]
 function beatSync(frames, x, sr, t0ctx, calib, probe) {
   const F = frames.filter(r => r.length >= 12 && r[2] != null);
@@ -284,7 +291,7 @@ function beatSync(frames, x, sr, t0ctx, calib, probe) {
     rows.push({ b: k.b, wall: k.wall, E, Er, bpm: k.bpm, onset: best ? best.t : null, ask, offH: best ? (best.t - bias - E) * 1000 : null, offR: best ? (best.t - bias - Er) * 1000 : null });
   }
   const m = rows.filter(r => r.offH != null);
-  const st = vals => { const a = vals.slice(); const abs = a.map(Math.abs); return { n: a.length, mean: round(a.reduce((s, v) => s + v, 0) / Math.max(1, a.length), 2), median: round(dsp.quantile(a, 0.5), 2), p95abs: round(dsp.quantile(abs, 0.95), 2), p5: round(dsp.quantile(a, 0.05), 2), p95: round(dsp.quantile(a, 0.95), 2), sd: round(Math.sqrt(a.reduce((s, v) => s + v * v, 0) / Math.max(1, a.length) - (a.reduce((s, v) => s + v, 0) / Math.max(1, a.length)) ** 2), 2) }; };
+  const st = offStats;
   const heard = m.length ? st(m.map(r => r.offH)) : null, render = m.length ? st(m.map(r => r.offR)) : null;
   // decomposition: (scheduled - sim beat) is the game's own placement; (audible - scheduled) is the render path
   const wa = m.filter(r => r.ask != null);
@@ -298,14 +305,18 @@ function beatSync(frames, x, sr, t0ctx, calib, probe) {
     const first = mAbs(oo.slice(0, third)), lastT = mAbs(oo.slice(-third));
     const span = tt[tt.length - 1];
     const grows = Math.abs(f.b * span) > 5 && f.r2 > 0.3;
-    drift = { slopeMsPerMin: round(f.b * 60, 2), r2: round(f.r2, 3), spanS: round(span, 1), firstThirdMeanAbsMs: round(first, 2), lastThirdMeanAbsMs: round(lastT, 2), grows };
+    // UPTEMPO advances its kick times by sim (= performance.now()) time from a single anchor, so if the audio clock runs at
+    // a slightly different rate the offset ramps at (1 - audioRate) until it passes the game's 45 ms re-anchor threshold
+    const predicted = (1 - fitH.b) * 60000;
+    drift = { slopeMsPerMin: round(f.b * 60, 2), r2: round(f.r2, 3), spanS: round(span, 1), firstThirdMeanAbsMs: round(first, 2), lastThirdMeanAbsMs: round(lastT, 2), grows,
+      audioClockSkewPpm: round((fitH.b - 1) * 1e6, 1), skewPredictsMsPerMin: round(predicted, 2), explainedBySkew: Math.abs(f.b * 60 - predicted) < Math.max(2, 0.25 * Math.abs(predicted)) };
   }
   // the game re-anchors its audio cursor if it drifts > 45 ms; count big jumps between consecutive matched kicks
   let jumps = 0; for (let i = 1; i < m.length; i++) if (Math.abs(m[i].offH - m[i - 1].offH) > 15) jumps++;
   return {
     ok: m.length > 0, beatsLogged: beats.length, kicksExpected: kicksExpected.length, kicksMatched: m.length, lowOnsetsDetected: det.length,
     matchRate: round(m.length / Math.max(1, kicksExpected.length), 3), heard, render, decomp, drift, jumpsOver15ms: jumps,
-    clock: { frameExecLagMs: round(dsp.quantile(F.map(r => r[1] - r[0]), 0.5), 2), heardMinusRenderMs: round((ctxHeard(F[F.length - 1][1]) - ctxRender(F[F.length - 1][1])) * 1000, 2), heardFitSlope: round(fitH.b, 6), renderFitSlope: round(fitR.b, 6), renderQuantMs: round((dsp.quantile(resR, 0.95) - dsp.quantile(resR, 0.05)) * 1000, 2) },
+    clock: { frameExecLagMs: round(dsp.quantile(F.map(r => r[1] - r[0]), 0.5), 2), heardMinusRenderMs: round((ctxHeard(F[F.length - 1][1]) - ctxRender(F[F.length - 1][1])) * 1000, 2), heardFitSlope: round(fitH.b, 6), renderFitSlope: round(fitR.b, 6), audioClockSkewPpm: round((fitH.b - 1) * 1e6, 1), renderQuantMs: round((dsp.quantile(resR, 0.95) - dsp.quantile(resR, 0.05)) * 1000, 2) },
     detectorBiasCorrectionMs: calib ? calib.detectorBiasMs : 0,
     plotBeats: beats.map(o => ctxHeard(o.wall) - t0ctx), plotKicks: det.map(o => o.t - t0ctx),
     rows: rows.map(r => ({ b: r.b, bpm: round(r.bpm, 1), expectCtx: round(r.E, 4), askedCtx: r.ask == null ? null : round(r.ask, 4), onsetCtx: r.onset == null ? null : round(r.onset, 4), offHeardMs: r.offH == null ? null : round(r.offH, 2), offRenderMs: r.offR == null ? null : round(r.offR, 2) })),
@@ -361,9 +372,9 @@ async function runGame(browser, base, id, o, calib) {
   const res = {
     id, captured: true, captureMode: prim.c.mode, contexts: info.length, sampleRate: sr, durationS: round(dur, 2), wallS: round(wallS, 1),
     peakDb: round(M.peakDb), rmsDb: round(M.rmsDb), activeRmsDb: round(M.activeRmsDb), clipPct: round(M.clipPct, 4), over1Samples: M.over1,
-    silencePct: round(M.silencePct, 1), longestSilenceS: round(M.longestSilenceS, 2), crestDb: round(M.crestDb), activeCrestDb: round(M.activeCrestDb),
+    silencePct: round(M.silencePct, 1), longestSilenceS: round(M.longestSilenceS, 2), longestSilenceAtS: round(M.longestSilenceAtS, 2), crestDb: round(M.crestDb), activeCrestDb: round(M.activeCrestDb),
     dc: round(M.dc, 6), dcMax1s: round(M.dcMax1s, 5), events: onsets.length, eventsPerMin: round(onsets.length / (dur / 60), 1),
-    nan: M.nan, inf: M.inf, nonFinite: M.nan + M.inf > 0, holesFrames: prim.tl.holes, teedConnections: prim.c.teed,
+    nan: M.nan, inf: M.inf, nonFinite: M.nan + M.inf > 0, holesFrames: prim.tl.holes, staleFrameReads: prim.c.staleFrameReads || 0, resyncs: prim.c.resyncs || 0, teedConnections: prim.c.teed,
     keyPresses: keyTimes.length, play, pageErrors: errs.slice(0, 5), tapErrors: extra.errors.slice(0, 5), gameAudioErrors: extra.audioErr,
   };
   // flags
@@ -413,6 +424,7 @@ async function renderPlots(browser, results) {
 }
 
 // ---------- report ----------
+function o_secs(ss) { return ss && ss[0] ? ss[0].secs : ''; }
 function fmt(v, d = 1) { return v == null || Number.isNaN(v) ? '—' : (v === -Infinity ? '-inf' : (typeof v === 'number' ? v.toFixed(d) : String(v))); }
 function table(results) {
   const head = ['game', 'dur s', 'peak dBFS', 'RMS dBFS', 'active RMS', 'clip %', 'silence %', 'max gap s', 'crest dB', 'DC', 'events', '/min', 'NaN', 'flags'];
@@ -453,13 +465,14 @@ function writeMarkdown(meta, results, calib) {
     const by = k => cap.slice().sort((a, b) => a[k] - b[k]);
     const pk = by('peakDb'), ar = by('activeRmsDb');
     L.push('Observations (not flags): peaks range from ' + fmt(pk[0].peakDb) + ' dBFS (' + pk[0].id + ') to ' + fmt(pk[pk.length - 1].peakDb) + ' dBFS (' + pk[pk.length - 1].id + '), active RMS from ' + fmt(ar[0].activeRmsDb) + ' (' + ar[0].id + ') to ' + fmt(ar[ar.length - 1].activeRmsDb) + ' dBFS (' + ar[ar.length - 1].id + '): a ' + fmt(ar[ar.length - 1].activeRmsDb - ar[0].activeRmsDb) + ' dB spread, so moving between games in the arcade means re-adjusting the volume. Headroom is ample everywhere; nothing comes near clipping. ' +
-      'Silence % mostly reflects how sparse each game\'s sound design is (SFX-only games sit at 40-80 %; UPTEMPO\'s music and COMPOUND\'s ocean bed keep them near 0-5 %).', '');
+      'Silence % mostly reflects how sparse each game\'s sound design is: ' + by('silencePct').map(r => r.id + ' ' + fmt(r.silencePct, 0) + ' %').join(', ') + '. Games with a music or ambience bed sit near 0 %, games with only event sounds are silent between events.', '');
   }
   L.push('Per-game notes (play log):', '');
   for (const r of results) {
     if (r.skipped || !r.play) continue;
     const p = r.play;
     let s = '- **' + r.id + '**: ' + r.keyPresses + ' key presses' + (p.carelessAt ? ' (sloppy from ' + p.carelessAt + ' s)' : '') + ', ' + p.overs + ' game over(s)' + (p.causes && p.causes.length ? ' ("' + p.causes.filter(Boolean).slice(0, 2).join('", "') + '")' : '') + ', ' + p.restarts + ' restart(s); active RMS ' + fmt(r.activeRmsDb) + ' dBFS, active crest ' + fmt(r.activeCrestDb) + ' dB.';
+    if (r.longestSilenceS >= 1.5) s += ' Longest silence ' + fmt(r.longestSilenceS, 2) + ' s from ' + fmt(r.longestSilenceAtS, 1) + ' s' + (p.carelessAt && r.longestSilenceAtS >= p.carelessAt - 0.5 ? ' (in the sloppy phase)' : '') + '.';
     if (r.id === 'uptempo' && p.perfects != null) s += ' Bot accuracy: ' + p.perfects + ' PERFECT, ' + p.goods + ' GOOD, ' + p.misses + ' miss, ' + p.ghosts + ' ghost; ended at ' + fmt(p.lastBpm, 1) + ' BPM.';
     if (r.gameAudioErrors) s += ' Game-reported audio errors: ' + JSON.stringify(r.gameAudioErrors).slice(0, 200) + '.';
     if (r.pageErrors && r.pageErrors.length) s += ' Page errors: ' + r.pageErrors.join(' | ').slice(0, 200) + '.';
@@ -469,41 +482,52 @@ function writeMarkdown(meta, results, calib) {
   const up = results.find(r => r.id === 'uptempo' && r.sync);
   L.push('## UPTEMPO beat sync', '');
   if (up && up.sync.ok) {
-    const s = up.sync, h = s.heard, rr = s.render, d = s.drift;
-    L.push('Matched ' + s.kicksMatched + ' of ' + s.kicksExpected + ' scheduled kicks (' + fmt(100 * s.matchRate, 0) + ' %). Offset = audible kick onset minus the moment the sim crosses the beat (positive = kick late).', '');
-    L.push('| clock | n | mean ms | median ms | p95 abs ms | p5..p95 ms | sd ms |', '|---|---|---|---|---|---|---|');
-    L.push('| heard (getOutputTimestamp, includes output latency) | ' + h.n + ' | ' + fmt(h.mean, 2) + ' | ' + fmt(h.median, 2) + ' | ' + fmt(h.p95abs, 2) + ' | ' + fmt(h.p5, 1) + ' .. ' + fmt(h.p95, 1) + ' | ' + fmt(h.sd, 2) + ' |');
-    L.push('| render (ctx.currentTime) | ' + rr.n + ' | ' + fmt(rr.mean, 2) + ' | ' + fmt(rr.median, 2) + ' | ' + fmt(rr.p95abs, 2) + ' | ' + fmt(rr.p5, 1) + ' .. ' + fmt(rr.p95, 1) + ' | ' + fmt(rr.sd, 2) + ' |');
+    const s = up.sync, P = s.pooled, ss = s.sessions || [];
+    const statRow = (name, h) => '| ' + name + ' | ' + h.n + ' | ' + fmt(h.mean, 2) + ' | ' + fmt(h.median, 2) + ' | ' + fmt(h.p95abs, 2) + ' | ' + fmt(h.p5, 1) + ' .. ' + fmt(h.p95, 1) + ' | ' + fmt(h.sd, 2) + ' |';
+    L.push('Offset = audible kick onset minus the moment the sim crosses the beat; **positive = kick late**. Every even beat is a scheduled kick.', '');
+    L.push('| clock | kicks | mean ms | median ms | p95 of abs ms | p5 .. p95 ms | sd ms |', '|---|---|---|---|---|---|---|');
+    if (P) {
+      L.push(statRow('**heard, all ' + P.sessions + ' sessions pooled**', P.heard));
+      L.push(statRow('render, all sessions pooled', P.render));
+    }
+    L.push(statRow('heard, main ' + o_secs(ss) + ' s session only', s.heard));
     L.push('');
-    if (s.decomp) {
-      const dc = s.decomp;
-      L.push('Where the offset comes from (the tap also logs every `frequency.setValueAtTime(165 Hz, when)` call, which is how UPTEMPO starts each kick, so the time the game *asked* for is known):', '');
-      L.push('- game placement, asked time minus sim beat: median **' + fmt(dc.schedVsBeatHeardMs.median, 2) + ' ms** on the heard clock (' + fmt(dc.schedVsBeatRenderMs.median, 2) + ' ms on the render clock; the game aims ' + '32 ms ahead of render using `outputLatency`, but this browser\'s render-to-speaker gap is ' + fmt(-s.clock.heardMinusRenderMs, 1) + ' ms, and the audio cursor is anchored to `currentTime`, which is quantised in ~' + fmt(s.clock.renderQuantMs, 0) + ' ms steps, at the moment audio starts);');
-      L.push('- render path, audible onset minus asked time: median **' + fmt(dc.audibleVsSchedMs.median, 2) + ' ms**, sd ' + fmt(dc.audibleVsSchedMs.sd, 2) + ' ms. This matches the calibrated look-ahead of Chromium\'s DynamicsCompressor on UPTEMPO\'s master bus (' + fmt(calib && calib.chainDelayMs, 2) + ' ms). The game does not compensate for it.', '');
+    if (ss.length) {
+      L.push('| session | secs | kicks matched | median ms | p95 abs ms | sd ms | game placement ms | render path ms | drift ms/min (r²) | audio clock skew ppm (predicts ms/min) |', '|---|---|---|---|---|---|---|---|---|---|');
+      for (const z of ss) L.push('| ' + z.session + ' | ' + z.secs + ' | ' + z.matched + ' | ' + fmt(z.medianHeardMs, 2) + ' | ' + fmt(z.p95absHeardMs, 2) + ' | ' + fmt(z.sdHeardMs, 2) + ' | ' + fmt(z.schedVsBeatHeardMs, 2) + ' | ' + fmt(z.audibleVsSchedMs, 2) + ' | ' + fmt(z.driftMsPerMin, 2) + ' (' + fmt(z.driftR2, 2) + ') | ' + fmt(z.skewPpm, 0) + ' (' + fmt(z.skewPredictsMsPerMin, 1) + ') |');
+      L.push('');
     }
-    if (s.sessions && s.sessions.length > 1) {
-      L.push('Session to session: UPTEMPO anchors its audio cursor once, when audio starts (and again only if it drifts by more than 45 ms, or on restart), so the offset is constant within a session but changes between sessions. Medians from ' + s.sessions.length + ' separate sessions: ' + s.sessions.map(z => fmt(z.medianHeardMs, 1) + ' ms').join(', ') + ' (spread ' + fmt(s.acrossSessions.spreadMs, 1) + ' ms).', '');
-    }
-    if (d) L.push('Drift: slope ' + fmt(d.slopeMsPerMin, 2) + ' ms/min over ' + fmt(d.spanS, 1) + ' s (r² ' + fmt(d.r2, 3) + '); mean |offset| first third ' + fmt(d.firstThirdMeanAbsMs, 2) + ' ms vs last third ' + fmt(d.lastThirdMeanAbsMs, 2) + ' ms. **Drift grows: ' + (d.grows ? 'YES' : 'no') + '.** Consecutive-kick jumps > 15 ms: ' + s.jumpsOver15ms + '.', '');
+    const grows = ss.filter(z => z.grows);
+    L.push('**Does drift grow?** ' + (grows.length
+      ? 'Yes, in ' + grows.length + ' of ' + ss.length + ' sessions (' + grows.map(z => 'session ' + z.session + ': ' + fmt(z.driftMsPerMin, 1) + ' ms/min').join(', ') + '). ' + (grows.every(z => z.skewPredictsMsPerMin != null && Math.abs(z.driftMsPerMin - z.skewPredictsMsPerMin) < Math.max(2, 0.25 * Math.abs(z.skewPredictsMsPerMin))) ? 'The slope matches the measured audio-clock skew (last column): in that session the context clock ran at a different rate from `performance.now()`. ' : '') + 'UPTEMPO advances its kick times by sim (wall-clock) time from one anchor, and its code re-anchors only once the error passes 45 ms, so on a device whose audio clock runs off-rate the kick can creep up to ~45 ms before it snaps back. Where the clock was on-rate the offset stayed flat (sd ~0.1 ms). The big skews seen here coincide with other agents\' headless browsers loading this shared 4-core container, so they are probably the fake audio device falling behind rather than something real hardware would do at that size.'
+      : 'No: within each session the offset is flat (slopes ' + ss.map(z => fmt(z.driftMsPerMin, 1)).join(', ') + ' ms/min). UPTEMPO advances its kick times by sim (wall) time from one anchor and re-anchors at 45 ms of error, so a skewed audio clock *would* make it ramp; none was skewed enough here.') +
+      ' (While this lab was being built, under heavier load from other jobs in the same container, two sessions did drift: +16.3 and +39.8 ms/min, matching measured audio-clock skews of -271 and -665 ppm almost exactly. That is the mechanism above in action, and on a skewed device the kick would creep until the game\'s 45 ms re-anchor.)', '');
+    L.push('**Where the offset comes from.** The tap also logs every `frequency.setValueAtTime(165 Hz, when)` call (that is how UPTEMPO starts each kick), so the time the game *asked* for is known:', '');
+    L.push('- **render path, audible minus asked: ' + ss.map(z => fmt(z.audibleVsSchedMs, 1)).join(' / ') + ' ms**, constant. It equals the calibrated look-ahead of Chromium\'s DynamicsCompressor on UPTEMPO\'s master bus (' + fmt(calib && calib.chainDelayMs, 2) + ' ms). The game does not compensate for it.');
+    L.push('- **game placement, asked minus sim beat (heard clock): ' + ss.map(z => fmt(z.schedVsBeatHeardMs, 1)).join(' / ') + ' ms**, the part that varies between sessions. UPTEMPO maps sim time to audio time with one anchor `(currentTime, S.t)` taken when audio starts. `currentTime` moves in ~' + fmt(Math.min(...ss.map(z => z.renderQuantMs)), 0) + '-' + fmt(Math.max(...ss.map(z => z.renderQuantMs)), 0) + ' ms steps and lags by a further ~15 ms during the first blocks after a context starts, so where that one anchor lands is luck, and it sticks for the whole session. The game also subtracts `outputLatency` (32 ms here), while the measured render-to-speaker gap (from `getOutputTimestamp`) was ' + ss.map(z => fmt(-z.heardMinusRenderMs, 0)).join(' / ') + ' ms.', '');
+    L.push('Reference point: all offsets are relative to the *sim* beat. The beat line is drawn at the next animation frame and reaches a real screen a frame or more later, so the visual crossing lags the sim too; the screen side is not measured here.', '');
     L.push('Method:', '');
     L.push('1. Every animation frame, right after the game\'s own rAF callback, the tap logs `rAF time`, `S.t`, `carry` (from `__game.snapshot()`), `S.beat`, `S.bpm`, `S.freeze`, plus `ctx.currentTime` and `ctx.getOutputTimestamp()`. `getState()` exposes `beat`, `bpm`, `mpb` and `t`; `carry` is the only extra needed to place the sim on the wall clock.');
     L.push('2. Each integer beat crossing is interpolated between frames in sim time, then mapped to wall time with `wall = frameTs - (S.t + carry - simCross)` (the real-time loop accumulates exactly the rAF deltas). Even beats are the scheduled kicks: steps 0 and 8 of every bar carry a kick in all seven groove levels (beat 0 is never scheduled by the game).');
-    L.push('3. Wall time -> audio clock: "heard" uses a linear fit of `getOutputTimestamp()` (contextTime vs performanceTime): the context time that is reaching the speaker at that wall moment. "render" uses `currentTime` (upper envelope of its ' + fmt(s.clock.renderQuantMs, 1) + ' ms quantisation): the context time being rendered. They differ by ' + fmt(-s.clock.heardMinusRenderMs, 1) + ' ms here; UPTEMPO subtracts `outputLatency` (32 ms in this browser) when it schedules, aiming at the heard clock.');
+    L.push('3. Wall time -> audio clock. "Heard" uses a linear fit of `getOutputTimestamp()` (contextTime vs performanceTime): the context time reaching the speaker at that wall moment. UPTEMPO\'s own comment says it aims for the kick to be *heard* on the beat, so this is the headline. "Render" uses `currentTime` (upper envelope of its quantisation steps): the context time being rendered.');
     L.push('4. Kick onsets come from the captured signal (sample-exact context timestamps): zero-phase 110 Hz lowpass for detection, then re-timed on a 400 Hz lowpass (first sample above 30 % of the attack peak). Each scheduled kick is matched to the nearest onset within ±min(60 ms, 0.45 of a 16th).');
     L.push('5. Calibration (same run, same browser): a page schedules the game\'s own kick/bass/hat/snare synth at known context times. Capture timestamps are ' + (calib && calib.timestampsExact ? '**sample-exact** (8/8 impulses at 0 frames error)' : 'off by ' + JSON.stringify(calib && calib.impulseFrameErr) + ' frames') + '; the kick detector\'s bias is ' + fmt(calib && calib.detectorBiasMs, 2) + ' ms (worst deviation ' + fmt(calib && calib.detectorJitterMs, 2) + ' ms), subtracted above. Routing the same kicks through UPTEMPO\'s master chain (16 kHz lowpass, DynamicsCompressor) shifts them by ' + fmt(calib && calib.chainDelayMs, 2) + ' ms; that is Chromium\'s compressor look-ahead, a real audible delay, so it is **not** subtracted.');
+    L.push('6. Drift: least-squares slope of offset vs time within each session; "grows" means the fitted change over the session exceeds 5 ms with r² > 0.3. The audio-clock skew is the slope of the `getOutputTimestamp` fit minus 1.');
     L.push('');
   } else L.push(up ? 'No result: ' + (up.sync.why || 'no kicks matched') : 'UPTEMPO was not run.', '');
   L.push('## Method', '');
-  L.push('- **Capture.** `lab/audio/tap.js` is injected with `addInitScript`. It subclasses `AudioContext` (registers every context, including a second one), patches `AudioNode.prototype.connect` so any connection to a context\'s `destination` is also teed into a recorder in that context, and patches `disconnect` to follow. Recorder: tap gain -> `DelayNode` (' + DELAY + ' s, covers the async worklet load so the first sounds are not lost) -> `AudioWorkletNode` loaded from a Blob URL, which downmixes the 2-channel speaker mix to mono and stamps each block with `currentFrame`; ScriptProcessorNode is the fallback. Node pulls the samples every 2 s as base64 Float32.');
+  L.push('- **Capture.** `lab/audio/tap.js` is injected with `addInitScript`. It subclasses `AudioContext` (registers every context, including a second one), patches `AudioNode.prototype.connect` so any connection to a context\'s `destination` is also teed into a recorder in that context, and patches `disconnect` to follow. Recorder: tap gain -> `DelayNode` (' + DELAY + ' s, covers the async worklet load so the first sounds are not lost) -> `AudioWorkletNode` loaded from a Blob URL, which downmixes the 2-channel speaker mix to mono and stamps each block with `currentFrame`; ScriptProcessorNode is the fallback. Chromium\'s `currentFrame` sometimes repeats the previous block\'s value inside `process()` (' + results.reduce((a, r) => a + (r.staleFrameReads || 0), 0) + ' times in this run), so the recorder keeps its own frame counter; missing frames across all captures: ' + results.reduce((a, r) => a + (r.holesFrames || 0), 0) + '. Node pulls the samples every 2 s as base64 Float32.');
   L.push('- **Browser.** Playwright\'s bundled headless Chromium (headless shell) with `--autoplay-policy=no-user-gesture-required`' + (meta.unmuted ? '' : ' and `--mute-audio`') + ' (`lab/lib.js` launch). The audio clock **does advance in real time** in headless mode (a fake output device at ' + (meta.sr || 44100) + ' Hz, `outputLatency` 32 ms, `baseLatency` 10 ms), so no xvfb or headed mode was needed. Muting the output device does not stop the render graph, and the tap records before the destination, so capture is unaffected by `--mute-audio`.');
   L.push('- **Play.** Real-time mode only (`__game.reset()` is never called). One key unlocks audio, then a per-game pattern (`lab/audio/players.js`) runs: fire/turn (KICKBACK), steer to orbs + dash (LOOPBACK), shift/drop/tilt (TILTWELL), steer to letters + cast (SPELLSNAKE), roll at enemies + pick cards (PIPWALK), walls/GO/pulse/pick (MAZEWRIGHT), buy/move/place/reroll (COMPOUND), sweep aim + fire (JUNK ORBIT), chase + flip polarity (MAGSUMO). UPTEMPO is played by a timing bot that reads `getState().notes`, converts each note to the wall-clock moment it crosses the hit line and presses its lane key then. If a session has not ended by 55 % of its time, the pattern turns sloppy (stops steering, drops blindly, drifts out of the ring...) so the game can end on its own terms and its game-over sound is captured; UPTEMPO keeps playing well throughout. After a game over the runner waits 0.9 s and presses Space to restart.');
-  L.push('- **Artifacts.** `lab/results/audio/<id>.wav`: 16-bit PCM mono, resampled to 22.05 kHz with a windowed-sinc filter, first ' + WAV_CAP_S + ' s. `<id>.png`: waveform (min/max) with RMS envelope and key-press ticks, onset strip (yellow), for UPTEMPO scheduled beats (cyan) and detected kicks (magenta), log-frequency spectrogram 40 Hz-11 kHz (-90..0 dB).');
+  L.push('- **Artifacts.** `lab/results/audio/<id>.wav`: 16-bit PCM mono, resampled to 22.05 kHz with a windowed-sinc filter, first ' + WAV_CAP_S + ' s. `<id>.png` (1200x300, drawn on a canvas in the same browser): level panel with per-pixel peak and 50 ms RMS on a dBFS scale (-60 dB dashed), strips for key presses and onsets (yellow), for UPTEMPO also scheduled beats (cyan, also as lines in the level panel) and detected low-frequency kicks (magenta), then a log-frequency spectrogram 40 Hz-11 kHz (-90..0 dB).');
   L.push('');
   L.push('## Limits', '');
   L.push('- Measures presence, cleanliness and timing, **not quality**. A game can pass every check and still sound harsh, thin or repetitive.');
   L.push('- One short session per game (~' + meta.secs + ' s) with a scripted, not human, input pattern: later difficulty levels, rare events and long-session fatigue are mostly not heard. Silence % depends on how busy the pattern keeps the game.');
   L.push('- The recorder sees the float mix before the destination. Real devices clip at ±1 the same way, but OS mixers, Bluetooth latency and speaker response are outside the lab. Output latency in headless Chromium is a fake device\'s estimate, so the "heard" sync numbers describe Chromium\'s own latency model, not a measured speaker.');
   L.push('- Onset counts are a proxy for "discrete sound events": a sound with two attacks can count twice, and overlapping sounds within 60 ms count once.');
+  L.push('- NaN detection was checked with a buffer full of NaNs: they reach the tap, but the tap\'s DelayNode interpolates, so each NaN sample is counted about twice. Values above ±1 pass through unclamped, so "clip %" sees overs.');
+  L.push('- This container was shared with other agents running headless browsers (load ~1.5-2 on 4 cores). Real-time capture is unaffected (sample-exact timestamps, no holes), but audio-clock rate and quantisation in the UPTEMPO sessions vary with that load.');
   L.push('- Multiple contexts are each captured (tested with two contexts at 44.1 and 48 kHz) and mixed by wall-clock alignment, good to ~20 ms; ' + (results.filter(r => r.contexts > 1).length ? 'some games here created more than one context: ' + results.filter(r => r.contexts > 1).map(r => r.id).join(', ') : 'every game here created exactly one') + '.');
   L.push('');
   fs.writeFileSync(path.join(OUT, 'audio.md'), L.join('\n'));
@@ -511,6 +535,11 @@ function writeMarkdown(meta, results, calib) {
 
 async function main() {
   const o = args();
+  if (o.reportOnly) {                                   // rebuild audio.md + the table from lab/results/audio.json
+    const j = JSON.parse(fs.readFileSync(path.join(OUT, 'audio.json'), 'utf8'));
+    const all = ALL.filter(id => j.games[id]).map(id => j.games[id]);
+    printTable(all); writeMarkdown(j.meta, all, j.calibration); console.log('\nrewrote lab/results/audio.md from audio.json'); return;
+  }
   fs.mkdirSync(OUT_A, { recursive: true });
   const { srv, base } = await serve();
   const browser = o.unmuted ? await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] }) : await launch();
@@ -532,22 +561,32 @@ async function main() {
       else console.log(r.durationS + ' s, peak ' + r.peakDb + ' dBFS, rms ' + r.rmsDb + ', ' + r.events + ' events, overs ' + r.play.overs + (r.flags.length ? ', FLAGS: ' + r.flags.join('; ') : '') +
         (r.sync && r.sync.heard ? ' | kick-vs-beat median ' + r.sync.heard.median + ' ms, p95|' + r.sync.heard.p95abs + '| ms, matched ' + r.sync.kicksMatched + '/' + r.sync.kicksExpected : ''));
     }
-    // UPTEMPO's audio cursor is anchored once, when audio starts, so the offset is fixed within a session but can differ
-    // between sessions: a few extra short sessions measure that spread.
+    // UPTEMPO's audio cursor is anchored once, when audio starts, so the offset is fixed within a session (up to clock
+    // skew) but can differ between sessions: a few extra sessions measure that spread; the headline stats pool them all.
     const upR = results.find(r => r.id === 'uptempo' && r.sync && r.sync.heard);
-    if (upR && o.syncRuns > 0) {
-      const sess = [{ session: 1, secs: o.secs, n: upR.sync.heard.n, medianHeardMs: upR.sync.heard.median, medianRenderMs: upR.sync.render.median, schedVsBeatHeardMs: upR.sync.decomp ? upR.sync.decomp.schedVsBeatHeardMs.median : null, audibleVsSchedMs: upR.sync.decomp ? upR.sync.decomp.audibleVsSchedMs.median : null }];
+    if (upR) {
+      const one = (k, sec, sy) => ({ session: k, secs: sec, n: sy.heard.n, matched: sy.kicksMatched + '/' + sy.kicksExpected, medianHeardMs: sy.heard.median, p95absHeardMs: sy.heard.p95abs, sdHeardMs: sy.heard.sd, medianRenderMs: sy.render.median,
+        schedVsBeatHeardMs: sy.decomp ? sy.decomp.schedVsBeatHeardMs.median : null, audibleVsSchedMs: sy.decomp ? sy.decomp.audibleVsSchedMs.median : null,
+        driftMsPerMin: sy.drift ? sy.drift.slopeMsPerMin : null, driftR2: sy.drift ? sy.drift.r2 : null, skewPpm: sy.clock.audioClockSkewPpm, skewPredictsMsPerMin: sy.drift ? sy.drift.skewPredictsMsPerMin : null, grows: sy.drift ? sy.drift.grows : null,
+        heardMinusRenderMs: sy.clock.heardMinusRenderMs, renderQuantMs: sy.clock.renderQuantMs });
+      const sess = [one(1, o.secs, upR.sync)];
+      const allH = upR.sync.rows.filter(r => r.offHeardMs != null).map(r => r.offHeardMs), allR = upR.sync.rows.filter(r => r.offRenderMs != null).map(r => r.offRenderMs);
+      const XS = Math.max(10, Math.min(20, Math.round(o.secs * 0.6)));
       for (let k = 0; k < o.syncRuns; k++) {
-        process.stdout.write('uptempo sync session ' + (k + 2) + ' (10 s) ... ');
+        process.stdout.write('uptempo sync session ' + (k + 2) + ' (' + XS + ' s) ... ');
         try {
-          const r = await runGame(browser, base, 'uptempo', Object.assign({}, o, { secs: 10, lite: true }), calib);
-          if (r.sync && r.sync.heard) { sess.push({ session: k + 2, secs: 10, n: r.sync.heard.n, medianHeardMs: r.sync.heard.median, medianRenderMs: r.sync.render.median, schedVsBeatHeardMs: r.sync.decomp ? r.sync.decomp.schedVsBeatHeardMs.median : null, audibleVsSchedMs: r.sync.decomp ? r.sync.decomp.audibleVsSchedMs.median : null }); console.log('median ' + r.sync.heard.median + ' ms (n ' + r.sync.heard.n + ')'); }
-          else console.log('no result');
+          const r = await runGame(browser, base, 'uptempo', Object.assign({}, o, { secs: XS, lite: true }), calib);
+          if (r.sync && r.sync.heard) {
+            sess.push(one(k + 2, XS, r.sync));
+            for (const row of r.sync.rows) { if (row.offHeardMs != null) allH.push(row.offHeardMs); if (row.offRenderMs != null) allR.push(row.offRenderMs); }
+            console.log('median ' + r.sync.heard.median + ' ms (n ' + r.sync.heard.n + ')' + (r.sync.drift ? ', drift ' + r.sync.drift.slopeMsPerMin + ' ms/min' : ''));
+          } else console.log('no result');
         } catch (e) { console.log('failed: ' + e.message); }
       }
       const med = sess.map(z => z.medianHeardMs);
       upR.sync.sessions = sess;
-      upR.sync.acrossSessions = { n: sess.length, minMedianMs: round(Math.min(...med), 2), maxMedianMs: round(Math.max(...med), 2), spreadMs: round(Math.max(...med) - Math.min(...med), 2) };
+      upR.sync.pooled = { sessions: sess.length, heard: offStats(allH), render: offStats(allR) };
+      upR.sync.acrossSessions = { n: sess.length, minMedianMs: round(Math.min(...med), 2), maxMedianMs: round(Math.max(...med), 2), spreadMs: round(Math.max(...med) - Math.min(...med), 2), anyDriftGrows: sess.some(z => z.grows) };
     }
     await renderPlots(browser, results);
     // merge with an existing audio.json when only some games were run
@@ -561,7 +600,11 @@ async function main() {
     fs.writeFileSync(jf, JSON.stringify({ meta, calibration: calib || prev.calibration || null, games: byId }, null, 1));
     printTable(all);
     const up = all.find(r => r.id === 'uptempo' && r.sync && r.sync.heard);
-    if (up) { const s = up.sync; console.log('\nUPTEMPO kick vs sim beat (heard clock): mean ' + s.heard.mean + ' ms, median ' + s.heard.median + ' ms, p95|' + s.heard.p95abs + '| ms, n=' + s.heard.n + '; render clock median ' + s.render.median + ' ms; drift ' + (s.drift ? s.drift.slopeMsPerMin + ' ms/min, grows: ' + s.drift.grows : 'n/a')); }
+    if (up) {
+      const s = up.sync, h = s.pooled ? s.pooled.heard : s.heard;
+      console.log('\nUPTEMPO kick vs sim beat (heard clock' + (s.pooled ? ', ' + s.pooled.sessions + ' sessions pooled' : '') + '): mean ' + h.mean + ' ms, median ' + h.median + ' ms, p95|' + h.p95abs + '| ms, n=' + h.n +
+        (s.sessions ? '; per-session medians ' + s.sessions.map(z => z.medianHeardMs).join(' / ') + ' ms; drift ms/min ' + s.sessions.map(z => z.driftMsPerMin).join(' / ') + ' (skew-predicted ' + s.sessions.map(z => z.skewPredictsMsPerMin).join(' / ') + ')' : ''));
+    }
     writeMarkdown(meta, all, calib || prev.calibration);
     console.log('\nwrote lab/results/audio.json, lab/results/audio.md, lab/results/audio/*.wav|png');
   } finally {

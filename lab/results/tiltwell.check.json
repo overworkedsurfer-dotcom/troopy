@@ -35,7 +35,7 @@
   {
    "name": "touch: game responds / runs",
    "pass": true,
-   "detail": "t=2366.6666666666674"
+   "detail": "t=2383.333333333334"
   },
   {
    "name": "touch: canvas fits 390px viewport",
@@ -100,17 +100,17 @@
   {
    "name": "bot random runs 20s without error",
    "pass": true,
-   "detail": "score=40 ms=4600 wall=4ms"
+   "detail": "score=40 ms=4600 wall=2ms"
   },
   {
    "name": "bot heuristic runs 20s without error",
    "pass": true,
-   "detail": "score=871 ms=20000 wall=18ms"
+   "detail": "score=871 ms=20000 wall=13ms"
   },
   {
    "name": "bot smart runs 20s without error",
    "pass": true,
-   "detail": "score=1003 ms=20000 wall=238ms"
+   "detail": "score=1003 ms=20000 wall=215ms"
   },
   {
    "name": "zero console/page errors",

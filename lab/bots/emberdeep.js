@@ -124,14 +124,14 @@ module.exports = {
         };
         let goals = [], wantStairs = false;
         const fromMe = field([idx(s0.px, s0.py)]);
-        const stairsD = stairsSeen ? fromMe[si] : 99;
-        if (s0.hp <= s0.maxHp * 0.45 && unlit.length) goals = unlit.map(b => idx(b.x, b.y));
+        const toStairs = stairsSeen ? field([si]) : null;
+        // time budget: every detour must still leave the stairs reachable a few turns after the dark rises
+        const slack = left + 6;
+        const fits = i => fromMe[i] + (toStairs ? toStairs[i] : 10) < slack;
+        if (s0.hp <= s0.maxHp * 0.45 && unlit.length) goals = unlit.map(b => idx(b.x, b.y)).filter(i => fromMe[i] < 999);
         if (!goals.length && s0.sealed) { const w = s0.enemies.find(e => e.type === 'warden'); if (w && seen(idx(w.x, w.y))) goals = [idx(w.x, w.y)]; }
-        if (!goals.length) {
-          const its = s0.items.filter(it => seen(idx(it.x, it.y))).map(it => idx(it.x, it.y)).filter(i => fromMe[i] + (stairsSeen ? 0 : 6) < left - 4);
-          if (its.length) goals = its;
-        }
-        if (!goals.length && frontier.length && (left > (stairsSeen ? stairsD + 14 : 6))) goals = frontier;
+        if (!goals.length) goals = s0.items.filter(it => seen(idx(it.x, it.y))).map(it => idx(it.x, it.y)).filter(fits);
+        if (!goals.length && frontier.length && (!toStairs || frontier.some(fits))) goals = toStairs ? frontier.filter(fits) : frontier;
         if (!goals.length && stairsSeen && !s0.sealed) { goals = [si]; wantStairs = true; }
         if (!goals.length) goals = frontier.length ? frontier : [si];
         const dist = field(goals);
@@ -144,18 +144,18 @@ module.exports = {
           while (!s.over && !s.ready && k < 40) { G.tick(50); s = G.getState(); k++; }
           return s;
         }
-        function evalS(s) {
+        function evalS(s, noDanger) {
           if (s.over) return -1e9;
           if (s.phase === 'draft' || s.depth > s0.depth) return (wantStairs ? 2e5 : 4000) + s.hp * 1500 + (s.score - s0.score) * 2;
           const i = idx(s.px, s.py);
           let v = s.hp * 1000 + s.maxHp * 150 + (s.score - s0.score) * 2.5 + s.oil * 600 - s.gloom * 300;
           v -= Math.min(60, dist[i]) * 140;
-          let dz = 0; for (const d of s.danger) if (d[0] === s.px && d[1] === s.py) dz += d[2];
-          v -= dz * 1300;
+          if (!noDanger) { let dz = 0; for (const d of s.danger) if (d[0] === s.px && d[1] === s.py) dz += d[2]; v -= dz * 1300; }
+          // total foe HP, independent of where you stand or what is awake: only damage dealt moves it
           for (const e of s.enemies) {
             const md = Math.abs(e.x - s.px) + Math.abs(e.y - s.py);
-            if (e.type === 'shade') { if (s.dim && md <= 4) v -= 1200 / md; }
-            else if (md <= 3 && (e.awake || e.type === 'moth')) v -= e.hp * 50 * (e.type === 'moth' && !e.aware ? 0.3 : 1);
+            v -= e.hp * (e.type === 'warden' ? 450 : 260);
+            if (e.type === 'shade' && s.dim && md <= 4) v -= 1200 / md;
           }
           v += (s.kills - s0.kills) * 300;
           if (s.dim) v -= 500;
@@ -167,15 +167,17 @@ module.exports = {
           G.restore(snap);
           const s1 = adv(a);
           let v;
-          if (s1.over || s1.phase !== 'play') v = evalS(s1);
+          // value = best follow-up leaf + a discounted look at the state right after this action (progress now beats
+          // progress later; danger is left out of that part so "hit, then step out of the red" is not punished)
+          if (s1.over || s1.phase !== 'play') v = evalS(s1) * 1.3;
           else {
             const sn1 = G.snapshot();
             const a2s = DL.slice(); if (s1.canFlare) a2s.push('flare');
             let b2 = -Infinity;
             for (const a2 of a2s) { G.restore(sn1); const v2 = evalS(adv(a2)); if (v2 > b2) b2 = v2; }
-            v = 0.25 * evalS(s1) + 0.75 * b2;
+            v = b2 + 0.3 * evalS(s1, true);
           }
-          if (s1.phase === 'play' && !s1.over) { const k1 = idx(s1.px, s1.py); let rep = 0; for (const h of mem.hist) if (h === k1) rep++; v -= rep * 220; }
+          if (s1.phase === 'play' && !s1.over && (s1.px !== s0.px || s1.py !== s0.py)) { const k1 = idx(s1.px, s1.py); let rep = 0; for (const h of mem.hist) if (h === k1) rep++; v -= rep * 90; }
           v += rng() * 0.01;
           if (v > bestV) { bestV = v; bestA = a; }
         }

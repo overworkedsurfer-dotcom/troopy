@@ -13,6 +13,8 @@
 <body>
 <canvas id="c"></canvas>
 <script>
+function __trimOut(AC) { /* funlab-trim: loudness normalisation +3.4 dB (lab/results/audio.md) */ if (!AC.__trim) { AC.__trim = AC.createGain(); AC.__trim.gain.value = 1.479; AC.__trim.connect(AC.destination); } return AC.__trim; }
+
 (() => {
 'use strict';
 const ID = 'pipwalk';
@@ -63,8 +65,8 @@ function audioInit() {
     if (!AC) {
       AC = new (window.AudioContext || window.webkitAudioContext)();
       MASTER = AC.createGain(); MASTER.gain.value = 0.5;
-      try { const lim = AC.createDynamicsCompressor(); lim.threshold.value = -10; lim.knee.value = 6; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.2; MASTER.connect(lim); lim.connect(AC.destination); }
-      catch (e2) { MASTER.connect(AC.destination); }
+      try { const lim = AC.createDynamicsCompressor(); lim.threshold.value = -10; lim.knee.value = 6; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.2; MASTER.connect(lim); lim.connect(__trimOut(AC)); }
+      catch (e2) { MASTER.connect(__trimOut(AC)); }
       const len = (AC.sampleRate * 0.6) | 0; NB = AC.createBuffer(1, len, AC.sampleRate);
       const d = NB.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     }

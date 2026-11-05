@@ -13,6 +13,8 @@
 <body>
 <canvas id="c"></canvas>
 <script>
+function __trimOut(AC) { /* funlab-trim: loudness normalisation +1.0 dB (lab/results/audio.md) */ if (!AC.__trim) { AC.__trim = AC.createGain(); AC.__trim.gain.value = 1.122; AC.__trim.connect(AC.destination); } return AC.__trim; }
+
 (() => {
 'use strict';
 const ID = 'compound';
@@ -190,7 +192,7 @@ function audioInit() {
       AC = new (window.AudioContext || window.webkitAudioContext)();
       const m = AC.createGain(); m.gain.value = 0.7;
       const comp = AC.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
-      m.connect(comp); comp.connect(AC.destination);
+      m.connect(comp); comp.connect(__trimOut(AC));
       const nb = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate), d = nb.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
       // ocean bed: looped noise through a lowpass, swelling with the tide

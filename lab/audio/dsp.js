@@ -90,10 +90,10 @@ function metrics(x, sr, opts = {}) {
     win.push(Math.sqrt(e / W));
   }
   const thr = Math.pow(10, -60 / 20);
-  let silent = 0, run = 0, longest = 0, actSq = 0, actN = 0;
-  for (const r of win) {
-    if (r < thr) { silent++; run++; if (run > longest) longest = run; } else { run = 0; actSq += r * r; actN++; }
-  }
+  let silent = 0, run = 0, longest = 0, longestAt = 0, actSq = 0, actN = 0;
+  win.forEach((r, i) => {
+    if (r < thr) { silent++; run++; if (run > longest) { longest = run; longestAt = i - run + 1; } } else { run = 0; actSq += r * r; actN++; }
+  });
   // DC per 1 s window (catches a transient offset that the global mean averages away)
   let dcMax = 0; const S1 = sr;
   for (let s = 0; s + S1 <= n; s += S1) { let m = 0; for (let i = s; i < s + S1; i++) { const v = x[i]; if (v === v && Number.isFinite(v)) m += v; } dcMax = Math.max(dcMax, Math.abs(m / S1)); }
@@ -102,7 +102,7 @@ function metrics(x, sr, opts = {}) {
     samples: n, peak, peakDb: db(peak), rms, rmsDb: db(rms), activeRmsDb: db(activeRms),
     clipPct: 100 * clip / Math.max(1, n), over1, crestDb: rms > 0 ? db(peak / rms) : null, activeCrestDb: activeRms > 0 ? db(peak / activeRms) : null,
     dc, dcMax1s: dcMax, nan, inf,
-    windows: win.length, silencePct: win.length ? 100 * silent / win.length : 100, longestSilenceS: longest * 0.05,
+    windows: win.length, silencePct: win.length ? 100 * silent / win.length : 100, longestSilenceS: longest * 0.05, longestSilenceAtS: (from + longestAt * W) / sr,
   };
 }
 

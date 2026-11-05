@@ -13,6 +13,8 @@
 <body>
 <canvas id="c"></canvas>
 <script>
+function __trimOut(AC) { /* funlab-trim: loudness normalisation +3.6 dB (lab/results/audio.md) */ if (!AC.__trim) { AC.__trim = AC.createGain(); AC.__trim.gain.value = 1.514; AC.__trim.connect(AC.destination); } return AC.__trim; }
+
 (() => {
 'use strict';
 const ID = 'kickback';
@@ -58,7 +60,7 @@ function audioInit() {
     if (!AC) {
       AC = new (window.AudioContext || window.webkitAudioContext)();
       MASTER = AC.createGain(); MASTER.gain.value = 0.55;
-      const comp = AC.createDynamicsCompressor(); MASTER.connect(comp); comp.connect(AC.destination);
+      const comp = AC.createDynamicsCompressor(); MASTER.connect(comp); comp.connect(__trimOut(AC));
       const len = AC.sampleRate | 0; NOISE = AC.createBuffer(1, len, AC.sampleRate);
       const d = NOISE.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     }

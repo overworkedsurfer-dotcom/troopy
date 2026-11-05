@@ -13,6 +13,8 @@
 <body>
 <canvas id="c"></canvas>
 <script>
+function __trimOut(AC) { /* funlab-trim: loudness normalisation +10.7 dB (lab/results/audio.md) */ if (!AC.__trim) { AC.__trim = AC.createGain(); AC.__trim.gain.value = 3.428; AC.__trim.connect(AC.destination); } return AC.__trim; }
+
 (() => {
 'use strict';
 const ID = 'junkorbit';
@@ -47,7 +49,7 @@ function audioInit() {
   try {
     if (!AC) {
       AC = new (window.AudioContext || window.webkitAudioContext)();
-      MASTER = AC.createGain(); MASTER.gain.value = 0.55; MASTER.connect(AC.destination);
+      MASTER = AC.createGain(); MASTER.gain.value = 0.55; MASTER.connect(__trimOut(AC));
       const n = AC.sampleRate, b = AC.createBuffer(1, n, n), d = b.getChannelData(0);
       for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
       NOISE = b;

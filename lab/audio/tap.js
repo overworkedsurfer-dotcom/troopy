@@ -27,19 +27,26 @@ module.exports = function installAudioTap(opt) {
   const recs = new WeakMap();
   const err = (where, e) => { if (LAB.errors.length < 50) LAB.errors.push(where + ': ' + (e && e.message || e)); };
 
+  // currentFrame is occasionally stale inside process(): it can repeat the previous call's value (and reads 0 on the
+  // very first call). The recorder keeps its own frame counter and only resyncs to currentFrame on a real jump.
   const WSRC = 'class LabRec extends AudioWorkletProcessor {\n' +
-    '  constructor(o) { super(); this.n = o.processorOptions.chunk; this.buf = new Float32Array(this.n); this.i = 0; this.f0 = -1; this.q = 128;\n' +
+    '  constructor(o) { super(); this.n = o.processorOptions.chunk; this.buf = new Float32Array(this.n); this.i = 0; this.f0 = -1; this.q = 128; this.last = -1; this.stale = 0; this.resync = 0;\n' +
     '    this.port.onmessage = e => { if (e.data === "flush") this.flush(); }; }\n' +
-    '  flush() { if (this.i > 0) { const d = this.buf.slice(0, this.i); this.port.postMessage({ f0: this.f0, d }, [d.buffer]); this.f0 += this.i; this.i = 0; } }\n' +
+    '  flush() { if (this.i > 0) { const d = this.buf.slice(0, this.i); this.port.postMessage({ f0: this.f0, d, stale: this.stale, resync: this.resync }, [d.buffer]); this.f0 += this.i; this.i = 0; } }\n' +
     '  process(inputs) {\n' +
-    '    if (!this.warm) { this.warm = true; return true; }   // first call: currentFrame can still read 0 here, skip it\n' +
+    '    const cfRaw = currentFrame;\n' +
+    '    if (this.last < 0) { this.last = cfRaw; return true; }   // first call: currentFrame can still read 0 here, skip it\n' +
     '    const inp = inputs[0], L = inp && inp[0], R = inp && inp[1];\n' +
     '    const n = L ? L.length : this.q; this.q = n;\n' +
-    '    if (this.f0 < 0) this.f0 = currentFrame;\n' +
-    '    else if (this.f0 + this.i !== currentFrame) { this.flush(); this.f0 = currentFrame; }\n' +
+    '    if (this.f0 < 0) this.f0 = cfRaw;\n' +
+    '    else if (this.f0 + this.i !== cfRaw) {\n' +
+    '      if (cfRaw === this.last) this.stale++;                   // stale read: trust our own counter\n' +
+    '      else { this.flush(); this.f0 = cfRaw; this.resync++; }   // a real jump: start a new chunk there\n' +
+    '    }\n' +
+    '    this.last = cfRaw;\n' +
     '    for (let k = 0; k < n; k++) {\n' +
     '      this.buf[this.i++] = L ? (R ? (L[k] + R[k]) * 0.5 : L[k]) : 0;\n' +
-    '      if (this.i === this.n) { this.port.postMessage({ f0: this.f0, d: this.buf }, [this.buf.buffer]); this.buf = new Float32Array(this.n); this.f0 += this.n; this.i = 0; }\n' +
+    '      if (this.i === this.n) { this.port.postMessage({ f0: this.f0, d: this.buf, stale: this.stale, resync: this.resync }, [this.buf.buffer]); this.buf = new Float32Array(this.n); this.f0 += this.n; this.i = 0; }\n' +
     '    }\n' +
     '    return true;\n' +
     '  }\n' +
@@ -61,7 +68,7 @@ module.exports = function installAudioTap(opt) {
       origConnect.call(r.delayNode, r.sink);
       origConnect.call(r.sink, ctx.destination);
     } catch (e) { err('tap graph', e); r.mode = 'failed'; return r; }
-    const onChunk = m => { const d = m.d; r.chunks.push({ f0: m.f0, d }); r.frames += d.length; };
+    const onChunk = m => { const d = m.d; r.chunks.push({ f0: m.f0, d }); r.frames += d.length; if (m.stale != null) { r.stale = m.stale; r.resync = m.resync; } };
     const fallback = why => {
       try {
         const N = 4096, sp = ctx.createScriptProcessor(N, 2, 1);
@@ -183,6 +190,6 @@ module.exports = function installAudioTap(opt) {
   };
   LAB.info = function () {
     return LAB.ctxs.map(r => ({ id: r.id, sr: r.sr, mode: r.mode, teed: r.teed, frames: r.frames, state: r.ctx.state, createdPerf: r.createdPerf, createdCtx: r.createdCtx,
-      readyPerf: r.readyPerf || null, readyCtx: r.readyCtx || null, outputLatency: r.ctx.outputLatency || 0, baseLatency: r.ctx.baseLatency || 0, fallbackWhy: r.fallbackWhy || null }));
+      staleFrameReads: r.stale || 0, resyncs: r.resync || 0, readyPerf: r.readyPerf || null, readyCtx: r.readyCtx || null, outputLatency: r.ctx.outputLatency || 0, baseLatency: r.ctx.baseLatency || 0, fallbackWhy: r.fallbackWhy || null }));
   };
 };
