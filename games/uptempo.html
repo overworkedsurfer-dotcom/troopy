@@ -697,17 +697,18 @@ function drawGauge() {
     cx.font = 'bold 13px ' + FONT; cx.fillStyle = '#ff6b84'; cx.fillText('⚠ TEMPO SURGE INCOMING', gx, 242); cx.globalAlpha = 1;
   }
   if (FX.floorTxt && !S.over) {
-    const t = FX.floorTxt, s = 1 + Math.max(0, t.life - 0.85) * 3;
-    cx.save(); cx.globalAlpha = Math.min(1, t.life * 2.5); cx.translate(CXM, 318); cx.scale(s, s); cx.textAlign = 'center';
-    cx.fillStyle = 'rgba(30,0,10,0.82)'; rrect(-200, -32, 400, 62, 14); cx.fill(); cx.strokeStyle = '#ff4d6d'; cx.lineWidth = 2; cx.stroke();
-    cx.font = 'bold 26px ' + FONT; cx.fillStyle = '#ff4d6d'; cx.fillText('THE FLOOR CAUGHT YOU', 0, -4);
-    cx.font = 'bold 13px ' + FONT; cx.fillStyle = '#ffd1dc'; cx.fillText('it now drags your tempo up · braking can’t go below it', 0, 18); cx.restore();
+    const t = FX.floorTxt, s = 1 + Math.max(0, t.life - 0.85) * 2.5;          // in the sky, never over the notes
+    cx.save(); cx.globalAlpha = Math.min(1, t.life * 2.5); cx.translate(CXM, 240); cx.scale(s, s); cx.textAlign = 'center';
+    cx.fillStyle = 'rgba(40,0,12,0.92)'; rrect(-165, -17, 330, 36, 12); cx.fill(); cx.strokeStyle = '#ff4d6d'; cx.lineWidth = 2; cx.stroke();
+    cx.font = 'bold 17px ' + FONT; cx.fillStyle = '#ff4d6d'; cx.fillText('THE FLOOR CAUGHT YOU', 0, 0);
+    cx.font = 'bold 10.5px ' + FONT; cx.fillStyle = '#ffd1dc'; cx.fillText('it drags your tempo up now · no braking below it', 0, 13); cx.restore();
   }
-  if (FX.surgeTxt) {
-    const t = FX.surgeTxt, s = 1 + (1 - t.life) * 0.25;
-    cx.save(); cx.globalAlpha = Math.min(1, t.life * 2); cx.translate(CXM, 300); cx.scale(s, s);
-    cx.font = 'bold 30px ' + FONT; cx.lineWidth = 5; cx.strokeStyle = 'rgba(20,0,10,0.8)'; cx.strokeText(t.txt, 0, 0);
-    cx.fillStyle = '#ff4d6d'; cx.fillText(t.txt, 0, 0); cx.font = 'bold 13px ' + FONT; cx.fillStyle = '#ffc2cd'; cx.fillText('the floor just jumped', 0, 22); cx.restore();
+  else if (FX.surgeTxt) {
+    const t = FX.surgeTxt, s = 1 + Math.max(0, t.life - 0.85) * 2.5;
+    cx.save(); cx.globalAlpha = Math.min(1, t.life * 2); cx.translate(CXM, 240); cx.scale(s, s); cx.textAlign = 'center';
+    cx.fillStyle = 'rgba(40,0,12,0.92)'; rrect(-120, -17, 240, 36, 12); cx.fill();
+    cx.font = 'bold 17px ' + FONT; cx.fillStyle = '#ff4d6d'; cx.fillText(t.txt, 0, 0);
+    cx.font = 'bold 10.5px ' + FONT; cx.fillStyle = '#ffc2cd'; cx.fillText('the floor just jumped', 0, 13); cx.restore();
   }
 }
 

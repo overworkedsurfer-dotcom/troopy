@@ -4,7 +4,7 @@
  "seed": 1,
  "lengthMs": 181666.66666665248,
  "finalScore": 92964,
- "cause": "missed a 16th-note jack at 192 BPM — out of HP",
+ "cause": "missed a 16th-note jack at 192 BPM — out of HP (the rising floor had your tempo pinned)",
  "replayMatches": true,
  "shots": [
   {

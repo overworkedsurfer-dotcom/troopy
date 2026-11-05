@@ -380,3 +380,51 @@ Notably, **the blind loop did about as well as my careful play**, which is a war
 - **Would I play a 4th run?** Maybe. The systems are clever, but I'd want clearer cause and effect between my build choices and the outcome.
 - **Bugs / friction:** No console errors. The first-look screenshot shows the score at 149 before any input (a non-zero starting score is odd). Score vs wealth is unexplained. Replacing a placed card has no confirmation. With 25 cells of tags (×1.5, ×0.75, +0.5/s) the board gets dense, and the tiny red/white multiplier labels are hard to read. "the tide would take you" appears in small red text at the bottom of the board and is easy to miss.
 
+---
+
+## 9. Junkorbit
+
+**What it is:** A cannon at the bottom of a circular arena, aimed with ←/→ and fired with SPACE, with a
+planet in the middle. Shots ("comets") follow gravity, and a dotted trajectory preview bends around the
+planet. A comet that dives through the planet's glow is CAPTURED (+30) and orbits safely. Stars pop for
+points. Orbiting comets collide ("#10 KNOCKED LOOSE"), and loose comets (orange) eventually "come back
+around" to hit you. Three hearts, a level bar, and "orbits" (remaining capacity?) / "loose" counters.
+
+**Runs**
+| Run | Seed | Score | Length | Cause |
+|---|---|---|---|---|
+| 1 | 101 | 7,744 | 55 s, level 3 | comet #59 came back around (fired 0:17 ago) |
+| 2 | 102 | 4,497 | 49 s, level 1→2 | comet #17 came back around (fired 0:38 ago) |
+| 3 | 103 | 8,693 | 60 s | comet #34 came back around (fired 0:39 ago) |
+
+Improved? **Not meaningfully, and that's the finding.** I aimed the first four shots by hand. Then, to save
+screenshots, I ran a **blind sweep-and-fire loop** (rotate a bit, fire, repeat), and it scored 7.7K and 8.7K.
+A **fixed-aim spam** loop (never touch the arrows) still got 4.5K. Mindless input reaches level 3, and I
+couldn't find a deliberate tactic in the screenshots that obviously beat it.
+
+| # | Principle | Score | Justification |
+|---|---|---|---|
+| 1 | Readable in 5 s | 2 | "← → aim · SPACE fire (or mouse) · pop stars · dive through a planet's glow to capture" and the "captured = safe / loose = coming back!" legend are on the first screen, with a live trajectory preview. |
+| 2 | Clear goal, visible score | 1 | Score, best, hearts, level and streak are visible. But "20/22 orbits" is ambiguous (a quota? capacity?), and after one run I still couldn't state the goal beyond "fire into the glow, don't get hit". |
+| 3 | Juicy feedback | 2 | "CAPTURED +30", "#10 KNOCKED LOOSE", numbered comet tags (#15 +50), glowing comet trails, an orbit-ring flash on capture, and a red-tinted game-over card. Plenty of feedback. |
+| 4 | Forgiving input | 1 | The trajectory preview is real assistance. But with 20+ orbiting comets and crossing trails, a returning loose comet was nearly impossible to pick out in time, and there's no visible dodge. |
+| 5 | Fair, legible failure | 1 | "comet #59 came back around (fired 0:17 ago)" is specific, and the "fired X ago" is a lovely touch. But I couldn't have prevented it: I never identified comet #59 in the tangle. |
+| 6 | Instant retry | 2 | "press any key or tap to retry". |
+| 7 | Interesting decisions | 0 | From my play, blind spam ≈ deliberate play. Aim matters in principle (capture vs miss), but the gravity well funnels most shots into capture anyway. |
+| 8 | Pattern to learn | 0 | No score improvement tied to understanding. Run-to-run variance (4.5K–8.7K) came from the input pattern and seed, not from learning. |
+| 9 | Escalation / flow | 2 | Levels advance (orbit count/capacity changes per level), and debris density rises until collisions knock comets loose. |
+| 10 | Not solved | 1 | Runs ended at 50–60 s even with spam, but mindless spam reaching level 3 suggests a cheap strategy goes a long way. |
+| 11 | Risk and reward | 1 | There's an implied tension (more comets in orbit means more points but more collisions and loose junk). I never felt in control of it. |
+| 12 | Few verbs, deep use | 2 | Aim plus fire. Each comet is ammo, a score source *and* a future hazard, which is a clever dual purpose in theory. |
+| 13 | Variety | 2 | Star placement and the debris tangle differ by seed and are visibly different. |
+| 14 | Reward cadence / compounding | 1 | Points arrive constantly (captures, stars, "#15 +50"). A ×STREAK exists, but it stayed at ×1.0 in every screenshot I took, so I never saw it compound. |
+| 15 | One more go | 1 | NEW BEST and a stats line ("86 comets · 17 junk hits · 27 saves"). I didn't feel a pull to replay, because I didn't know what I'd do differently. |
+
+**Total: 19 / 30 → Fun score 6**
+
+- **MDA aesthetic felt:** Sensation (pretty orbital spirograph), with Submission.
+- **Best moment:** The first deliberate shot curving around the planet into "CAPTURED +30", with the comet settling into a glowing orbit. Very satisfying physics.
+- **Worst moment:** Mid-game, the screen turned into a spaghetti of 20+ crossing trails, and I died to a comet I'd fired 38 seconds earlier and could not have tracked.
+- **Would I play a 4th run?** No, not without clearer counterplay against loose comets.
+- **Bugs / friction:** No console errors. The stars in the first-look screenshot were in completely different places from the ones on the first stepped frame. "orbits 0/24" didn't change after my first captures (it moved later), so its meaning is unclear. "saves" on the game-over screen is never explained (am I meant to catch or shoot loose comets?). The late-game board is visually overwhelming. ×STREAK never moved off ×1.0 for me.
+
