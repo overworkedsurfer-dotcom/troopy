@@ -2,9 +2,9 @@
  "id": "compound",
  "bot": "smart",
  "seed": 1,
- "lengthMs": 275800,
- "finalScore": 6135,
- "cause": "the tide (+251%/s) outgrew your engine (+206%/s) at 4:30",
+ "lengthMs": 217400,
+ "finalScore": 4127,
+ "cause": "the tide (+205%/s) outgrew your engine (+159%/s) at 3:32",
  "replayMatches": true,
  "shots": [
   {
@@ -16,22 +16,22 @@
   },
   {
    "name": "2-mid",
-   "t": 138000,
-   "score": 727,
+   "t": 108800,
+   "score": 641,
    "over": false,
    "file": "lab/shots/compound/2-mid.png"
   },
   {
    "name": "3-intense",
-   "t": 274400,
-   "score": 6020,
+   "t": 216000,
+   "score": 4033,
    "over": false,
    "file": "lab/shots/compound/3-intense.png"
   },
   {
    "name": "4-gameover",
-   "t": 275800,
-   "score": 6135,
+   "t": 217400,
+   "score": 4127,
    "over": true,
    "file": "lab/shots/compound/4-gameover.png"
   }

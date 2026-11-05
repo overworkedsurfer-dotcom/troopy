@@ -29,7 +29,7 @@ const SEED = 0, MILL = 1, BANK = 2, LENS = 3, FURN = 4;
 const NAMES = ['SEED', 'MILL', 'BANK', 'LENS', 'FURNACE'];
 const TCOL = ['#3ee6a8', '#ffa94d', '#ffd166', '#b794ff', '#ff5d73'];
 const TRGB = ['62,230,168', '255,169,77', '255,209,102', '183,148,255', '255,93,115'];
-const T0 = 10, R0 = 0.02, TAU = 56;                              // tide: ln T = ln T0 + R0·TAU·(e^(t/TAU) − 1)
+const T0 = 10, R0 = 0.02, TAU = 46;                              // tide: ln T = ln T0 + R0·TAU·(e^(t/TAU) − 1)
 const GRACE = 1000;
 const VAULT = 10;                                                // banks only pay interest on wealth up to VAULT × tide                                              // ms you may spend under the tide before it takes you
 const N4 = [[-1, 0], [1, 0], [0, -1], [0, 1]];
@@ -88,7 +88,7 @@ function newState(seed) {
 function newFX() {
   return { parts: [], texts: [], coins: [], pops: [], hist: [], tile: new Array(25).fill(0), tileSq: new Array(25).fill(0), cardPop: [0, 0, 0], deny: [0, 0, 0],
     shake: 0, flash: 0, flashCol: '255,255,255', dispW: 30, wPulse: 0, water: 0.6, time: 0, beat: 0, nextBeat: 0, rogueWarn: 0,
-    fly: null, overT: 0, newBest: false, hintA: 1, under: 0, rerollPop: 0, chainT: 0, bigTxt: null, sampleT: 0, coinSnd: 0 };
+    fly: null, overT: 0, newBest: false, hintA: 1, introA: 1, under: 0, rerollPop: 0, chainT: 0, bigTxt: null, sampleT: 0, coinSnd: 0 };
 }
 function reset(seed) {
   S = newState(seed); FX = newFX(); carry = 0; drag = null;
@@ -238,7 +238,7 @@ function buy(slot) {
   FX.fly = { x0: from.x, y0: from.y, x1: p.x, y1: p.y, t: 0, col: TCOL[c.t], type: c.t, o: c.o };
   FX.tileSq[i] = 1; FX.cardPop[slot] = 1;
   burst(p.x, p.y, 22, TCOL[c.t], 4.5);
-  floatText(W / 2, 128, '−$' + fmt(price), '#ff8fa0', 17, -0.9);
+  floatText(W - 70, 84, '−$' + fmt(price), '#ff8fa0', 16, -0.7);
   if (old) floatText(p.x, p.y - 30, NAMES[old.t] + ' replaced', '#aab', 12, -0.8);
   chain.forEach((j, k) => {
     const nm = S.out[j] / Math.max(1e-300, prevOut[j]);
@@ -247,7 +247,7 @@ function buy(slot) {
   const big = (gain >= 1.6 && S.buys > 2) || c.rar === 2;
   if (c.rar) floatText(p.x, p.y + 34, c.rar === 2 ? 'LEGENDARY!' : 'RARE!', c.rar === 2 ? '#ff7ae0' : '#ffe08a', 14, -0.6);
   shake(big ? 10 : 4 + Math.min(6, chain.length));
-  if (big) { FX.bigTxt = { txt: 'GROWTH ×' + (gain < 10 ? gain.toFixed(1) : Math.round(gain)), life: 1 }; flash(0.3, '255,209,102'); burst(W / 2, 90, 40, '#ffd166', 6, 0.05); }
+  if (big) { FX.bigTxt = { txt: gain >= 1.6 ? 'GROWTH ×' + (gain < 10 ? gain.toFixed(1) : Math.round(gain)) : '★ LEGENDARY ★', life: 1 }; flash(0.3, '255,209,102'); burst(W / 2, 90, 40, '#ffd166', 6, 0.05); }
   sfx(t => {
     tone(t, 'square', 1318, 0.09, 0.07); tone(t + 0.06, 'square', 1760, 0.22, 0.07); hiss(t, 0.12, 'bandpass', 6000, 2, 0.06);
     tone(t, 'sine', 196, 0.25, 0.18, 98);
@@ -260,7 +260,7 @@ function reroll() {
   S.W -= c; S.rerolls++;
   S.shop = [genCard(), genCard(), genCard()];
   if (!QUIET) {
-    FX.rerollPop = 1; FX.cardPop = [1, 1, 1]; floatText(W / 2, 128, '−$' + fmt(c), '#ff8fa0', 15, -0.9);
+    FX.rerollPop = 1; FX.cardPop = [1, 1, 1]; floatText(W - 70, 84, '−$' + fmt(c), '#ff8fa0', 15, -0.7);
     for (let k = 0; k < 3; k++) { const p = cardXY(k); burst(p.x, p.y, 8, '#9fb4ff', 3); }
     sfx(t => { hiss(t, 0.25, 'bandpass', 800, 3, 0.12, 5000); for (let k = 0; k < 3; k++) tone(t + k * 0.05, 'triangle', 660 + k * 220, 0.06, 0.05); });
   }
@@ -357,7 +357,7 @@ function fxStep() {
   FX.coinSnd--;
   FX.coins = FX.coins.filter(c => c.t < 1);
   // duel history
-  if ((FX.sampleT += STEP) >= 100) { FX.sampleT = 0; FX.hist.push({ t: S.t, w: Math.log10(Math.max(1e-9, S.W)), d: Math.min(308, Math.log10(tideEff(S.t))), b: Math.min(308, Math.log10(tideBase(S.t))) }); if (FX.hist.length > 460) FX.hist.shift(); }
+  if ((FX.sampleT += STEP) >= 100) { FX.sampleT = 0; FX.hist.push({ t: S.t, m: Math.log10(Math.max(1e-9, S.W / tideBase(S.t))), d: Math.log10(1 + swell(S.t) + rogueAt(S.t)) }); if (FX.hist.length > 460) FX.hist.shift(); }
   // water level from the margin (log scale): m = 1 -> the tide reaches the wealth counter
   const m = margin(), target = clamp(1 - Math.log(Math.max(1, m)) / Math.log(8), 0, 1);
   FX.water += ((S.over ? 1.15 : target) - FX.water) * (S.over ? 0.03 : 0.08);
@@ -365,6 +365,7 @@ function fxStep() {
   if (S.rogue.warned && S.t < S.rogue.at + S.rogue.dur && !S.over) FX.rogueWarn = 1; else FX.rogueWarn *= 0.95;
   if (S.over) FX.overT = Math.min(1, FX.overT + 0.03);
   if (S.t > 9000 || S.buys > 2) FX.hintA = Math.max(0, FX.hintA - 0.01);
+  if (S.buys > 0 || S.t > 12000) FX.introA = Math.max(0, FX.introA - 0.06);
   // heartbeat when the tide is close
   if (!S.over && m < 1.5) {
     FX.nextBeat -= STEP;
@@ -439,48 +440,63 @@ function drawWater(tm) {
 }
 
 function drawChart() {
+  // the duel, in tide units: water = the tide (with its swells and rogue waves), gold line = your wealth.
   const x0 = CH_X, y0 = CH_Y, w = CH_W, h = CH_H;
-  cx.fillStyle = 'rgba(6,12,28,0.88)'; rrect(x0, y0, w, h, 12); cx.fill();
+  cx.fillStyle = 'rgba(6,12,28,0.9)'; rrect(x0, y0, w, h, 12); cx.fill();
   cx.strokeStyle = 'rgba(160,190,255,0.18)'; cx.lineWidth = 1; cx.stroke();
   const hs = FX.hist; if (hs.length < 2) return;
-  const span = 40000, tNow = S.t, tA = tNow - span, fut = 6000;
-  // forecast tide (dashed) shows the acceleration
-  const fc = []; for (let k = 0; k <= 12; k++) { const t = tNow + fut * k / 12; fc.push({ t, d: Math.log10(tideBase(t) * (1 + swell(t) + rogueAt(t))) }); }
-  let lo = 1e9, hi = -1e9;
-  for (const p of hs) if (p.t >= tA) { lo = Math.min(lo, p.w, p.d); hi = Math.max(hi, p.w, p.d); }
-  for (const p of fc) hi = Math.max(hi, p.d);
-  lo -= 0.15; hi += 0.15; if (hi - lo < 1) { const m = (hi + lo) / 2; lo = m - 0.5; hi = m + 0.5; }
-  const X = t => x0 + 8 + (t - tA) / (span + fut) * (w - 70), Y = v => y0 + h - 8 - (v - lo) / (hi - lo) * (h - 16);
+  const span = 30000, fut = 6000, tNow = S.t, tA = tNow - span;
+  const lm = Math.log10(Math.max(1e-9, margin() * (1 + swell(S.t) + rogueAt(S.t))));       // wealth / base tide, now
+  let hi = 1.12;
+  for (const p of hs) if (p.t >= tA) hi = Math.max(hi, p.m + 0.12);
+  hi = Math.max(hi, lm + 0.12);
+  const lo = -0.12;
+  const X = t => x0 + 6 + (t - tA) / (span + fut) * (w - 64), Y = v => y0 + h - 6 - (clamp(v, lo, hi) - lo) / (hi - lo) * (h - 22);
   cx.save(); rrect(x0, y0, w, h, 12); cx.clip();
-  // grid lines per decade
-  cx.strokeStyle = 'rgba(160,190,255,0.08)'; cx.fillStyle = 'rgba(160,190,255,0.45)'; cx.font = '10px ' + FONT; cx.textAlign = 'left';
-  for (let d = Math.ceil(lo); d <= hi; d++) { const y = Y(d); cx.beginPath(); cx.moveTo(x0, y); cx.lineTo(x0 + w, y); cx.stroke(); if (y > y0 + 12 && y < y0 + h - 4) cx.fillText(fmt(Math.pow(10, d), 0), x0 + 6, y - 2); }
-  // tide area
+  // gridlines ×1 ×2 ×5 ×10 ×100…
+  cx.font = '10px ' + FONT; cx.textAlign = 'left';
+  const marks = [[1, '×10'], [0, '×1'], [Math.log10(2), '×2'], [Math.log10(5), '×5']];      // vault line first: it has priority
+  for (let d = 2; d < hi; d += Math.max(1, Math.ceil((hi - 2) / 3))) marks.push([d, '×' + fmt(Math.pow(10, d), 0)]);
+  const used = [];
+  for (const [v, lab] of marks) {
+    if (v > hi) continue; const y = Y(v); if (used.some(u => Math.abs(u - y) < 13)) continue; used.push(y);
+    cx.strokeStyle = v === 1 ? 'rgba(255,209,102,0.35)' : 'rgba(160,190,255,0.09)'; if (v === 1) cx.setLineDash([3, 4]);
+    cx.beginPath(); cx.moveTo(x0, y); cx.lineTo(x0 + w, y); cx.stroke(); cx.setLineDash([]);
+    cx.fillStyle = v === 1 ? 'rgba(255,209,102,0.7)' : 'rgba(160,190,255,0.5)'; cx.fillText(v === 1 ? '×10 vault' : lab, x0 + 6, y - 2);
+  }
+  // water: tide surface relative to its trend (swell + rogue waves), plus a forecast
   const danger = clamp(1 - (margin() - 1) / 0.6, 0, 1);
-  cx.beginPath(); cx.moveTo(X(Math.max(tA, hs[0].t)), y0 + h);
-  for (const p of hs) if (p.t >= tA) cx.lineTo(X(p.t), Y(p.d));
-  cx.lineTo(X(tNow), y0 + h); cx.closePath();
-  cx.fillStyle = 'rgba(' + Math.round(40 + 200 * danger) + ',' + Math.round(120 - 60 * danger) + ',' + Math.round(230 - 130 * danger) + ',0.45)'; cx.fill();
+  const wcol = 'rgba(' + Math.round(40 + 200 * danger) + ',' + Math.round(120 - 60 * danger) + ',' + Math.round(230 - 130 * danger) + ',';
+  const surf = [];
+  for (const p of hs) if (p.t >= tA) surf.push([p.t, p.d]);
+  for (let k = 1; k <= 24; k++) { const t = tNow + fut * k / 24; const ra = (S.rogue.warned || t < S.rogue.at) ? rogueAt(t) : 0; surf.push([t, Math.log10(1 + swell(t) + ra)]); }
+  cx.beginPath(); cx.moveTo(X(surf[0][0]), y0 + h);
+  for (const [t, d] of surf) cx.lineTo(X(t), Y(d));
+  cx.lineTo(X(surf[surf.length - 1][0]), y0 + h); cx.closePath();
+  cx.fillStyle = wcol + '0.5)'; cx.fill();
   cx.strokeStyle = danger > 0.5 ? '#ff5d73' : '#5cc8ff'; cx.lineWidth = 2;
-  cx.beginPath(); let first = true; for (const p of hs) if (p.t >= tA) { if (first) { cx.moveTo(X(p.t), Y(p.d)); first = false; } else cx.lineTo(X(p.t), Y(p.d)); } cx.stroke();
-  cx.setLineDash([4, 4]); cx.beginPath(); fc.forEach((p, k) => { if (k === 0) cx.moveTo(X(p.t), Y(p.d)); else cx.lineTo(X(p.t), Y(p.d)); }); cx.stroke(); cx.setLineDash([]);
-  // vault line (10x tide): interest stops above it
-  cx.strokeStyle = 'rgba(255,209,102,0.35)'; cx.setLineDash([2, 5]); cx.lineWidth = 1.5;
-  cx.beginPath(); first = true; for (const p of hs) if (p.t >= tA) { const yv = Y(Math.log10(VAULT) + p.b); if (first) { cx.moveTo(X(p.t), yv); first = false; } else cx.lineTo(X(p.t), yv); } cx.stroke(); cx.setLineDash([]);
-  // wealth line
-  cx.strokeStyle = '#ffd166'; cx.lineWidth = 3; cx.shadowColor = '#ffd166'; cx.shadowBlur = 8;
-  cx.beginPath(); first = true; for (const p of hs) if (p.t >= tA) { if (first) { cx.moveTo(X(p.t), Y(p.w)); first = false; } else cx.lineTo(X(p.t), Y(p.w)); } cx.stroke();
+  cx.beginPath(); surf.forEach(([t, d], k) => { if (t > tNow) return; if (k === 0) cx.moveTo(X(t), Y(d)); else cx.lineTo(X(t), Y(d)); }); cx.stroke();
+  cx.setLineDash([3, 3]); cx.beginPath(); let fst = true; for (const [t, d] of surf) if (t >= tNow) { if (fst) { cx.moveTo(X(t), Y(d)); fst = false; } else cx.lineTo(X(t), Y(d)); } cx.stroke(); cx.setLineDash([]);
+  // now marker
+  cx.strokeStyle = 'rgba(255,255,255,0.15)'; cx.beginPath(); cx.moveTo(X(tNow), y0 + 4); cx.lineTo(X(tNow), y0 + h - 4); cx.stroke();
+  // wealth line (gold), red where it dips under the water
+  cx.lineWidth = 3; cx.shadowColor = '#ffd166'; cx.shadowBlur = 8;
+  let prev = null;
+  for (const p of hs) {
+    if (p.t < tA) continue;
+    if (prev) { cx.strokeStyle = p.m < p.d ? '#ff5d73' : '#ffd166'; cx.beginPath(); cx.moveTo(X(prev.t), Y(prev.m)); cx.lineTo(X(p.t), Y(p.m)); cx.stroke(); }
+    prev = p;
+  }
   cx.shadowBlur = 0;
-  const lw = Math.log10(Math.max(1e-9, S.W)), lt = Math.log10(tideEff(S.t)), xn = X(tNow);
-  cx.fillStyle = '#ffd166'; cx.beginPath(); cx.arc(xn, Y(lw), 4, 0, 6.283); cx.fill();
-  // margin bracket
-  cx.strokeStyle = 'rgba(255,255,255,0.6)'; cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(xn + 4, Y(lw)); cx.lineTo(xn + 10, Y(lw)); cx.lineTo(xn + 10, Y(lt)); cx.lineTo(xn + 4, Y(lt)); cx.stroke();
+  const xn = X(tNow), yn = Y(lm);
+  cx.fillStyle = '#ffd166'; cx.beginPath(); cx.arc(xn, yn, 4.5, 0, 6.283); cx.fill();
   cx.restore();
-  cx.textAlign = 'right'; cx.font = 'bold 11px ' + FONT;
-  cx.fillStyle = '#ffd166'; cx.fillText('YOU', x0 + w - 8, Math.min(Y(lw), Y(lt) - 12) + 4);
-  cx.fillStyle = danger > 0.5 ? '#ff5d73' : '#5cc8ff'; cx.fillText('TIDE', x0 + w - 8, Math.max(Y(lt), Y(lw) + 12) + 4);
-  cx.textAlign = 'left'; cx.font = 'bold 11px ' + FONT; cx.fillStyle = 'rgba(160,190,255,0.7)';
-  cx.fillText('log scale · last 40 s + forecast', x0 + 70, y0 + 14);
+  // labels
+  cx.textAlign = 'left'; cx.font = 'bold 11px ' + FONT; cx.fillStyle = 'rgba(160,190,255,0.75)';
+  cx.fillText('YOU vs THE TIDE  (log, last 30 s + forecast)', x0 + 60, y0 + 13);
+  cx.textAlign = 'right'; cx.fillStyle = 'rgba(160,200,255,0.8)'; cx.font = 'bold 11px ' + FONT;
+  cx.fillText('tide $' + fmt(tideEff(S.t)), x0 + w - 8, y0 + h - 8);
+  if (S.W > vaultCap() && !S.over) { cx.fillStyle = '#ffd166'; cx.fillText('VAULT FULL · invest!', x0 + w - 8, y0 + 13); }
 }
 
 function drawGrid(tm) {
@@ -612,10 +628,6 @@ function drawTop(tm) {
   const tw = cx.measureText(txt).width + 20;
   cx.fillStyle = danger ? 'rgba(255,60,90,' + (0.3 + 0.3 * FX.beat) + ')' : 'rgba(40,120,200,0.25)'; rrect(W / 2 - tw / 2, 124, tw, 24, 12); cx.fill();
   cx.fillStyle = danger ? '#fff' : '#9fd8ff'; cx.fillText(txt, W / 2, 141);
-  if (S.W > vaultCap() && !S.over) {
-    cx.font = 'bold 11px ' + FONT; cx.fillStyle = '#ffd166'; cx.textAlign = 'left';
-    cx.fillText('VAULT FULL — banks pay on 10× tide max. Invest!', 18, 141);
-  }
   if (S.under > 0 && !S.over) {
     const p = S.under / GRACE;
     cx.fillStyle = '#ff5d73'; cx.fillRect(W / 2 - tw / 2, 150, tw * (1 - p), 3);
@@ -633,6 +645,18 @@ function render() {
   drawWater(tm);
   drawChart();
   drawGrid(tm);
+  if (FX.introA > 0.01 && !S.over) {
+    cx.globalAlpha = FX.introA;
+    cx.fillStyle = 'rgba(6,12,28,0.88)'; rrect(GX + 6, GY + 2, GW - 12, 124, 14); cx.fill();
+    cx.strokeStyle = 'rgba(255,209,102,0.5)'; cx.lineWidth = 2; cx.stroke();
+    cx.textAlign = 'center'; cx.fillStyle = '#ffd166'; cx.font = 'bold 20px ' + FONT; cx.fillText('OUTGROW THE TIDE', W / 2, GY + 32);
+    cx.fillStyle = '#e6eeff'; cx.font = 'bold 14px ' + FONT;
+    cx.fillText(touchMode ? 'tap a card to build it on the cursor ▢' : 'press 1 2 3 to build a card on the cursor ▢', W / 2, GY + 60);
+    cx.fillStyle = '#b9c8ee'; cx.font = '13px ' + FONT;
+    cx.fillText('neighbours multiply · banks compound', W / 2, GY + 84);
+    cx.fillText('if your wealth sinks under the tide, it’s over', W / 2, GY + 106);
+    cx.globalAlpha = 1;
+  }
   drawShop(tm);
   // card in flight
   if (FX.fly) {

@@ -326,7 +326,7 @@ function press(l, w, mpb) {
     return;
   }
   S.lock[l] = S.t;                                     // ghost tap: costs combo + a little HP
-  S.ghosts++; const had = S.combo; S.combo = 0; S.hp -= 4; S.hurt = { k: 'ghost', bpm: S.bpm, t: S.t };
+  S.ghosts++; const had = S.combo; S.combo = 0; S.hp -= 3; S.hurt = { k: 'ghost', bpm: S.bpm, t: S.t };
   if (!QUIET) {
     FX.laneMiss[l] = 0.7; shake(3); floatText(laneX(l, 1), HITY - 50, 'ghost', '#f68', 15, -1.5);
     if (had >= 12) judge('COMBO LOST', '#f68');
@@ -369,7 +369,8 @@ function hit(n, e, w) {
 function miss(n) {
   n.j = 1;
   S.misses++; const had = S.combo; S.combo = 0;
-  S.bpm = Math.max(S.floor, S.bpm - 3); S.hp -= 12; S.hurt = { k: 'miss', kind: KIND[n.k] || 'note', bpm: S.bpm, t: S.t };
+  S.hp -= 8 + Math.max(0, S.bpm - 100) * 0.06;            // misses hurt more the faster you go
+  S.bpm = Math.max(S.floor, S.bpm - 3); S.hurt = { k: 'miss', kind: KIND[n.k] || 'note', bpm: S.bpm, t: S.t };
   if (!QUIET) {
     FX.laneMiss[n.l] = 1; shake(9); flash(0.18, '255,40,70'); FX.dull = 1; FX.jolt = 1;
     judge(had >= 12 ? 'MISS · COMBO ' + had + ' LOST' : 'MISS', '#ff4d6d', true);
@@ -663,13 +664,15 @@ function drawGauge() {
   cx.fillText('FLOOR ' + Math.round(S.floor), gx, gy + 35);
   if (FX.gearTxt) {
     const t = FX.gearTxt, a = Math.min(1, t.life * 2), s = 1 + (1 - t.life) * 0.4;
-    cx.save(); cx.globalAlpha = a; cx.translate(gx, gy - 70); cx.scale(s, s);
-    cx.font = 'bold 15px ' + FONT; cx.fillStyle = '#ffd1f0'; cx.fillText('GEAR UP · ' + t.txt, 0, 0); cx.restore();
+    cx.save(); cx.globalAlpha = a; cx.translate(gx, 282); cx.scale(s, s);
+    cx.font = 'bold 17px ' + FONT; cx.lineWidth = 4; cx.strokeStyle = 'rgba(20,0,30,0.8)'; cx.strokeText('GEAR UP · ' + t.txt, 0, 0);
+    cx.fillStyle = '#ffd1f0'; cx.fillText('GEAR UP · ' + t.txt, 0, 0); cx.restore();
   }
   if (FX.surgeWarn > 0.05 && !S.over) {
     const blink = Math.floor(S.t / 160) % 2;
-    cx.globalAlpha = FX.surgeWarn * (blink ? 1 : 0.45); cx.font = 'bold 14px ' + FONT; cx.fillStyle = '#ff4d6d';
-    cx.fillText('⚠ TEMPO SURGE INCOMING', gx, 240); cx.globalAlpha = 1;
+    cx.globalAlpha = FX.surgeWarn * (blink ? 1 : 0.55);
+    cx.fillStyle = 'rgba(30,0,12,0.85)'; rrect(gx - 112, 227, 224, 20, 10); cx.fill();
+    cx.font = 'bold 13px ' + FONT; cx.fillStyle = '#ff6b84'; cx.fillText('⚠ TEMPO SURGE INCOMING', gx, 242); cx.globalAlpha = 1;
   }
   if (FX.surgeTxt) {
     const t = FX.surgeTxt, s = 1 + (1 - t.life) * 0.25;
