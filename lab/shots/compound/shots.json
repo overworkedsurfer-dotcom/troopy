@@ -2,9 +2,9 @@
  "id": "compound",
  "bot": "smart",
  "seed": 1,
- "lengthMs": 253600,
- "finalScore": 23039,
- "cause": "the tide (+457%/s) outgrew your engine (+395%/s) at 4:09",
+ "lengthMs": 205800,
+ "finalScore": 18126,
+ "cause": "a rogue wave swamped you at 3:22 — keep a bigger buffer above the tide",
  "replayMatches": true,
  "shots": [
   {
@@ -16,22 +16,22 @@
   },
   {
    "name": "2-mid",
-   "t": 126800,
-   "score": 10830,
+   "t": 103000,
+   "score": 8469,
    "over": false,
    "file": "lab/shots/compound/2-mid.png"
   },
   {
    "name": "3-intense",
-   "t": 252200,
-   "score": 23029,
+   "t": 204400,
+   "score": 18115,
    "over": false,
    "file": "lab/shots/compound/3-intense.png"
   },
   {
    "name": "4-gameover",
-   "t": 253600,
-   "score": 23039,
+   "t": 205800,
+   "score": 18126,
    "over": true,
    "file": "lab/shots/compound/4-gameover.png"
   }

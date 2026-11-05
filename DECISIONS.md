@@ -127,4 +127,4 @@ Provisional final = 0.30 × bot (v2, round-1 data) + 0.35 × blind critic + 0.35
 
 ## D12. Choosing the winner
 - PIPWALK has the highest final score (0.30 bot + 0.35 critic + 0.35 me). It is also the only game that every judge places at or near the top: a graded bot score of 10.0, 10/10 from both independent blind critics, and 8.5 from me.
-- **Sensitivity check:** PIPWALK is 1st under 6 of 7 alternative weightings. The exception is "my score only", which favours SPELLSNAKE (9.0 vs 8.5). I didn't let my own favourite override two blind judges and the bots.
+- **Sensitivity check:** PIPWALK is 1st under 6 of the 7 weightings tested, including the official one (see REPORT.md). The exception is "my score only", which favours SPELLSNAKE (9.0 vs 8.5). I didn't let my own favourite override two blind judges and the bots.

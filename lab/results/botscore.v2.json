@@ -16,19 +16,19 @@
   "bugFree": true
  },
  "loopback": {
-  "score10": 9.4,
+  "score10": 9.2,
   "components": {
    "legible": 1,
    "skill": 1,
    "slope": 1,
-   "pacing": 1,
+   "pacing": 0.91,
    "solved": 1,
-   "variety": 0.62,
+   "variety": 0.6,
    "cadence": 1,
-   "flail": 0.86
+   "flail": 0.78
   },
-  "heuristicLadderPos": 0.67,
-  "flailRatio": 0.087,
+  "heuristicLadderPos": 0.66,
+  "flailRatio": 0.08,
   "bugFree": true
  },
  "tiltwell": {
@@ -112,19 +112,19 @@
   "bugFree": true
  },
  "compound": {
-  "score10": 9.4,
+  "score10": 9.5,
   "components": {
    "legible": 1,
    "skill": 1,
-   "slope": 0.96,
-   "pacing": 0.98,
+   "slope": 1,
+   "pacing": 1,
    "solved": 1,
-   "variety": 0.62,
+   "variety": 0.6,
    "cadence": 1,
    "flail": 1
   },
-  "heuristicLadderPos": 0.29,
-  "flailRatio": 0.108,
+  "heuristicLadderPos": 0.3,
+  "flailRatio": 0.11,
   "bugFree": true
  },
  "junkorbit": {

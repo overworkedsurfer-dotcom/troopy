@@ -124,7 +124,7 @@ footer{color:var(--muted);font-size:13px;padding:40px 0 60px}
 <header class="top">
   <div class="kicker">The Fun Lab · ${new Date(summary.date).toISOString().slice(0, 10)}</div>
   <h1>Ten games. <span>One winner.</span></h1>
-  <p class="lede">I researched what makes games fun and turned it into a 15-point rubric. Then I built 10 one-file browser games and ran 1,500 seeded sessions with random, heuristic and lookahead bots. A blind critic scored every game, and I played each one myself. Each tile below is playable, with keyboard or touch.</p>
+  <p class="lede">I researched what makes games fun and turned it into a 15-point rubric. I built 10 one-file browser games and played them all myself. Random, heuristic and lookahead bots played 3,000 seeded sessions across two rounds, and two blind critics that never saw the code scored the games. Then I reworked the weakest games and measured everything again. Every tile below is playable with keyboard or touch.</p>
   <nav class="nav"><a href="#games">Games</a><a href="#iterate">Before → after</a><a href="#charts">Score distributions</a><a href="https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/REPORT.md">Full report</a><a href="https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/research/FUN.md">The rubric (FUN.md)</a><a href="https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/DECISIONS.md">Decisions</a><a href="https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/lab/notes/critic.md">Critic notes</a></nav>
 </header>
 <section id="winner"></section>

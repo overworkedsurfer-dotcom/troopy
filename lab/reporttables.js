@@ -36,7 +36,7 @@ o += `\nSessions: ${tot(v1)} in round 1 and ${tot(v2)} in round 2. Console or se
 process.stdout.write(o);
 
 // weight sensitivity
-const schemes = [['Official (0.30 bot, 0.35 critic, 0.35 me)', [.3, .35, .35]], ['Equal thirds', [1 / 3, 1 / 3, 1 / 3]], ['Bots only', [1, 0, 0]], ['Blind critic only', [0, 1, 0]], ['My score only', [0, 0, 1]], ['Humans only (critic + me)', [0, .5, .5]]];
+const schemes = [['Official (0.30 bot, 0.35 critic, 0.35 me)', [.3, .35, .35]], ['Equal thirds', [1 / 3, 1 / 3, 1 / 3]], ['Bots only', [1, 0, 0]], ['Blind critic only', [0, 1, 0]], ['My score only', [0, 0, 1]], ['Humans only (critic + me)', [0, .5, .5]], ['No bots, critic-heavy (0.7 critic, 0.3 me)', [0, .7, .3]]];
 let s2 = '\n### Does the winner survive other weightings?\n\n| Weighting | 1st | 2nd | 3rd |\n|---|---|---|---|\n';
 for (const [n, [b, c, m]] of schemes) {
   const r = sc.games.map(g => ({ n: g.name, v: b * g.bot + c * g.critic + m * g.mine })).sort((x, y) => y.v - x.v);

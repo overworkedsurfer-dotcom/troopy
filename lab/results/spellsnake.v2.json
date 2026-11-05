@@ -3,7 +3,7 @@
  "tag": "v2",
  "n": 50,
  "cap": 900000,
- "date": "2026-11-05T03:28:53.280Z",
+ "date": "2026-11-05T04:09:29.077Z",
  "bots": {
   "random": {
    "decisionMs": 100,
@@ -66,11 +66,11 @@
     "p25": 0,
     "median": 0,
     "p75": 1,
-    "p90": 2.1000000000000014,
-    "max": 8,
-    "mean": 0.82,
-    "sd": 1.5738941696133375,
-    "cv": 1.919383133674802
+    "p90": 1.1000000000000014,
+    "max": 6,
+    "mean": 0.7,
+    "sd": 1.3887301496588274,
+    "cv": 1.9839002137983248
    },
    "causes": {
     "bit your own tail": 16,
@@ -98,7 +98,7 @@
      "scoreEvents": 0,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 5,
+     "wallMs": 6,
      "err": null,
      "seed": 1,
      "capHit": false
@@ -115,7 +115,7 @@
      "scoreEvents": 0,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 2,
+     "wallMs": 0,
      "err": null,
      "seed": 2,
      "capHit": false
@@ -132,7 +132,7 @@
      "scoreEvents": 0,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 2,
+     "wallMs": 1,
      "err": null,
      "seed": 3,
      "capHit": false
@@ -149,7 +149,7 @@
      "scoreEvents": 0,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 8,
+     "wallMs": 5,
      "err": null,
      "seed": 4,
      "capHit": false
@@ -166,7 +166,7 @@
      "scoreEvents": 0,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 4,
+     "wallMs": 1,
      "err": null,
      "seed": 5,
      "capHit": false
@@ -183,7 +183,7 @@
      "scoreEvents": 0,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 0,
+     "wallMs": 2,
      "err": null,
      "seed": 6,
      "capHit": false
@@ -319,7 +319,7 @@
      "scoreEvents": 0,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 3,
+     "wallMs": 1,
      "err": null,
      "seed": 14,
      "capHit": false
@@ -370,7 +370,7 @@
      "scoreEvents": 0,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 2,
+     "wallMs": 0,
      "err": null,
      "seed": 17,
      "capHit": false
@@ -421,7 +421,7 @@
      "scoreEvents": 0,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 4,
+     "wallMs": 2,
      "err": null,
      "seed": 20,
      "capHit": false
@@ -455,7 +455,7 @@
      "scoreEvents": 0,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 1,
+     "wallMs": 6,
      "err": null,
      "seed": 22,
      "capHit": false
@@ -506,7 +506,7 @@
      "scoreEvents": 0,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 1,
+     "wallMs": 0,
      "err": null,
      "seed": 25,
      "capHit": false
@@ -557,7 +557,7 @@
      "scoreEvents": 0,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 2,
+     "wallMs": 0,
      "err": null,
      "seed": 28,
      "capHit": false
@@ -608,7 +608,7 @@
      "scoreEvents": 0,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 0,
+     "wallMs": 1,
      "err": null,
      "seed": 31,
      "capHit": false
@@ -727,7 +727,7 @@
      "scoreEvents": 0,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 0,
+     "wallMs": 1,
      "err": null,
      "seed": 38,
      "capHit": false
@@ -778,7 +778,7 @@
      "scoreEvents": 0,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 0,
+     "wallMs": 1,
      "err": null,
      "seed": 41,
      "capHit": false
@@ -931,7 +931,7 @@
      "scoreEvents": 0,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 0,
+     "wallMs": 1,
      "err": null,
      "seed": 50,
      "capHit": false
@@ -994,16 +994,16 @@
    },
    "wallMs": {
     "n": 50,
-    "min": 2,
-    "p10": 3,
-    "p25": 4,
-    "median": 8,
-    "p75": 13.75,
-    "p90": 18,
-    "max": 43,
-    "mean": 10.02,
-    "sd": 8.095072827444646,
-    "cv": 0.8078914997449747
+    "min": 1,
+    "p10": 2,
+    "p25": 3,
+    "median": 5,
+    "p75": 9.75,
+    "p90": 13,
+    "max": 47,
+    "mean": 7.42,
+    "sd": 7.722455990849818,
+    "cv": 1.0407622629177653
    },
    "causes": {
     "crashed into the wall": 12,
@@ -1040,7 +1040,7 @@
      "scoreEvents": 9,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 43,
+     "wallMs": 47,
      "err": null,
      "seed": 1,
      "capHit": false
@@ -1057,7 +1057,7 @@
      "scoreEvents": 4,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 17,
+     "wallMs": 31,
      "err": null,
      "seed": 2,
      "capHit": false
@@ -1074,7 +1074,7 @@
      "scoreEvents": 6,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 9,
+     "wallMs": 12,
      "err": null,
      "seed": 3,
      "capHit": false
@@ -1091,7 +1091,7 @@
      "scoreEvents": 7,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 10,
+     "wallMs": 12,
      "err": null,
      "seed": 4,
      "capHit": false
@@ -1108,7 +1108,7 @@
      "scoreEvents": 7,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 10,
+     "wallMs": 8,
      "err": null,
      "seed": 5,
      "capHit": false
@@ -1125,7 +1125,7 @@
      "scoreEvents": 12,
      "difficulty0": 1,
      "difficulty1": 3,
-     "wallMs": 32,
+     "wallMs": 6,
      "err": null,
      "seed": 6,
      "capHit": false
@@ -1142,7 +1142,7 @@
      "scoreEvents": 4,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 5,
+     "wallMs": 4,
      "err": null,
      "seed": 7,
      "capHit": false
@@ -1159,7 +1159,7 @@
      "scoreEvents": 19,
      "difficulty0": 1,
      "difficulty1": 4,
-     "wallMs": 18,
+     "wallMs": 9,
      "err": null,
      "seed": 8,
      "capHit": false
@@ -1176,7 +1176,7 @@
      "scoreEvents": 1,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 3,
+     "wallMs": 1,
      "err": null,
      "seed": 9,
      "capHit": false
@@ -1193,7 +1193,7 @@
      "scoreEvents": 16,
      "difficulty0": 1,
      "difficulty1": 3,
-     "wallMs": 8,
+     "wallMs": 6,
      "err": null,
      "seed": 10,
      "capHit": false
@@ -1210,7 +1210,7 @@
      "scoreEvents": 2,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 6,
+     "wallMs": 5,
      "err": null,
      "seed": 11,
      "capHit": false
@@ -1227,7 +1227,7 @@
      "scoreEvents": 4,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 6,
+     "wallMs": 3,
      "err": null,
      "seed": 12,
      "capHit": false
@@ -1244,7 +1244,7 @@
      "scoreEvents": 7,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 6,
+     "wallMs": 5,
      "err": null,
      "seed": 13,
      "capHit": false
@@ -1261,7 +1261,7 @@
      "scoreEvents": 22,
      "difficulty0": 1,
      "difficulty1": 5,
-     "wallMs": 14,
+     "wallMs": 11,
      "err": null,
      "seed": 14,
      "capHit": false
@@ -1278,7 +1278,7 @@
      "scoreEvents": 16,
      "difficulty0": 1,
      "difficulty1": 4,
-     "wallMs": 19,
+     "wallMs": 15,
      "err": null,
      "seed": 15,
      "capHit": false
@@ -1312,7 +1312,7 @@
      "scoreEvents": 7,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 4,
+     "wallMs": 3,
      "err": null,
      "seed": 17,
      "capHit": false
@@ -1329,7 +1329,7 @@
      "scoreEvents": 14,
      "difficulty0": 1,
      "difficulty1": 4,
-     "wallMs": 11,
+     "wallMs": 13,
      "err": null,
      "seed": 18,
      "capHit": false
@@ -1397,7 +1397,7 @@
      "scoreEvents": 9,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 4,
+     "wallMs": 3,
      "err": null,
      "seed": 22,
      "capHit": false
@@ -1414,7 +1414,7 @@
      "scoreEvents": 10,
      "difficulty0": 1,
      "difficulty1": 3,
-     "wallMs": 10,
+     "wallMs": 5,
      "err": null,
      "seed": 23,
      "capHit": false
@@ -1431,7 +1431,7 @@
      "scoreEvents": 5,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 2,
+     "wallMs": 3,
      "err": null,
      "seed": 24,
      "capHit": false
@@ -1516,7 +1516,7 @@
      "scoreEvents": 8,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 4,
+     "wallMs": 3,
      "err": null,
      "seed": 29,
      "capHit": false
@@ -1533,7 +1533,7 @@
      "scoreEvents": 13,
      "difficulty0": 1,
      "difficulty1": 3,
-     "wallMs": 4,
+     "wallMs": 5,
      "err": null,
      "seed": 30,
      "capHit": false
@@ -1567,7 +1567,7 @@
      "scoreEvents": 25,
      "difficulty0": 1,
      "difficulty1": 5,
-     "wallMs": 10,
+     "wallMs": 13,
      "err": null,
      "seed": 32,
      "capHit": false
@@ -1601,7 +1601,7 @@
      "scoreEvents": 14,
      "difficulty0": 1,
      "difficulty1": 4,
-     "wallMs": 18,
+     "wallMs": 10,
      "err": null,
      "seed": 34,
      "capHit": false
@@ -1618,7 +1618,7 @@
      "scoreEvents": 17,
      "difficulty0": 1,
      "difficulty1": 4,
-     "wallMs": 8,
+     "wallMs": 5,
      "err": null,
      "seed": 35,
      "capHit": false
@@ -1635,7 +1635,7 @@
      "scoreEvents": 11,
      "difficulty0": 1,
      "difficulty1": 3,
-     "wallMs": 11,
+     "wallMs": 6,
      "err": null,
      "seed": 36,
      "capHit": false
@@ -1652,7 +1652,7 @@
      "scoreEvents": 7,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 4,
+     "wallMs": 2,
      "err": null,
      "seed": 37,
      "capHit": false
@@ -1669,7 +1669,7 @@
      "scoreEvents": 13,
      "difficulty0": 1,
      "difficulty1": 3,
-     "wallMs": 15,
+     "wallMs": 5,
      "err": null,
      "seed": 38,
      "capHit": false
@@ -1686,7 +1686,7 @@
      "scoreEvents": 18,
      "difficulty0": 1,
      "difficulty1": 4,
-     "wallMs": 18,
+     "wallMs": 11,
      "err": null,
      "seed": 39,
      "capHit": false
@@ -1703,7 +1703,7 @@
      "scoreEvents": 12,
      "difficulty0": 1,
      "difficulty1": 3,
-     "wallMs": 11,
+     "wallMs": 4,
      "err": null,
      "seed": 40,
      "capHit": false
@@ -1720,7 +1720,7 @@
      "scoreEvents": 11,
      "difficulty0": 1,
      "difficulty1": 3,
-     "wallMs": 17,
+     "wallMs": 8,
      "err": null,
      "seed": 41,
      "capHit": false
@@ -1737,7 +1737,7 @@
      "scoreEvents": 16,
      "difficulty0": 1,
      "difficulty1": 3,
-     "wallMs": 27,
+     "wallMs": 11,
      "err": null,
      "seed": 42,
      "capHit": false
@@ -1754,7 +1754,7 @@
      "scoreEvents": 16,
      "difficulty0": 1,
      "difficulty1": 4,
-     "wallMs": 16,
+     "wallMs": 11,
      "err": null,
      "seed": 43,
      "capHit": false
@@ -1771,7 +1771,7 @@
      "scoreEvents": 12,
      "difficulty0": 1,
      "difficulty1": 3,
-     "wallMs": 16,
+     "wallMs": 17,
      "err": null,
      "seed": 44,
      "capHit": false
@@ -1788,7 +1788,7 @@
      "scoreEvents": 7,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 13,
+     "wallMs": 4,
      "err": null,
      "seed": 45,
      "capHit": false
@@ -1805,7 +1805,7 @@
      "scoreEvents": 4,
      "difficulty0": 1,
      "difficulty1": 1,
-     "wallMs": 8,
+     "wallMs": 2,
      "err": null,
      "seed": 46,
      "capHit": false
@@ -1822,7 +1822,7 @@
      "scoreEvents": 3,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 5,
+     "wallMs": 3,
      "err": null,
      "seed": 47,
      "capHit": false
@@ -1839,7 +1839,7 @@
      "scoreEvents": 6,
      "difficulty0": 1,
      "difficulty1": 2,
-     "wallMs": 4,
+     "wallMs": 2,
      "err": null,
      "seed": 48,
      "capHit": false
@@ -1856,7 +1856,7 @@
      "scoreEvents": 12,
      "difficulty0": 1,
      "difficulty1": 3,
-     "wallMs": 8,
+     "wallMs": 5,
      "err": null,
      "seed": 49,
      "capHit": false
@@ -1873,7 +1873,7 @@
      "scoreEvents": 19,
      "difficulty0": 1,
      "difficulty1": 4,
-     "wallMs": 10,
+     "wallMs": 5,
      "err": null,
      "seed": 50,
      "capHit": false
@@ -1936,16 +1936,16 @@
    },
    "wallMs": {
     "n": 50,
-    "min": 76,
-    "p10": 144.7,
-    "p25": 188.25,
-    "median": 215.5,
-    "p75": 248.75,
-    "p90": 294.40000000000003,
-    "max": 383,
-    "mean": 219.22,
-    "sd": 63.25952053861545,
-    "cv": 0.288566374138379
+    "min": 75,
+    "p10": 148.4,
+    "p25": 187,
+    "median": 210.5,
+    "p75": 248.25,
+    "p90": 279.1,
+    "max": 376,
+    "mean": 215.22,
+    "sd": 56.76384664303755,
+    "cv": 0.26374800967864304
    },
    "causes": {
     "crashed into a rock": 21,
@@ -1972,7 +1972,7 @@
      "scoreEvents": 20,
      "difficulty0": 1,
      "difficulty1": 5,
-     "wallMs": 316,
+     "wallMs": 268,
      "err": null,
      "seed": 1,
      "capHit": false
@@ -1989,7 +1989,7 @@
      "scoreEvents": 34,
      "difficulty0": 1,
      "difficulty1": 10,
-     "wallMs": 330,
+     "wallMs": 313,
      "err": null,
      "seed": 2,
      "capHit": false
@@ -2006,7 +2006,7 @@
      "scoreEvents": 40,
      "difficulty0": 1,
      "difficulty1": 13,
-     "wallMs": 383,
+     "wallMs": 376,
      "err": null,
      "seed": 3,
      "capHit": false
@@ -2023,7 +2023,7 @@
      "scoreEvents": 15,
      "difficulty0": 1,
      "difficulty1": 5,
-     "wallMs": 122,
+     "wallMs": 128,
      "err": null,
      "seed": 4,
      "capHit": false
@@ -2040,7 +2040,7 @@
      "scoreEvents": 33,
      "difficulty0": 1,
      "difficulty1": 10,
-     "wallMs": 260,
+     "wallMs": 337,
      "err": null,
      "seed": 5,
      "capHit": false
@@ -2057,7 +2057,7 @@
      "scoreEvents": 26,
      "difficulty0": 1,
      "difficulty1": 7,
-     "wallMs": 200,
+     "wallMs": 187,
      "err": null,
      "seed": 6,
      "capHit": false
@@ -2074,7 +2074,7 @@
      "scoreEvents": 36,
      "difficulty0": 1,
      "difficulty1": 10,
-     "wallMs": 327,
+     "wallMs": 280,
      "err": null,
      "seed": 7,
      "capHit": false
@@ -2091,7 +2091,7 @@
      "scoreEvents": 24,
      "difficulty0": 1,
      "difficulty1": 7,
-     "wallMs": 177,
+     "wallMs": 179,
      "err": null,
      "seed": 8,
      "capHit": false
@@ -2108,7 +2108,7 @@
      "scoreEvents": 31,
      "difficulty0": 1,
      "difficulty1": 8,
-     "wallMs": 243,
+     "wallMs": 221,
      "err": null,
      "seed": 9,
      "capHit": false
@@ -2125,7 +2125,7 @@
      "scoreEvents": 21,
      "difficulty0": 1,
      "difficulty1": 6,
-     "wallMs": 142,
+     "wallMs": 150,
      "err": null,
      "seed": 10,
      "capHit": false
@@ -2142,7 +2142,7 @@
      "scoreEvents": 31,
      "difficulty0": 1,
      "difficulty1": 10,
-     "wallMs": 227,
+     "wallMs": 243,
      "err": null,
      "seed": 11,
      "capHit": false
@@ -2159,7 +2159,7 @@
      "scoreEvents": 29,
      "difficulty0": 1,
      "difficulty1": 7,
-     "wallMs": 197,
+     "wallMs": 204,
      "err": null,
      "seed": 12,
      "capHit": false
@@ -2176,7 +2176,7 @@
      "scoreEvents": 25,
      "difficulty0": 1,
      "difficulty1": 9,
-     "wallMs": 194,
+     "wallMs": 207,
      "err": null,
      "seed": 13,
      "capHit": false
@@ -2193,7 +2193,7 @@
      "scoreEvents": 14,
      "difficulty0": 1,
      "difficulty1": 5,
-     "wallMs": 95,
+     "wallMs": 99,
      "err": null,
      "seed": 14,
      "capHit": false
@@ -2210,7 +2210,7 @@
      "scoreEvents": 34,
      "difficulty0": 1,
      "difficulty1": 11,
-     "wallMs": 264,
+     "wallMs": 270,
      "err": null,
      "seed": 15,
      "capHit": false
@@ -2227,7 +2227,7 @@
      "scoreEvents": 32,
      "difficulty0": 1,
      "difficulty1": 10,
-     "wallMs": 240,
+     "wallMs": 217,
      "err": null,
      "seed": 16,
      "capHit": false
@@ -2244,7 +2244,7 @@
      "scoreEvents": 34,
      "difficulty0": 1,
      "difficulty1": 13,
-     "wallMs": 289,
+     "wallMs": 279,
      "err": null,
      "seed": 17,
      "capHit": false
@@ -2261,7 +2261,7 @@
      "scoreEvents": 26,
      "difficulty0": 1,
      "difficulty1": 7,
-     "wallMs": 183,
+     "wallMs": 173,
      "err": null,
      "seed": 18,
      "capHit": false
@@ -2278,7 +2278,7 @@
      "scoreEvents": 36,
      "difficulty0": 1,
      "difficulty1": 12,
-     "wallMs": 378,
+     "wallMs": 279,
      "err": null,
      "seed": 19,
      "capHit": false
@@ -2295,7 +2295,7 @@
      "scoreEvents": 22,
      "difficulty0": 1,
      "difficulty1": 6,
-     "wallMs": 151,
+     "wallMs": 143,
      "err": null,
      "seed": 20,
      "capHit": false
@@ -2312,7 +2312,7 @@
      "scoreEvents": 31,
      "difficulty0": 1,
      "difficulty1": 9,
-     "wallMs": 250,
+     "wallMs": 235,
      "err": null,
      "seed": 21,
      "capHit": false
@@ -2329,7 +2329,7 @@
      "scoreEvents": 33,
      "difficulty0": 1,
      "difficulty1": 9,
-     "wallMs": 240,
+     "wallMs": 235,
      "err": null,
      "seed": 22,
      "capHit": false
@@ -2346,7 +2346,7 @@
      "scoreEvents": 17,
      "difficulty0": 1,
      "difficulty1": 5,
-     "wallMs": 128,
+     "wallMs": 187,
      "err": null,
      "seed": 23,
      "capHit": false
@@ -2363,7 +2363,7 @@
      "scoreEvents": 19,
      "difficulty0": 1,
      "difficulty1": 7,
-     "wallMs": 156,
+     "wallMs": 149,
      "err": null,
      "seed": 24,
      "capHit": false
@@ -2380,7 +2380,7 @@
      "scoreEvents": 24,
      "difficulty0": 1,
      "difficulty1": 8,
-     "wallMs": 192,
+     "wallMs": 194,
      "err": null,
      "seed": 25,
      "capHit": false
@@ -2397,7 +2397,7 @@
      "scoreEvents": 37,
      "difficulty0": 1,
      "difficulty1": 11,
-     "wallMs": 292,
+     "wallMs": 280,
      "err": null,
      "seed": 26,
      "capHit": false
@@ -2414,7 +2414,7 @@
      "scoreEvents": 30,
      "difficulty0": 1,
      "difficulty1": 9,
-     "wallMs": 237,
+     "wallMs": 224,
      "err": null,
      "seed": 27,
      "capHit": false
@@ -2431,7 +2431,7 @@
      "scoreEvents": 33,
      "difficulty0": 1,
      "difficulty1": 11,
-     "wallMs": 264,
+     "wallMs": 250,
      "err": null,
      "seed": 28,
      "capHit": false
@@ -2448,7 +2448,7 @@
      "scoreEvents": 25,
      "difficulty0": 1,
      "difficulty1": 7,
-     "wallMs": 174,
+     "wallMs": 165,
      "err": null,
      "seed": 29,
      "capHit": false
@@ -2465,7 +2465,7 @@
      "scoreEvents": 33,
      "difficulty0": 1,
      "difficulty1": 9,
-     "wallMs": 217,
+     "wallMs": 204,
      "err": null,
      "seed": 30,
      "capHit": false
@@ -2482,7 +2482,7 @@
      "scoreEvents": 26,
      "difficulty0": 1,
      "difficulty1": 9,
-     "wallMs": 212,
+     "wallMs": 199,
      "err": null,
      "seed": 31,
      "capHit": false
@@ -2499,7 +2499,7 @@
      "scoreEvents": 26,
      "difficulty0": 1,
      "difficulty1": 7,
-     "wallMs": 203,
+     "wallMs": 191,
      "err": null,
      "seed": 32,
      "capHit": false
@@ -2516,7 +2516,7 @@
      "scoreEvents": 23,
      "difficulty0": 1,
      "difficulty1": 8,
-     "wallMs": 221,
+     "wallMs": 187,
      "err": null,
      "seed": 33,
      "capHit": false
@@ -2533,7 +2533,7 @@
      "scoreEvents": 25,
      "difficulty0": 1,
      "difficulty1": 9,
-     "wallMs": 188,
+     "wallMs": 192,
      "err": null,
      "seed": 34,
      "capHit": false
@@ -2550,7 +2550,7 @@
      "scoreEvents": 24,
      "difficulty0": 1,
      "difficulty1": 10,
-     "wallMs": 262,
+     "wallMs": 228,
      "err": null,
      "seed": 35,
      "capHit": false
@@ -2567,7 +2567,7 @@
      "scoreEvents": 12,
      "difficulty0": 1,
      "difficulty1": 4,
-     "wallMs": 76,
+     "wallMs": 75,
      "err": null,
      "seed": 36,
      "capHit": false
@@ -2584,7 +2584,7 @@
      "scoreEvents": 30,
      "difficulty0": 1,
      "difficulty1": 7,
-     "wallMs": 189,
+     "wallMs": 192,
      "err": null,
      "seed": 37,
      "capHit": false
@@ -2601,7 +2601,7 @@
      "scoreEvents": 31,
      "difficulty0": 1,
      "difficulty1": 9,
-     "wallMs": 198,
+     "wallMs": 253,
      "err": null,
      "seed": 38,
      "capHit": false
@@ -2618,7 +2618,7 @@
      "scoreEvents": 34,
      "difficulty0": 1,
      "difficulty1": 10,
-     "wallMs": 245,
+     "wallMs": 236,
      "err": null,
      "seed": 39,
      "capHit": false
@@ -2635,7 +2635,7 @@
      "scoreEvents": 37,
      "difficulty0": 1,
      "difficulty1": 9,
-     "wallMs": 234,
+     "wallMs": 226,
      "err": null,
      "seed": 40,
      "capHit": false
@@ -2652,7 +2652,7 @@
      "scoreEvents": 25,
      "difficulty0": 1,
      "difficulty1": 7,
-     "wallMs": 177,
+     "wallMs": 167,
      "err": null,
      "seed": 41,
      "capHit": false
@@ -2669,7 +2669,7 @@
      "scoreEvents": 20,
      "difficulty0": 1,
      "difficulty1": 5,
-     "wallMs": 145,
+     "wallMs": 142,
      "err": null,
      "seed": 42,
      "capHit": false
@@ -2686,7 +2686,7 @@
      "scoreEvents": 37,
      "difficulty0": 1,
      "difficulty1": 11,
-     "wallMs": 261,
+     "wallMs": 274,
      "err": null,
      "seed": 43,
      "capHit": false
@@ -2720,7 +2720,7 @@
      "scoreEvents": 33,
      "difficulty0": 1,
      "difficulty1": 10,
-     "wallMs": 231,
+     "wallMs": 236,
      "err": null,
      "seed": 45,
      "capHit": false
@@ -2737,7 +2737,7 @@
      "scoreEvents": 34,
      "difficulty0": 1,
      "difficulty1": 10,
-     "wallMs": 227,
+     "wallMs": 259,
      "err": null,
      "seed": 46,
      "capHit": false
@@ -2754,7 +2754,7 @@
      "scoreEvents": 37,
      "difficulty0": 1,
      "difficulty1": 10,
-     "wallMs": 226,
+     "wallMs": 230,
      "err": null,
      "seed": 47,
      "capHit": false
@@ -2771,7 +2771,7 @@
      "scoreEvents": 29,
      "difficulty0": 1,
      "difficulty1": 8,
-     "wallMs": 194,
+     "wallMs": 195,
      "err": null,
      "seed": 48,
      "capHit": false
@@ -2788,7 +2788,7 @@
      "scoreEvents": 25,
      "difficulty0": 1,
      "difficulty1": 9,
-     "wallMs": 196,
+     "wallMs": 195,
      "err": null,
      "seed": 49,
      "capHit": false
@@ -2838,5 +2838,5 @@
   "botPoints": 14,
   "botScore10": 10
  },
- "wallS": 12
+ "wallS": 11
 }

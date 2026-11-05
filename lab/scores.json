@@ -7,9 +7,20 @@
  },
  "winner": {
   "id": "pipwalk",
-  "why": ""
+  "why": "Why it won: it is the only game every judge put at or near the top. The bots gave it the only perfect graded score (10.0: a ~98× skill gap, a smooth mastery slope, ~100 s runs, high seed variety). Two independent blind critics gave it 10/10 ('the deepest and best-explained game here', 'the game I'd most like to keep playing'), and I gave it 8.5. Every roll is both movement and weapon choice, and the game shows you exactly what each choice will do."
  },
- "shots": {},
+ "shots": {
+  "kickback": "3-intense",
+  "loopback": "2-mid",
+  "tiltwell": "2-mid",
+  "spellsnake": "1-start",
+  "pipwalk": "3-intense",
+  "mazewright": "3-intense",
+  "uptempo": "2-mid",
+  "compound": "3-intense",
+  "junkorbit": "3-intense",
+  "magsumo": "2-mid"
+ },
  "games": [
   {
    "id": "pipwalk",
@@ -31,7 +42,7 @@
    "skill": 1,
    "rank": 1,
    "rank1": 2,
-   "shot": "2-mid"
+   "shot": "3-intense"
   },
   {
    "id": "loopback",
@@ -39,14 +50,14 @@
    "genre": "Weird",
    "aesthetic": "Discovery / Challenge",
    "pitch": "Collect orbs while every few seconds a ghost of your own past movement replays. Your history is the bullet hell.",
-   "bot": 9.4,
+   "bot": 9.2,
    "critic": 9,
    "criticRound": 2,
    "criticR1": 10,
    "mine": 8.5,
    "mineR1": 8,
    "myRubric30": 28,
-   "final": 8.95,
+   "final": 8.89,
    "bot1": 9.2,
    "final1": 9.06,
    "bugFree": true,
@@ -75,7 +86,7 @@
    "skill": 1,
    "rank": 3,
    "rank1": 4,
-   "shot": "2-mid"
+   "shot": "3-intense"
   },
   {
    "id": "spellsnake",
@@ -97,7 +108,7 @@
    "skill": 1,
    "rank": 4,
    "rank1": 3,
-   "shot": "2-mid"
+   "shot": "1-start"
   },
   {
    "id": "junkorbit",
@@ -119,7 +130,7 @@
    "skill": 1,
    "rank": 5,
    "rank1": 10,
-   "shot": "2-mid"
+   "shot": "3-intense"
   },
   {
    "id": "compound",
@@ -127,21 +138,21 @@
    "genre": "Idle / incremental",
    "aesthetic": "Submission → Challenge",
    "pitch": "A whole incremental game in about 3 minutes. Build compounding adjacency combos faster than an exponential tide rises.",
-   "bot": 9.4,
+   "bot": 9.5,
    "critic": 9,
    "criticRound": 2,
    "criticR1": 8,
    "mine": 7.5,
    "mineR1": 6.5,
    "myRubric30": 25,
-   "final": 8.59,
+   "final": 8.63,
    "bot1": 9.1,
    "final1": 7.81,
    "bugFree": true,
    "skill": 1,
    "rank": 6,
    "rank1": 7,
-   "shot": "2-mid"
+   "shot": "3-intense"
   },
   {
    "id": "kickback",
@@ -163,7 +174,7 @@
    "skill": 1,
    "rank": 7,
    "rank1": 8,
-   "shot": "2-mid"
+   "shot": "3-intense"
   },
   {
    "id": "tiltwell",

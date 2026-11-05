@@ -4,7 +4,7 @@
 - the only perfect graded bot score (10.0/10);
 - 10/10 from both independent blind critics;
 - my own 8.5;
-- 1st in 6 of 7 alternative weightings of those three judges.
+- 1st under 6 of the 7 weightings of those three judges that I tested (official included), and tied for 1st under one of them.
 
 **Play it:** [`games/pipwalk.html`](games/pipwalk.html) · **Hub:** [`index.html`](index.html) (tiles, local high scores, score-distribution charts) · **Rubric:** [`research/FUN.md`](research/FUN.md) · **Every call I made:** [`DECISIONS.md`](DECISIONS.md)
 
@@ -41,12 +41,12 @@ All 10 games are bug-free by the lab's definition: **0 console or page errors ac
   - **#5 legible failure:** foe intents, red danger tiles, exact "⚔N KILL" badges, and "CHAIN BROKEN (you were hit)".
   - **#14 multiplicative reward:** STRAIGHT and MATCH chains times Balatro-style face upgrades.
   - **#8 a pattern to learn:** "four rolls one way is identity", "stalling preserves the face".
-- **Robustness.** PIPWALK is 1st under the official weighting, under equal thirds, under bots only, under the blind critic alone (tied with MAZEWRIGHT), and under humans only. The only weighting it loses is "my score alone", where SPELLSNAKE edges it 9.0 to 8.5.
+- **Robustness.** PIPWALK is 1st under the official weighting, under equal thirds, under bots only, under the blind critic alone (tied with MAZEWRIGHT), under humans only, and under a no-bots, critic-heavy weighting. The only weighting it loses is "my score alone", where SPELLSNAKE edges it 9.0 to 8.5.
 
 ## What iteration bought
 
 - **JUNK ORBIT, worst to 5th, the biggest climb.** In round 1, blind spam scored about the same as aiming (skill gap 5.5×, critic 6/10). One rule change fixed it: **a miss becomes loose debris that hunts you, and a star hit becomes a safe, scoring orbit.** I added an accuracy streak, telegraphed returns, and the ability to shoot debris for a SAVE. Skill gap went to about 63×, random survival halved, and the fresh critic gave 9/10.
-- **COMPOUND, 7th to 6th.** "Mashing survived as long as careful play" and "I couldn't tell what I was maximizing." The score became *10 × your margin above the tide per second*, so the number you watch *is* the score. A heat-map now shows the ★ best cell for the selected card. The skill gap went from 18× to 58×, and the critic score from 8 to 9.
+- **COMPOUND, 7th to 6th.** "Mashing survived as long as careful play" and "I couldn't tell what I was maximizing." The score became *10 × your margin above the tide per second*, so the number you watch *is* the score. A heat-map now shows the ★ best cell for the selected card. The skill gap went from 18× to 57×, and the critic score from 8 to 9.
 - **KICKBACK, playable at last.** Everyone died within 10 s in round 1, and nobody saw wave 2. I added eased faster turning, a drift arrow distinct from the aim line, a clear nose, gentle waves 1–3 and a fading rim shield. Random-bot survival went from 3.6 s to 18.8 s, and mine from about 6 s to 16 s.
 - **Top-3 polish was mostly about teaching:**
   - LOOPBACK now teaches PHASE when it matters, with a kinder pickup radius and late-game clutter fading.
