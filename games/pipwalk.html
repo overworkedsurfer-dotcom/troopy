@@ -151,7 +151,7 @@ function newState(seed) {
     relic: { twins: 0, stairs: 0, vamp: 0, steel: 0, glass: 0, mom: 0, over: 0 },
     momentum: 0, chain: newChain(), en: [], nid: 1, dread: 0, dreadSpawns: 0,
     lock: 0, freeze: 0, buf: null, pendEnemy: false, anim: null,
-    cards: null, picks: 0, eliteKilled: false, turns: 0, roomTurns: 0, kills: 0, bestHit: 0, maxMult: 1,
+    cards: null, picks: 0, eliteKilled: false, bufFree: false, turns: 0, roomTurns: 0, kills: 0, bestHit: 0, maxMult: 1,
     hurtT: -1e9, clearT: -1e9, cardT: -1e9, hurtBy: '',
   };
 }
@@ -163,7 +163,7 @@ function newFX() {
 function reset(seed) {
   S = newState(seed); FX = newFX(); carry = 0; uiSel = 0;
   spawnFloor(); S.lock = 300;
-  FX.banner = { txt: 'FLOOR 1', sub: 'clear the tray', life: 1, col: C.gold };
+  FX.banner = { txt: 'FLOOR 1', sub: 'clear the tray', life: 1, col: C.gold, top: 1 };
 }
 
 // ---------- helpers ----------
@@ -307,7 +307,7 @@ function execIntent(e) {
       else FX.lunge[e.id] = { dx: S.px - e.x, dy: S.py - e.y, life: 1 };
     }
     if (hit) hurtPlayer(e.atk, e);
-    else if (!QUIET && it.kind === 'melee' && FX.missT !== S.t) { FX.missT = S.t; const [x, y] = cellC(it.cells[0][0], it.cells[0][1]); ftext(x, y + 8, 'dodged', C.dim, 13); SND.whiff(); }
+    else if (!QUIET && it.kind === 'melee' && FX.missT !== S.t) { FX.missT = S.t; const [x, y] = cellC(it.cells[0][0], it.cells[0][1]); ftext(x, y + 8, 'DODGED: you left the red tile', C.dim, 13); SND.whiff(); }
     if (e.type === 'boss') e.rest = 2;
   } else if (it.type === 'move') {
     if (e.type === 'archer') archerMove(e);
@@ -325,12 +325,13 @@ function execIntent(e) {
 }
 
 // ---------- combat ----------
+function chainMsg(t, col) { if (QUIET) return; FX.chainMsg = { txt: t, col: col || C.red, life: 1 }; if (col !== C.gold) SND.broke(); }
 function chainAdvance(v, wild) {
   const c = S.chain;
   if (c.n === 0) { c.n = 1; c.mult = 1; c.kind = ''; c.vals = [v]; }
   else if (v > c.last || wild) { c.n++; c.mult += 1 + S.relic.stairs; c.kind = 'STRAIGHT'; c.vals.push(v); }
   else if (v === c.last) { c.n++; c.mult += 1 + S.relic.twins; c.kind = 'MATCH'; c.vals.push(v); }
-  else { c.n = 1; c.mult = 1; c.kind = ''; c.vals = [v]; }
+  else { chainMsg('CHAIN RESET: ' + v + ' is lower than ' + c.last, C.orange); c.n = 1; c.mult = 1; c.kind = ''; c.vals = [v]; }
   c.last = v; if (c.vals.length > 6) c.vals.shift();
   S.maxMult = Math.max(S.maxMult, c.mult);
   if (!QUIET && c.n > 1) {
@@ -392,7 +393,7 @@ function killEnemy(e) {
     ftext(x, y + 4, '+' + bonus, C.gold, 15, { vy: -0.7 });
     SND.kill(S.chain.n);
     if (S.relic.vamp) { const [px, py] = cellC(S.px, S.py); ftext(px, py - 40, '+' + S.relic.vamp + ' hp', C.pink, 14); }
-    if (e.type === 'elite' || e.type === 'boss') { FX.banner = { txt: e.type === 'boss' ? 'OGRE DOWN!' : 'ELITE SLAIN!', sub: e.type === 'elite' ? 'bonus pick' : '', life: 1, col: C.gold }; flash(0.5, '#ffe9a8'); shake(16); }
+    if (e.type === 'elite' || e.type === 'boss') { FX.banner = { txt: e.type === 'boss' ? 'OGRE DOWN!' : 'ELITE SLAIN!', sub: e.type === 'elite' ? 'bonus pick' : '', life: 1, col: C.gold, top: 1 }; flash(0.5, '#ffe9a8'); shake(16); }
   }
   S.freeze = Math.max(S.freeze, e.type === 'boss' || e.type === 'elite' ? 200 : 60);
 }
@@ -405,8 +406,8 @@ function hurtPlayer(dmg, e, causeTxt) {
   }
   S.hp -= dmg; S.hurtT = S.t;
   if (S.chain.n > 0) {
-    if (S.relic.steel) { S.chain.mult = Math.max(1, Math.ceil(S.chain.mult / 2)); if (!QUIET) ftext(x, y - 70, 'MULT HALVED', C.dim, 14); }
-    else { if (!QUIET && S.chain.n > 1) { ftext(x, y - 70, 'CHAIN BROKEN', C.red, 16); SND.broke(); } S.chain = newChain(); }
+    if (S.relic.steel) { S.chain.mult = Math.max(1, Math.ceil(S.chain.mult / 2)); if (!QUIET) { ftext(x, y - 70, 'MULT HALVED', C.dim, 14); chainMsg('MULT HALVED (you were hit, Steel)', C.dim); } }
+    else { if (!QUIET) { ftext(x, y - 70, 'CHAIN BROKEN', C.red, 16); chainMsg('CHAIN BROKEN (you were hit)'); } S.chain = newChain(); }
   }
   if (!QUIET) {
     ftext(x, y - 46, '-' + dmg, C.red, 26, { vy: -1 }); shake(9 + dmg); FX.hurt = 1; FX.hpPulse = 1; SND.hurt();
@@ -491,6 +492,7 @@ function playerAct(dir) {
   if (!QUIET) FX.moves++;
   if (e) {
     S.anim = { k: 'bump', dx: d[0], dy: d[1], t0: S.t };
+    if (!QUIET) { FX.cellFlash = { x: nx, y: ny, life: 1 }; if (S.bufFree) { const [fx, fy] = cellC(nx, ny); ftext(fx, fy + 22, 'it stepped in: BUMP', C.gold, 12); } }
     strike(e, d[0], d[1]); S.lock = 130;
   } else {
     S.anim = { k: 'roll', dx: d[0], dy: d[1], t0: S.t, x0: S.px, y0: S.py, o: S.die.o.slice() };
@@ -592,11 +594,12 @@ function doPick(i) {
 }
 function nextFloor() {
   S.floor++; S.phase = 'play'; S.dread = 0; S.dreadSpawns = 0; S.eliteKilled = false; S.roomTurns = 0; S.cards = null; S.anim = null;
+  if (S.chain.n > 0) chainMsg('NEW FLOOR: chain cashed in', C.gold);
   S.chain = newChain();   // each floor is a fresh hand
   spawnFloor(); S.lock = 450;
   if (!QUIET) {
     const boss = S.floor % 5 === 0;
-    FX.banner = { txt: 'FLOOR ' + S.floor, sub: boss ? 'the Ogre awaits' : S.en.some(e => e.type === 'elite') ? 'a sleeping Elite: bump it for a bonus pick' : '', life: 1, col: boss ? C.red : C.txt };
+    FX.banner = { txt: 'FLOOR ' + S.floor, sub: boss ? 'the Ogre awaits' : S.en.some(e => e.type === 'elite') ? 'a sleeping Elite: bump it for a bonus pick' : '', life: 1, col: boss ? C.red : C.txt, top: 1 };
     SND.floor();
   }
 }
@@ -630,7 +633,9 @@ function stepFX() {
   for (const k in FX.lunge) { FX.lunge[k].life -= 0.09; if (FX.lunge[k].life <= 0) delete FX.lunge[k]; }
   for (let i = 0; i < 6; i++) FX.faceFlash[i] = Math.max(0, FX.faceFlash[i] - 0.04);
   FX.shake *= 0.86; FX.flash *= 0.88; FX.chainPulse *= 0.9; FX.hpPulse *= 0.9; FX.hurt *= 0.92;
-  if (FX.banner) { FX.banner.life -= 0.012; if (FX.banner.life <= 0) FX.banner = null; }
+  if (FX.banner) { FX.banner.life -= FX.banner.top ? 0.02 : 0.012; if (FX.banner.life <= 0) FX.banner = null; }
+  if (FX.chainMsg) { FX.chainMsg.life -= 0.009; if (FX.chainMsg.life <= 0) FX.chainMsg = null; }
+  if (FX.cellFlash) { FX.cellFlash.life -= 0.06; if (FX.cellFlash.life <= 0) FX.cellFlash = null; }
   FX.disp += (S.score - FX.disp) * 0.2; if (Math.abs(S.score - FX.disp) < 1) FX.disp = S.score;
   if (S.over) FX.overT = Math.min(1, FX.overT + 0.05);
   if (FX.moves >= 3) FX.hintA = Math.max(0, FX.hintA - 0.01);
@@ -994,6 +999,11 @@ function drawEnemyHUD(t) {
   }
 }
 function drawFXLayer() {
+  if (FX.cellFlash) {
+    const f = FX.cellFlash, X = BX + f.x * CELL, Y = BY + f.y * CELL;
+    cx.globalAlpha = f.life; cx.strokeStyle = C.gold; cx.lineWidth = 3 + 3 * f.life; cx.strokeRect(X + 3, Y + 3, CELL - 6, CELL - 6);
+    cx.fillStyle = 'rgba(255,209,102,0.18)'; cx.fillRect(X + 3, Y + 3, CELL - 6, CELL - 6); cx.globalAlpha = 1;
+  }
   for (const b of FX.beams) {
     cx.strokeStyle = b.col; cx.globalAlpha = b.life; cx.lineWidth = 6 * b.life; cx.lineCap = 'round';
     cx.beginPath(); cx.moveTo(b.x0, b.y0); cx.lineTo(b.x1, b.y1); cx.stroke();
@@ -1040,7 +1050,8 @@ function drawHUD(t) {
   txt('×' + c.mult, 0, 0, F(30, '900'), c.mult > 1 ? C.gold : 'rgba(247,240,226,0.4)', 'right', 4);
   cx.restore();
   txt(c.n > 1 ? (c.kind === 'MATCH' ? 'MATCH' : 'STRAIGHT') : 'CHAIN', W - 64 - String(c.mult).length * 17, hpY + 1, F(12), c.n > 1 ? C.gold : C.dim, 'right');
-  txt(c.n > 0 ? 'next ≥ ' + c.last + ' keeps it' : 'hit with rising or equal faces', W - 18, hpY + 26, F(11, '700'), C.dim, 'right');
+  if (FX.chainMsg) txt(FX.chainMsg.txt, W - 18, hpY + 26, F(11, '900'), FX.chainMsg.col, 'right');
+  else txt(c.n > 0 ? 'next ≥ ' + c.last + ' keeps it' : 'hit with rising or equal faces', W - 18, hpY + 26, F(11, '700'), C.dim, 'right');
 }
 function drawPanel(t) {
   const y0 = 588;
@@ -1056,19 +1067,27 @@ function drawPanel(t) {
       if (i > 0) txt(v > vals[i - 1] ? '<' : '=', x - 20, y + 1, F(12), C.gold);
     } else { rr(x - 16, y - 16, 32, 32, 7); cx.strokeStyle = 'rgba(255,255,255,0.12)'; cx.lineWidth = 2; cx.stroke(); }
   }
-  // die faces
-  txt('YOUR DIE', 268, y0 + 10, F(11), C.dim, 'left');
-  const o = S.die.o;
-  const order = [0, 1, 2, 3, 4, 5];
-  for (let j = 0; j < 6; j++) {
-    const fid = order[j], x = 282 + (j % 6) * 32, y = y0 + 40;
-    const onTop = o[0] === fid, under = o[1] === fid;
-    cx.globalAlpha = under ? 0.45 : 1;
-    miniFace(x, y, onTop ? 30 : 26, S.die.f[fid], { glow: onTop ? C.gold : null, flash: FX.faceFlash[fid] });
-    cx.globalAlpha = 1;
-    if (onTop) txt('TOP', x, y + 24, F(9), C.gold);
-    if (under) txt('under', x, y + 24, F(9, '700'), C.dim);
+  if (FX.chainMsg) {
+    const m = FX.chainMsg, a = Math.min(1, m.life * 3), sc = 1 + Math.max(0, m.life - 0.85) * 2;
+    cx.save(); cx.globalAlpha = a; cx.translate(134, y0 + 40); cx.scale(sc, sc);
+    rr(-122, -15, 244, 30, 10); cx.fillStyle = 'rgba(20,10,14,0.92)'; cx.fill(); cx.strokeStyle = m.col; cx.lineWidth = 2; cx.stroke();
+    txt(m.txt, 0, 1, F(m.txt.length > 30 ? 11 : 12, '900'), m.col);
+    cx.restore(); cx.globalAlpha = 1;
   }
+  // die faces: TOP big, the rest recede
+  txt('YOUR DIE', 268, y0 + 10, F(11), C.dim, 'left');
+  const o = S.die.o, tf = o[0];
+  miniFace(290, y0 + 42, 40, S.die.f[tf], { glow: C.gold, flash: FX.faceFlash[tf], numeral: true });
+  txt('TOP', 290, y0 + 72, F(10, '900'), C.gold);
+  const rest = [o[2], o[3], o[4], o[5], o[1]];
+  for (let j = 0; j < 5; j++) {
+    const fid = rest[j], x = 334 + j * 29, y = y0 + 42, under = j === 4;
+    cx.globalAlpha = under ? 0.38 : 0.62;
+    miniFace(x, y, 22, S.die.f[fid], { flash: FX.faceFlash[fid], numeral: true });
+    cx.globalAlpha = 1;
+    if (under) txt('under', x, y + 20, F(9, '700'), C.dim);
+  }
+  txt('other faces', 334 + 2 * 29, y0 + 62, F(9, '700'), 'rgba(156,195,180,0.6)');
   // relics
   const r = S.relic, rl = [];
   if (r.twins) rl.push(['MATCH +' + (r.twins * 2), C.cyan]);
@@ -1177,7 +1196,7 @@ function drawBanner() {
   const b = FX.banner; if (!b) return;
   const a = b.life > 0.85 ? (1 - b.life) / 0.15 : b.life < 0.25 ? b.life / 0.25 : 1;
   const sc = b.life > 0.85 ? 0.6 + 0.4 * easeOut((1 - b.life) / 0.15) : 1;
-  cx.save(); cx.globalAlpha = a; cx.translate(W / 2, BY + GN * CELL / 2 - 20); cx.scale(sc, sc);
+  cx.save(); cx.globalAlpha = a * (b.top ? 0.92 : 1); cx.translate(W / 2, b.top ? BY + 40 : BY + GN * CELL / 2 - 20); cx.scale(sc, sc);
   cx.fillStyle = 'rgba(10,16,14,0.7)'; rr(-200, -36, 400, b.sub ? 78 : 60, 14); cx.fill();
   txt(b.txt, 0, -6, F(34, '900'), b.col || C.txt, 'center', 5);
   if (b.sub) txt(b.sub, 0, 26, F(14, '700'), C.txt, 'center', 3);
@@ -1250,6 +1269,7 @@ function actions() {
 function input(a) {
   if (!actions().includes(a) || a === 'none') return;
   S.buf = a;
+  if (DIRS[a]) { const d = DIRS[a]; S.bufFree = !(S.lock > 0 || S.pendEnemy) ? false : !enemyAt(S.px + d[0], S.py + d[1]); }
 }
 function humanRestart() { if (S.over && performance.now() - overAt > 400) { reset(Date.now() & 0x7fffffff); return true; } return false; }
 const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
@@ -1268,6 +1288,9 @@ addEventListener('keydown', e => {
   }
   const m = KEYMAP[k];
   if (m) { if (!e.repeat) input(m); isTouch = false; e.preventDefault(); }
+  else if ((k === 'Space' || k === 'Enter') && !e.repeat && S.phase === 'play') {
+    const [x, y] = cellC(S.px, S.py); ftext(x, y - 74, 'NO WAITING: roll back and forth to stall', C.txt, 14, { dec: 0.012 }); ftext(x, y - 56, '(the Dread still ticks)', C.purple, 12, { dec: 0.012 }); SND.bonk(); e.preventDefault();
+  }
 });
 let ptr = null;
 function toLogical(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }; }

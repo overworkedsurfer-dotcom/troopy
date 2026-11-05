@@ -10,8 +10,8 @@ module.exports = {
       },
     },
 
-    // Rule of thumb, one ply: kill what you can kill, step out of telegraphed attacks,
-    // otherwise walk toward the nearest foe preferring rolls that bring a big face up.
+    // Rule of thumb, one ply: kill what you can kill, shove a lone attacker (knockback cancels it), step out of
+    // telegraphed attacks, shove adjacent foes when safe, otherwise approach preferring rolls that bring a big face up.
     heuristic: {
       decisionMs: 125,
       decide: function (G, rng, mem) {
@@ -33,7 +33,13 @@ module.exports = {
         let killDir = null, killHp = -1;
         for (const k in s.bump) { const b = s.bump[k], e = at(s.px + D[k][0], s.py + D[k][1]); if (e && !e.dormant && b.dmg >= e.hp && e.hp > killHp) { killHp = e.hp; killDir = k; } }
         if (killDir) return killDir;
-        // 2) candidate moves into free cells
+        // 2) a single adjacent melee attacker that can be shoved: shove it (knockback cancels its attack)
+        const threats = s.enemies.filter(e => e.intent && e.intent.type === 'atk' && e.intent.cells.some(c => c[0] === s.px && c[1] === s.py));
+        if (threats.length === 1) {
+          const e = threats[0];
+          for (const k in s.bump) if (e.x === s.px + D[k][0] && e.y === s.py + D[k][1] && !s.bump[k].pinned && e.type !== 'boss') return k;
+        }
+        // 3) candidate moves into free cells: dodge, approach, avoid crowds, bring a big face up
         const live = s.enemies.filter(e => !e.dormant);
         let bestD = null, bestV = -1e9;
         for (const k in D) {
@@ -41,17 +47,19 @@ module.exports = {
           if (!inB(nx, ny) || at(nx, ny)) continue;
           let v = 0;
           if (dang[nx + ',' + ny]) v -= 100;
-          let md = 99; for (const e of live) md = Math.min(md, Math.abs(e.x - nx) + Math.abs(e.y - ny));
-          v -= md * 3;
+          let md = 99, adj = 0; for (const e of live) { const dd = Math.abs(e.x - nx) + Math.abs(e.y - ny); md = Math.min(md, dd); if (dd === 1) adj++; }
+          v -= md * 3 + Math.max(0, adj - 1) * 12;
           v += s.preview[k] * 1.5;
           if (v > bestV) { bestV = v; bestD = k; }
         }
-        // 3) if not threatened and an awake foe is adjacent with a decent face up, hit it
+        // 4) not threatened: shove any adjacent awake foe (free damage), preferring chain-keeping hits
         if (!here) {
-          for (const k in s.bump) { const e = at(s.px + D[k][0], s.py + D[k][1]); if (e && !e.dormant && !s.bump[k].pinned && s.hit.v >= 3) return k; }
+          let sd = null, sv = -1;
+          for (const k in s.bump) { const e = at(s.px + D[k][0], s.py + D[k][1]); if (e && !e.dormant && !s.bump[k].pinned) { const v = s.bump[k].dmg + (s.hit.keeps ? 50 : 0); if (v > sv) { sv = v; sd = k; } } }
+          if (sd && (s.hit.keeps || s.hit.v >= 3)) return sd;
         }
         if (bestD && (here || bestV > -90)) return bestD;
-        // 4) cornered: hit the weakest adjacent awake foe
+        // 5) cornered: hit the weakest adjacent awake foe
         let hd = null, hv = 1e9;
         for (const k in D) { const e = at(s.px + D[k][0], s.py + D[k][1]); if (e && !e.dormant && e.hp < hv) { hv = e.hp; hd = k; } }
         return hd || bestD || 'up';

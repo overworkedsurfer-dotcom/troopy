@@ -139,7 +139,7 @@ function newState(seed, started) {
   return {
     rng: (seed | 0) || 1, t: 0, score: 0, over: false, cause: null, started: !!started,
     level: 1, dir: 1, turnQ: [], castQ: false,
-    body: [[4, 7], [3, 7], [2, 7]], lets: [], tiles: [], rocks: new Array(COLS * ROWS).fill(0), warns: [],
+    body: [[3, 7], [2, 7], [1, 7]], lets: [], tiles: [], rocks: new Array(COLS * ROWS).fill(0), warns: [],
     moveT: 0, grace: 0, streak: 0, casts: 0, spits: 0, eaten: 0, blasted: 0, bestWord: '', bestPts: 0,
     freeze: 0, rockT: rockEvery(1), opener: '', since: 0, starveT: 0, grow: 0, grown: 0,
   };
@@ -204,12 +204,12 @@ function dealOpening() {
   const h = S.body[0];
   let x = h[0] + 3, y = h[1];
   S.tiles.push({ x, y, c: w[0], g: 0, age: 0 });
-  const OFFS = [[2, -1], [2, 1], [1, -2], [1, 2], [0, -2], [0, 2], [2, 0], [-1, 2], [-1, -2]];
+  const OFFS = [[2, -1], [2, 1], [1, -2], [1, 2], [2, -2], [2, 2], [3, 0], [2, 0]];   // always onward: no hairpin turns
   for (let i = 1; i < w.length; i++) {
     let done = false;
     for (let tries = 0; tries < 20 && !done; tries++) {
       const o = OFFS[Math.floor(rnd() * OFFS.length)], nx = x + o[0], ny = y + o[1];
-      if (nx < 2 || ny < 3 || nx > COLS - 3 || ny > ROWS - 3 || ny === h[1] && nx < x) continue;
+      if (nx < 2 || ny < 3 || nx > COLS - 2 || ny > ROWS - 3) continue;
       if (occupied(nx, ny)) continue;
       x = nx; y = ny; done = true;
     }

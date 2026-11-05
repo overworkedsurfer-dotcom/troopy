@@ -2,9 +2,9 @@
  "id": "spellsnake",
  "bot": "smart",
  "seed": 1,
- "lengthMs": 214700,
- "finalScore": 25564,
- "cause": "crashed into a rock while starving",
+ "lengthMs": 97200,
+ "finalScore": 18238,
+ "cause": "crashed into a rock",
  "replayMatches": true,
  "shots": [
   {
@@ -16,22 +16,22 @@
   },
   {
    "name": "2-mid",
-   "t": 107350,
-   "score": 13083,
+   "t": 48600,
+   "score": 3715,
    "over": false,
    "file": "lab/shots/spellsnake/2-mid.png"
   },
   {
    "name": "3-intense",
-   "t": 213200,
-   "score": 25564,
+   "t": 95700,
+   "score": 17548,
    "over": false,
    "file": "lab/shots/spellsnake/3-intense.png"
   },
   {
    "name": "4-gameover",
-   "t": 214700,
-   "score": 25564,
+   "t": 97200,
+   "score": 18238,
    "over": true,
    "file": "lab/shots/spellsnake/4-gameover.png"
   }

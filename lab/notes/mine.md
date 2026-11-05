@@ -94,3 +94,6 @@ All ten switch to touch-specific hints and controls:
 - MAGSUMO: drag steer plus a big FLIP button and a 2P toggle
 
 None of them scrolls horizontally. The smallest text is the KICKBACK and LOOPBACK hint lines, which are readable but small.
+
+## SPELLSNAKE, after polish (Phase 4)
+- Round 2: the opening panel said "try BAT", with B, A and T clustered just ahead. My routing was clumsy (I overshot A once), but BAT was castable at 4.4 s, against about 13 s for the first cast in round 1. The "words need 3+ letters · keep eating" and "CAST before the fuse ends, or your tail grows" lines explain the two rules the critic tripped on. The opening pace (245 ms/cell) feels controllable. Gut score moves from 8.5 to 9.0.

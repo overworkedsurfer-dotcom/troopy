@@ -237,3 +237,50 @@ hand and then (to save screenshots) ran floor 4 with a blind rocking pattern, wh
 - **Would I play a 4th run?** Yes. This is the deepest game in the set, and the draft means each run feels different.
 - **Bugs / friction:** No console errors. When a foe moved into the cell I was rolling toward, my roll became a bump (useful but surprising). Several times one of two consecutive bumps didn't count toward LAST HITS, I think because taking damage silently resets the chain. "dodged" floats over the die with no explanation. Space does nothing during play (I tried it as a "wait"). The face-net in "YOUR DIE" (top/under) is hard to read at a glance. The FLOOR 1 banner covers the die on the opening turn.
 
+---
+
+## 6. Mazewright
+
+**What it is:** A one-tower tower defense where *you build the maze, not the towers*. A laser core sits in the
+middle of the grid. Each build phase gives you walls, and runners take the shortest path from the gate(s) to
+the core. Walls lengthen the path (a ×path bonus shown on each gate, plus more laser time). Any walls you *don't*
+place bank a ×score multiplier ("BANK IF YOU GO NOW ×4"). Space on the core starts the wave, and Space during a
+wave fires a PULSE that hits everything in range. After each wave you pick one of three upgrades (Hot Laser,
+Long Lens, Overclock, Piercer, …). New gates open and new enemy types (Swifts, Tanks) arrive.
+
+**Runs**
+| Run | Seed | Score | Length | Cause |
+|---|---|---|---|---|
+| 1 | 101 | 4,825 | ~48 s, wave 5 | a Runner broke the core on wave 5 (4 leaks this wave) |
+| 2 | 102 | 23,504 | ~78 s, wave 7 | a Tank broke the core on wave 7 |
+
+Improved? **Yes, 5×** (4,825 → 23,504). In run 1 I built a small maze and then held walls (banking) from
+wave 3 on. In run 2 I built a real corridor maze through wave 3 (path ×3 west, ×2.5 east) before switching to
+banking, and the maze kept paying for the rest of the run.
+
+| # | Principle | Score | Justification |
+|---|---|---|---|
+| 1 | Readable in 5 s | 2 | A path line from the gate to the core, "place walls to lengthen the path", "Arrows move · Space places a wall · Space on the core: GO", and NEXT: "7 Runners from SOUTH". Clear at a glance. |
+| 2 | Clear goal, visible score | 2 | Score, wave, best, core HP, bank ×, path × per gate, incoming count and leaks/kills. Goal: "build a long maze, survive waves". |
+| 3 | Juicy feedback | 2 | Wall placement sparkles. A live dashed preview shows the new route *before* you commit, and the ×path label updates. Kills pop +53 floating text, and there's a COMBO ×N counter, a "BUILD · WAVE 2 — a new gate opens" banner, upgrade card highlights and a pulse ring. |
+| 4 | Forgiving input | 2 | Path preview before placing, "undo" on the last wall, and Z to undo. Gates and enemy types are announced a full phase ahead. Nothing ever surprised me unfairly. |
+| 5 | Fair, legible failure | 2 | "CORE BREACHED — a Runner broke the core on wave 5 (4 leaks this wave)", plus kills, walls and best combo. Precise and actionable. |
+| 6 | Instant retry | 2 | "press any key to build again". |
+| 7 | Interesting decisions | 2 | Every wall is a three-way trade: lengthen path A, lengthen path B, or hold it for ×bank. Upgrade picks interact with maze shape (range vs damage). One wasted wall in run 2, wave 1, was a visible mistake I learned from. |
+| 8 | Pattern to learn | 2 | Score 5× in two runs from one insight: build corridors early, because walls are permanent and compound. |
+| 9 | Escalation / flow | 2 | Waves add gates (one, then two), enemy count and types (Swifts, then Tanks), and runs last 50–80 s. |
+| 10 | Not solved | 1 | Two runs aren't enough to tell. Multiple gates and tanks clearly pressure any fixed maze, but a strong maze plus banking might scale a long way. |
+| 11 | Risk and reward | 2 | The best explicit greed mechanic in the set: "held walls bank ×score". Going with zero walls placed for ×5 is thrilling, and it's what leaked 4 runners in run 1. |
+| 12 | Few verbs, deep use | 2 | Arrows and Space. Space places, undoes, starts the wave, pulses and confirms upgrades. A wall is both defence and a score multiplier, or, unplaced, a bank multiplier. |
+| 13 | Variety | 2 | Gate directions change per seed and per wave (N vs S first), and the upgrade draft differs. |
+| 14 | Reward cadence / compounding | 2 | Kills every second during waves, an upgrade every ~10 s, and path × combo × bank multiply (wave 2 went 256 → 1,279). |
+| 15 | One more go | 2 | NEW BEST at game over. I immediately wanted to try a full serpentine maze across both gates. |
+
+**Total: 29 / 30 → Fun score 10**
+
+- **MDA aesthetic felt:** Challenge, with strong Expression (your maze is your build).
+- **Best moment:** Placing the third wall of a corridor and watching the west gate's label jump ×1.5 → ×3 while the dashed path snaked down and around before I'd committed.
+- **Worst moment:** Wasting a wall in run 2 (blocking the core's west side when the gate was north) dropped the bank from ×2 to ×1 for nothing. There's no hint about which cells matter.
+- **Would I play a 4th run?** Yes. It's a clean, original twist on TD, and the bank-vs-build tension is excellent.
+- **Bugs / friction:** No console errors. **Digit keys 1/2/3 didn't select an upgrade** for me even though the card says "or 1 / 2 / 3". Only ←/→ + Space worked (it may be an input lockout right after the card appears). The cursor's first-look position differed between seeds, and in seed 102 my first two Down presses didn't move it. The HUD score tweens and briefly showed less than BEST. Space is overloaded, so a mis-tap on the core starts the wave early. The left/right edge "gate" bars look like UI handles until a path appears.
+
