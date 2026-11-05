@@ -106,3 +106,10 @@ Provisional final = 0.30 × bot (v2, round-1 data) + 0.35 × blind critic + 0.35
 ## D9. "The first screen isn't the board you play" was a tool artifact
 - The critic reported that in 4 games the opening layout changed after the first key. I checked in real-time human mode: pressing a key only advances the game, and the tiles, stars, poles and CPU stay identical (`lab/notes/mine.md`). What happened is that `lab/play.js` took its first-look screenshot under the page's own random seed, then called `reset(seed)`.
 - The fix: `/open` now returns both `firstLook` (the human first impression) and `startFrame` (the seeded board you play), with a note explaining the difference. The finding is excluded from game scoring.
+
+## D10. Round 2 measurement plan (Phase 4)
+- **Bots:** the whole lab re-runs on all 10 games (`--tag v2`, 50 seeds × 3 bots). v1 results are kept for before/after comparison.
+- **Critic:** a *fresh* blind critic (no access to round-1 notes) replays the 7 changed games: the 4 reworked (JUNK ORBIT, MAGSUMO, COMPOUND, KICKBACK) and the 3 polished (LOOPBACK, PIPWALK, SPELLSNAKE). It has a 15-screenshot budget per game. The round-1 critic overspent and finished runs with blind loops, which muddied its evidence.
+- **The 3 games with only bug fixes keep their round-1 critic score:** MAZEWRIGHT, TILTWELL, UPTEMPO. Their fixes removed specific friction the critic named, so their round-1 critic score is if anything conservative. I accept that asymmetry rather than spend another ~1 hour of critic time.
+- **Critic scores used in the final ranking:** round 2 where it exists, otherwise round 1. Both are reported.
+- **"Mine":** my post-change gut score (`gut2`) where I re-played, otherwise my round-1 gut. Both are reported.
