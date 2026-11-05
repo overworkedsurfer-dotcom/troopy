@@ -100,7 +100,7 @@ async function vocabulary(browser, base, id) {
     const vocab = await vocabulary(browser, base, id);
     const p = HUMAN[CLASS[id] || 'realtime'];
     const humanDm = Math.max(p.interval, CLASS[id] === 'rhythm' ? bots.smart.decisionMs : 0);
-    const jobs = [...vocab.map(a => ['mash:' + a, masherSrc(a), 100, NM, 40]), ['mash:*cycle', masherSrc('*cycle'), 100, NM, 41], ['human', humanSrc(bots.smart.src, { ...p, interval: humanDm }), humanDm, N, 50]];
+    const jobs = [...vocab.map(a => ['mash:' + a, masherSrc(a), 100, NM, 40]), ['mash:*cycle', masherSrc('*cycle'), 100, NM, 41], ['human', humanSrc(bots.smart.src, { ...p, interval: humanDm }), humanDm, N, 50], ['human-h', humanSrc(bots.heuristic.src, { ...p, interval: Math.max(humanDm, CLASS[id] === 'rhythm' ? bots.heuristic.decisionMs : 0) }), Math.max(humanDm, CLASS[id] === 'rhythm' ? bots.heuristic.decisionMs : 0), N, 51]];
     const res = {};
     await Promise.all(jobs.map(async ([label, src, dm, n, salt]) => { res[label] = await runSessions(browser, base, id, src, dm, n, salt, label); }));
     const summ = {};
@@ -110,10 +110,12 @@ async function vocabulary(browser, base, id) {
       summ[label] = { score: stats(s.map(x => x.score)), lengthS: stats(s.map(x => x.ms / 1000)), capHits: s.filter(x => x.capHit).length, errors: r.errors.length + s.filter(x => x.err).length, causes, scores: s.map(x => x.score), lens: s.map(x => Math.round(x.ms / 100) / 10) };
     }
     const mashers = Object.entries(summ).filter(([k]) => k.startsWith('mash:')).sort((a, b) => b[1].score.median - a[1].score.median);
-    const out = { id, class: CLASS[id], human: { ...p, interval: humanDm }, vocab, date: new Date().toISOString(), bestMasher: mashers[0][0], tiers: summ, wallS: Math.round((Date.now() - t0) / 1000) };
+    // a real player adapts strategy to their own limits: the human estimate is the better of the two human-limited bots
+    const bestHuman = summ['human-h'] && summ['human-h'].score.median > summ.human.score.median ? 'human-h' : 'human';
+    const out = { id, class: CLASS[id], human: { ...p, interval: humanDm }, vocab, date: new Date().toISOString(), bestMasher: mashers[0][0], bestHuman, tiers: summ, wallS: Math.round((Date.now() - t0) / 1000) };
     fs.writeFileSync(path.join(__dirname, 'results', id + '.tiers.json'), JSON.stringify(out, null, 1));
     const f = x => Math.round(x * 10) / 10;
-    console.log(`${id.padEnd(11)} best masher ${mashers[0][0].padEnd(18)} med ${f(mashers[0][1].score.median)} (${f(mashers[0][1].lengthS.median)}s) | human med ${f(summ.human.score.median)} (${f(summ.human.lengthS.median)}s, cap ${summ.human.capHits}, err ${summ.human.errors}) | ${out.wallS}s`);
+    console.log(`${id.padEnd(11)} best masher ${mashers[0][0].padEnd(18)} med ${f(mashers[0][1].score.median)} (${f(mashers[0][1].lengthS.median)}s) | human(smart) ${f(summ.human.score.median)} (${f(summ.human.lengthS.median)}s) | human(heur) ${f(summ['human-h'].score.median)} (${f(summ['human-h'].lengthS.median)}s) | best=${bestHuman} | caps ${summ.human.capHits + summ['human-h'].capHits} | ${out.wallS}s`);
   }
   await browser.close(); srv.close();
 })();

@@ -28,8 +28,8 @@ const C = {
   ink: '#2b1e2f', red: '#ff4d5e', gold: '#ffd166', cyan: '#6fdcff', pink: '#ff6fa8', orange: '#ff8a3d',
   yellow: '#ffe04a', purple: '#b07cff', txt: '#f7f0e2', dim: '#9cc3b4', pip1: '#d62839',
 };
-const KCOL = { '': C.ink, fire: '#f0641e', quake: '#d9a400', ward: '#1f8fd6', heart: '#e0386f', wild: '#8a3fe0' };
-const KGLOW = { fire: C.orange, quake: C.yellow, ward: C.cyan, heart: C.pink, wild: C.purple };
+const KCOL = { '': C.ink, fire: '#f0641e', quake: '#d9a400', ward: '#1f8fd6', heart: '#e0386f', wild: '#8a3fe0', reflect: '#0f9e7a', chain: '#3553e8', clone: '#5a9a12' };
+const KGLOW = { fire: C.orange, quake: C.yellow, ward: C.cyan, heart: C.pink, wild: C.purple, reflect: '#58f2c2', chain: '#8aa2ff', clone: '#b2e86a' };
 
 // ---------- seeded RNG (state lives in S.rng) ----------
 function rnd() {
@@ -45,6 +45,16 @@ function wpick(list) { let tot = 0; for (const it of list) tot += it[1]; let r =
 function loadBest() { try { return +localStorage.getItem('funlab.' + ID + '.best') || 0; } catch (e) { return 0; } }
 function saveBest(v) { try { localStorage.setItem('funlab.' + ID + '.best', String(v)); } catch (e) {} }
 let best = loadBest();
+const todayUTC = () => new Date().toISOString().slice(0, 10);       // outside the sim: only used to pick a seed
+function dailySeed(d) { let h = 2166136261; for (const ch of 'pipwalk:' + d) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return ((h >>> 0) & 0x7fffffff) || 1; }
+function loadJSON(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
+function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+const dailyKey = d => 'funlab.' + ID + '.daily.' + d;
+let unlocked = loadJSON('funlab.' + ID + '.unlocks', ['standard']);
+if (!Array.isArray(unlocked) || unlocked.indexOf('standard') < 0) unlocked = ['standard'];
+let chosenDie = loadJSON('funlab.' + ID + '.die', 'standard');
+if (unlocked.indexOf(chosenDie) < 0) chosenDie = 'standard';
+let newUnlocks = [];
 
 // ---------- audio (lazy, fail-safe) ----------
 let AC = null, NB = null, MASTER = null;
@@ -52,7 +62,9 @@ function audioInit() {
   try {
     if (!AC) {
       AC = new (window.AudioContext || window.webkitAudioContext)();
-      MASTER = AC.createGain(); MASTER.gain.value = 0.55; MASTER.connect(AC.destination);
+      MASTER = AC.createGain(); MASTER.gain.value = 0.5;
+      try { const lim = AC.createDynamicsCompressor(); lim.threshold.value = -10; lim.knee.value = 6; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.2; MASTER.connect(lim); lim.connect(AC.destination); }
+      catch (e2) { MASTER.connect(AC.destination); }
       const len = (AC.sampleRate * 0.6) | 0; NB = AC.createBuffer(1, len, AC.sampleRate);
       const d = NB.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     }
@@ -101,7 +113,19 @@ const SND = {
   die() { tone(330, 0.9, 'sawtooth', 0.14, 0.18); tone(220, 1.0, 'square', 0.06, 0.25, 0.1); noise(0.6, 0.4, 300, 0.5); },
   floor() { tone(392, 0.12, 'triangle', 0.08); tone(523, 0.2, 'triangle', 0.08, null, 0.1); },
   shot() { noise(0.12, 0.18, 2400, 4); tone(900, 0.1, 'sawtooth', 0.04, 0.4); },
-  slam() { tone(60, 0.4, 'sine', 0.3, 0.5); noise(0.35, 0.4, 260, 0.6, 0, 'lowpass'); },
+  slam() { tone(58, 0.5, 'sine', 0.32, 0.45); tone(42, 0.6, 'triangle', 0.18, 0.6, 0.02); noise(0.4, 0.4, 240, 0.6, 0, 'lowpass'); },
+  // boss identity
+  stinger() { [[110, 0], [104, 0.18], [82, 0.36]].forEach(([f, d]) => { tone(f, 0.5, 'sawtooth', 0.09, 0.98, d); tone(f * 1.5, 0.45, 'square', 0.035, 0.98, d); }); noise(0.9, 0.18, 180, 0.7, 0.36, 'lowpass'); tone(55, 1.1, 'sine', 0.22, 0.8, 0.36); },
+  warn() { tone(1760, 0.04, 'square', 0.045); tone(1760, 0.04, 'square', 0.04, null, 0.09); },
+  thud() { tone(70, 0.18, 'sine', 0.22, 0.6); noise(0.12, 0.25, 300, 0.8, 0, 'lowpass'); },
+  beam() { tone(220, 0.35, 'sawtooth', 0.07, 3); tone(330, 0.35, 'sawtooth', 0.05, 2.5); noise(0.3, 0.16, 3000, 1.5); },
+  clang() { tone(1180, 0.16, 'square', 0.05, 0.98); tone(1650, 0.22, 'triangle', 0.05, 0.97); noise(0.08, 0.15, 4200, 3); },
+  mirror() { tone(1320, 0.12, 'sine', 0.07); tone(1980, 0.22, 'sine', 0.05, null, 0.05); tone(2640, 0.3, 'sine', 0.03, null, 0.1); },
+  zap() { noise(0.09, 0.16, 5200, 2); tone(1400, 0.07, 'sawtooth', 0.035, 0.4); },
+  phase() { tone(98, 0.5, 'sawtooth', 0.11, 1.5); tone(147, 0.5, 'sawtooth', 0.07, 1.5, 0.05); noise(0.5, 0.2, 400, 0.6); },
+  victory() { [392, 494, 587, 784, 988].forEach((f, i) => tone(f, 0.22, 'triangle', 0.08, null, i * 0.08)); tone(196, 0.8, 'sine', 0.12, null, 0.1); },
+  unlock() { [659, 784, 988, 1319].forEach((f, i) => tone(f, 0.2, 'square', 0.045, null, i * 0.06)); },
+  ui() { tone(880, 0.05, 'triangle', 0.05); },
 };
 
 // ---------- tables ----------
@@ -115,8 +139,12 @@ const ET = {
   wolf:   { name: 'Wolf', a: 'a', hp: 5, atk: 2, mv: 2, col: '#a3b6e6', verb: 'mauled by' },
   wraith: { name: 'Dread', a: 'the', hp: 4, atk: 2, mv: 1, col: '#b07cff', verb: 'taken by' },
   elite:  { name: 'Elite Knight', a: 'an', hp: 15, atk: 3, mv: 1, col: '#ffcf4a', verb: 'cut down by' },
-  boss:   { name: 'Ogre', a: 'the', hp: 16, atk: 3, mv: 1, col: '#ff5a5f', verb: 'crushed by' },
+  ogre:   { name: 'Ogre', a: 'the', hp: 16, atk: 3, mv: 1, col: '#ff5a5f', verb: 'crushed by', boss: 1, heavy: 1, tip: 'dodge the 3×3 slam · hit it while STUNNED for ×2' },
+  lich:   { name: 'Lich', a: 'the', hp: 12, atk: 3, mv: 1, col: '#c39bff', verb: 'unmade by', boss: 1, tip: 'step off the glowing line · shove it to cancel a beam' },
+  mimic:  { name: 'Mimic', a: 'the', hp: 14, atk: 3, mv: 1, col: '#ff3b6b', verb: 'outrolled by', boss: 1, tip: 'only a face HIGHER than its armour hurts it' },
 };
+const BOSSES = ['ogre', 'lich', 'mimic'];
+const isBoss = e => !!ET[e.type].boss;
 const CARDS = {
   plus:   { w: 5,   name: 'Loaded Pips', face: true },
   fire:   { w: 2,   name: 'Flame Face', face: true, kind: 'fire' },
@@ -134,16 +162,40 @@ const CARDS = {
   mom:    { w: 1.3, name: 'Momentum' },
   patch:  { w: 2.5, name: 'Patch Up' },
   over:   { w: 1.1, name: 'Overflow', unique: true },
+  reflect:{ w: 1.0, name: 'Mirror Face', face: true, kind: 'reflect' },
+  chain:  { w: 1.2, name: 'Arc Face', face: true, kind: 'chain' },
+  clone:  { w: 1.0, name: 'Clone Face', face: true, kind: 'clone' },
 };
+// boss rewards: a pick of 3 rares
+const RARES = {
+  gold:    { w: 2,   name: 'Golden Pips', face: true },
+  reflect: { w: 1.5, name: 'Mirror Face', face: true, kind: 'reflect' },
+  chain:   { w: 1.5, name: 'Arc Face', face: true, kind: 'chain' },
+  clone:   { w: 1.5, name: 'Clone Face', face: true, kind: 'clone' },
+  stairs2: { w: 1.2, name: 'Grand Stairway' },
+  twins2:  { w: 1.2, name: 'Grand Twins' },
+  wind:    { w: 1.2, name: 'Second Wind' },
+  loaded:  { w: 1.4, name: 'Loaded Die' },
+};
+const cardDef = c => (c.rare ? RARES : CARDS)[c.type];
+// starting dice (meta-progression). The bot API always uses 'standard'.
+const DICE = {
+  standard: { name: 'Standard', desc: 'faces 1–6', how: '' },
+  lucky:    { name: 'Lucky', desc: 'your 1 starts as a 7', how: 'reach floor 5' },
+  glass:    { name: 'Glass', desc: 'all faces +2 · max HP −4', how: 'beat the Ogre' },
+  twin:     { name: 'Twin', desc: 'two 6s, no 1', how: 'beat the Lich' },
+};
+const DICE_ORDER = ['standard', 'lucky', 'glass', 'twin'];
 
 // ---------- state ----------
 let S = null;            // ALL sim state
 let FX = null;           // cosmetic only
-let QUIET = false, manual = false, carry = 0, overAt = 0, uiSel = 0, isTouch = false;
+let QUIET = false, manual = false, carry = 0, overAt = 0, uiSel = 0, isTouch = false, dailyPrev = 0, copyState = '';
 
 function newChain() { return { n: 0, mult: 1, last: 0, kind: '', vals: [] }; }
-function newState(seed) {
-  return {
+function newState(seed, opts) {
+  opts = opts || {};
+  const st = {
     rng: (seed | 0) || 1, t: 0, score: 0, over: false, cause: null, phase: 'play', floor: 1,
     hp: 10, maxHp: 10, barrier: 0, px: 3, py: 3,
     // faces by id; o = face ids at [Top, Bottom, North, South, East, West]
@@ -153,15 +205,22 @@ function newState(seed) {
     lock: 0, freeze: 0, buf: null, pendEnemy: false, anim: null,
     cards: null, picks: 0, eliteKilled: false, bufFree: false, turns: 0, roomTurns: 0, kills: 0, bestHit: 0, maxMult: 1,
     hurtT: -1e9, clearT: -1e9, cardT: -1e9, hurtBy: '',
+    dieType: DICE[opts.die] ? opts.die : 'standard', daily: opts.daily || '', reflect: 0, reflectV: 0, lastHitV: 0,
+    bestChain: { kind: '', mult: 1 }, rare: false, bossKills: 0,
   };
+  const f = st.die.f;
+  if (st.dieType === 'lucky') f[0].v = 7;
+  else if (st.dieType === 'glass') { for (const q of f) q.v += 2; st.maxHp = st.hp = 6; }
+  else if (st.dieType === 'twin') f[0].v = 6;
+  return st;
 }
 function newFX() {
   return { parts: [], texts: [], rings: [], q: [], shake: 0, flash: 0, flashCol: '#fff', hintA: 1, banner: null,
     hit: {}, lunge: {}, corpses: [], disp: 0, chainPulse: 0, hpPulse: 0, faceFlash: [0, 0, 0, 0, 0, 0], beams: [],
     hurt: 0, overT: 0, moves: 0, zz: 0 };
 }
-function reset(seed) {
-  S = newState(seed); FX = newFX(); carry = 0; uiSel = 0;
+function reset(seed, opts) {
+  S = newState(seed, opts); FX = newFX(); carry = 0; uiSel = 0;
   spawnFloor(); S.lock = 300;
   FX.banner = { txt: 'FLOOR 1', sub: 'clear the tray', life: 1, col: C.gold, top: 1 };
 }
@@ -179,17 +238,29 @@ function rollO(o, dir) {
   return [E, Wd, N, So, B, T];
 }
 function cellC(x, y) { return [BX + (x + 0.5) * CELL, BY + (y + 0.5) * CELL]; }
-function dreadMax() { return Math.max(2, 14 + (S.floor % 5 === 0 ? 4 : 0) - Math.floor((S.floor - 1) / 2) - 2 * S.dreadSpawns); }
+function dreadMax() { return Math.max(2, 14 + (bossOf(S.floor) ? 6 : 0) - Math.floor((S.floor - 1) / 2) - 2 * S.dreadSpawns); }
 function isReady() { return !S.over && S.lock <= 0 && S.freeze <= 0 && !S.pendEnemy && !S.buf && (S.phase === 'play' || S.phase === 'pick'); }
 
 // ---------- spawning ----------
 function mkEnemy(type, x, y) {
   const b = ET[type], f = S.floor, am = 1 + 0.15 * (f - 1);
   const dz = type === 'wraith' ? Math.max(0, S.dreadSpawns - 1) : 0;   // each Dread on a floor is tougher than the last
-  const hp = Math.max(1, Math.round(b.hp * hpMul(f) * Math.pow(1.35, dz)));
-  return { id: S.nid++, type, x, y, ox: x, oy: y, mt: -1e9, st: S.t, hp, maxHp: hp, atk: Math.max(1, Math.round(b.atk * am)) + (dz >> 1),
+  const loop = b.boss ? Math.floor((f / 5 - 1) / 3) : 0;               // floor 20 = Ogre+, 25 = Lich+ ...
+  const hp = Math.max(1, Math.round(b.hp * hpMul(f) * Math.pow(1.35, dz) * Math.pow(1.35, loop)));
+  const e = { id: S.nid++, type, x, y, ox: x, oy: y, mt: -1e9, st: S.t, hp, maxHp: hp, atk: Math.max(1, Math.round(b.atk * am)) + (dz >> 1) + loop,
     mv: b.mv, int: null, dormant: type === 'elite', rest: 0, dead: false };
+  if (b.boss) {
+    e.phase = 1; e.loop = loop; e.wind = 0; e.zone = null; e.cool = 0; e.alt = 0; e.anim = null;
+    if (type === 'mimic') {
+      e.md = { f: [1, 2, 3, 4, 5, 6].map(v => v + 1 + 3 * loop), o: [0, 5, 4, 1, 2, 3] };
+      for (let i = 0, n = 1 + ri(4); i < n; i++) e.md.o = rollO(e.md.o, DLIST[ri(4)]);
+    }
+  }
+  return e;
 }
+function bossOf(f) { return f % 5 === 0 ? BOSSES[(f / 5 - 1) % 3] : null; }
+function bossName(e) { return ET[e.type].name.toUpperCase() + '+'.repeat(e.loop || 0); }
+function mimicArmor(e) { return e.md.f[e.md.o[0]]; }
 function freeCells(minDist, edgeOnly) {
   const out = [];
   for (let y = 0; y < GN; y++) for (let x = 0; x < GN; x++) {
@@ -211,15 +282,15 @@ function spawnAt(type, minDist, edgeOnly) {
 }
 function spawnFloor() {
   const f = S.floor; S.en = [];
-  const boss = f % 5 === 0;
+  const bt = bossOf(f);
+  if (bt) { spawnAt(bt, 4); for (const e of S.en) planIntent(e); return; }   // boss floors: a duel
   let n = Math.min(7, 2 + Math.floor(f / 2));
-  if (boss) { spawnAt('boss', 4); n = Math.max(1, n - 2); }
   const pool = [['slime', 3]];
   if (f >= 2) pool.push(['skull', 1.4 + f * 0.15]);
   if (f >= 3) pool.push(['archer', 1.4]);
   if (f >= 4) pool.push(['wolf', 1.3]);
   for (let i = 0; i < n; i++) spawnAt(wpick(pool), 3);
-  if (!boss && f >= 2 && rnd() < 0.5) spawnAt('elite', 3);
+  if (f >= 2 && rnd() < 0.5) spawnAt('elite', 3);
   for (const e of S.en) planIntent(e);
 }
 
@@ -240,7 +311,7 @@ function bfsFrom(tx, ty, self) {
 }
 function moveE(e, nx, ny) { e.ox = e.x; e.oy = e.y; e.mt = S.t; e.x = nx; e.y = ny; }
 function canStep(nx, ny) { return inB(nx, ny) && !(nx === S.px && ny === S.py) && !enemyAt(nx, ny); }
-function stepToward(e) {
+function bestStep(e) {
   const d = bfsFrom(S.px, S.py, e);
   const val = (x, y) => d[x + y * GN] < 999 ? d[x + y * GN] : 500 + Math.abs(S.px - x) + Math.abs(S.py - y);
   const sx = Math.sign(S.px - e.x), sy = Math.sign(S.py - e.y);
@@ -250,10 +321,15 @@ function stepToward(e) {
   let bestC = null, bv = val(e.x, e.y);
   for (const [dx, dy] of order) {
     const nx = e.x + dx, ny = e.y + dy; if (!canStep(nx, ny)) continue;
-    const v = val(nx, ny); if (v < bv) { bv = v; bestC = [nx, ny]; }
+    const v = val(nx, ny); if (v < bv) { bv = v; bestC = [dx, dy]; }
   }
-  if (bestC) { moveE(e, bestC[0], bestC[1]); return true; }
-  return false;
+  return bestC;
+}
+function stepToward(e) { const d = bestStep(e); if (d) { moveE(e, e.x + d[0], e.y + d[1]); return true; } return false; }
+const dirName = (dx, dy) => dx > 0 ? 'right' : dx < 0 ? 'left' : dy > 0 ? 'down' : 'up';
+function mimicRoll(e, dx, dy) {
+  e.anim = { dx, dy, t0: S.t, o: e.md.o.slice(), x0: e.x, y0: e.y };
+  e.md.o = rollO(e.md.o, dirName(dx, dy)); moveE(e, e.x + dx, e.y + dy); e.mt = -1e9;
 }
 function losClear(x0, y0, x1, y1, self) {
   const sx = Math.sign(x1 - x0), sy = Math.sign(y1 - y0); let x = x0 + sx, y = y0 + sy;
@@ -273,19 +349,111 @@ function archerMove(e) {
   }
   if (bestC) moveE(e, bestC[0], bestC[1]);
 }
+function planBoss(e) {
+  const dx = S.px - e.x, dy = S.py - e.y, man = Math.abs(dx) + Math.abs(dy), cheb = Math.max(Math.abs(dx), Math.abs(dy));
+  const prev = e.int ? e.int.type : '';
+  if (e.type === 'ogre') {
+    if (e.rest > 0) { e.int = { type: 'stun', boss: 1, left: e.rest }; return; }
+    if (e.wind > 0) { e.int = { type: e.wind === 1 ? 'atk' : 'charge', kind: 'slam', cells: e.zone, wind: e.wind }; return; }
+    if (cheb <= 2) {                       // wind up a 3x3 slam centred on your tile: 2 turns to get out
+      e.zone = [];
+      for (let yy = -1; yy <= 1; yy++) for (let xx = -1; xx <= 1; xx++) if (inB(S.px + xx, S.py + yy)) e.zone.push([S.px + xx, S.py + yy]);
+      e.wind = 2; e.int = { type: 'charge', kind: 'slam', cells: e.zone, wind: 2 };
+      if (!QUIET) SND.warn();
+      return;
+    }
+    e.int = { type: 'move' }; return;
+  }
+  if (e.type === 'lich') {
+    if (e.cool > 0) { e.int = { type: 'move', kind: 'drift' }; return; }
+    const row = e.alt % 2 === 0, cells = [];
+    for (let i = 0; i < GN; i++) { const c = row ? [i, S.py] : [S.px, i]; if (c[0] !== e.x || c[1] !== e.y) cells.push(c); }
+    e.int = { type: 'atk', kind: 'beam', cells, row };
+    if (!QUIET && prev !== 'atk') SND.warn();
+    return;
+  }
+  // mimic: rolls toward you; when adjacent it slams into your tile
+  if (man === 1) { e.int = { type: 'atk', kind: 'crush', cells: [[S.px, S.py]] }; if (!QUIET) SND.warn(); return; }
+  const d = bestStep(e);
+  e.int = { type: 'move', kind: 'roll', dir: d, next: d ? e.md.f[rollO(e.md.o, dirName(d[0], d[1]))[0]] : mimicArmor(e) };
+}
+function execBoss(e) {
+  const it = e.int, dx = S.px - e.x, dy = S.py - e.y;
+  if (e.type === 'ogre') {
+    if (it.type === 'stun') { e.rest = Math.max(0, e.rest - 1); return; }
+    if (it.type === 'charge') { e.wind--; if (!QUIET) { const [x, y] = cellC(e.x, e.y); shake(2); burst(x, y + 10, 8, '#c9a27a', 2, { g: 0.1 }); SND.tick(); } return; }
+    if (it.type === 'atk') {
+      const hit = it.cells.some(c => c[0] === S.px && c[1] === S.py);
+      if (!QUIET) {
+        const mid = it.cells[Math.floor(it.cells.length / 2)], [ax, ay] = cellC(mid[0], mid[1]);
+        ring(ax, ay, C.red, 120, 9); shake(14); SND.slam(); burst(ax, ay, 40, '#c9a27a', 6, { g: 0.2 }); flash(0.15, '#ffb08a');
+        if (!hit) { const [px, py] = cellC(S.px, S.py); ftext(px, py - 60, 'DODGED! punish it', C.gold, 16); }
+      }
+      e.wind = 0; e.zone = null; e.rest = e.phase === 2 ? 1 : 2;
+      if (hit) hurtPlayer(e.atk + 1, e);
+      return;
+    }
+    for (let i = 0, n = e.phase === 2 ? 2 : 1; i < n; i++) { if (Math.max(Math.abs(S.px - e.x), Math.abs(S.py - e.y)) <= 2) break; const ox = e.x, oy = e.y; if (!stepToward(e)) break; if (i > 0) { e.ox = ox - (e.x - ox); e.oy = oy - (e.y - oy); } }
+    return;
+  }
+  if (e.type === 'lich') {
+    if (it.type === 'atk') {
+      const hit = it.cells.some(c => c[0] === S.px && c[1] === S.py);
+      if (!QUIET) {
+        const a = it.cells[0], b = it.cells[it.cells.length - 1], [x0, y0] = cellC(a[0], a[1]), [x1, y1] = cellC(b[0], b[1]);
+        FX.beams.push({ x0: it.row ? BX : x0, y0: it.row ? y0 - 14 : BY, x1: it.row ? BX + GN * CELL : x1, y1: it.row ? y1 - 14 : BY + GN * CELL, life: 1.2, col: '#c39bff', w: 14 });
+        SND.beam(); shake(6);
+      }
+      e.cool = e.phase === 2 ? 0 : 1; e.alt++;
+      if (hit) hurtPlayer(e.atk, e);
+      return;
+    }
+    if (it.type === 'move') {
+      e.cool = Math.max(0, e.cool - 1);
+      if (Math.abs(dx) + Math.abs(dy) <= 2) {        // keep its distance
+        let bc = null, bv = Math.abs(dx) + Math.abs(dy);
+        for (const [mx, my] of D4) { const nx = e.x + mx, ny = e.y + my; if (!canStep(nx, ny)) continue; const v = Math.abs(S.px - nx) + Math.abs(S.py - ny); if (v > bv) { bv = v; bc = [nx, ny]; } }
+        if (bc) moveE(e, bc[0], bc[1]);
+      }
+    }
+    return;
+  }
+  // mimic
+  if (it.type === 'atk') {
+    const hit = it.cells.some(c => c[0] === S.px && c[1] === S.py);
+    if (!QUIET) { FX.lunge[e.id] = { dx, dy, life: 1 }; SND.thud(); shake(5); }
+    if (hit) hurtPlayer(e.atk, e);
+    else if (!QUIET) { const [x, y] = cellC(it.cells[0][0], it.cells[0][1]); ftext(x, y + 8, 'DODGED: you left the red tile', C.dim, 13); }
+    return;
+  }
+  if (it.type === 'move') {
+    for (let i = 0, n = e.phase === 2 ? 2 : 1; i < n; i++) {
+      if (Math.abs(S.px - e.x) + Math.abs(S.py - e.y) <= 1) break;
+      const d = i === 0 && it.dir ? it.dir : bestStep(e);
+      if (!d || !canStep(e.x + d[0], e.y + d[1])) break;
+      mimicRoll(e, d[0], d[1]);
+      if (!QUIET) later(120, () => { SND.thud(); });
+    }
+  }
+}
+function bossPhase2(e) {
+  e.phase = 2;
+  if (!QUIET) { const [x, y] = cellC(e.x, e.y); flash(0.45, '#ff6a5a'); shake(16); SND.phase(); ring(x, y, ET[e.type].col, 120, 8); }
+  if (e.type === 'ogre') { if (!QUIET) FX.banner = { txt: bossName(e) + ' ENRAGED', sub: 'moves 2 tiles · shorter stun', life: 1, col: C.red, top: 1 }; }
+  else if (e.type === 'lich') {
+    for (let i = 0; i < 2; i++) { const s2 = spawnAt('skull', 2); if (s2) { s2.summon = 1; planIntent(s2); } }
+    if (!QUIET) FX.banner = { txt: 'THE DEAD RISE', sub: 'the Lich beams every turn now', life: 1, col: '#c39bff', top: 1 };
+  } else if (e.type === 'mimic') {
+    for (let i = 0; i < 6; i++) e.md.f[i] += 1;
+    if (!QUIET) FX.banner = { txt: 'MIMIC FRENZY', sub: 'rolls twice a turn · armour +1', life: 1, col: '#ff3b6b', top: 1 };
+  }
+}
 function planIntent(e) {
   if (e.dead) return;
   const dx = S.px - e.x, dy = S.py - e.y, man = Math.abs(dx) + Math.abs(dy);
   if (e.dormant) { e.int = { type: 'sleep' }; return; }
+  if (isBoss(e)) { planBoss(e); return; }
   if (e.rest > 0) { e.int = { type: 'rest' }; return; }
-  if (e.type === 'boss') {
-    if (Math.max(Math.abs(dx), Math.abs(dy)) <= 1) {
-      const cells = [];
-      for (let yy = -1; yy <= 1; yy++) for (let xx = -1; xx <= 1; xx++) if ((xx || yy) && inB(e.x + xx, e.y + yy)) cells.push([e.x + xx, e.y + yy]);
-      e.int = { type: 'atk', kind: 'slam', cells };
-    } else e.int = { type: 'move' };
-    return;
-  }
   if (e.type === 'archer') {
     if ((dx === 0 || dy === 0) && man <= ET.archer.range && losClear(e.x, e.y, S.px, S.py, e)) {
       const sx = Math.sign(dx), sy = Math.sign(dy), cells = [];
@@ -299,6 +467,7 @@ function planIntent(e) {
 }
 function execIntent(e) {
   const it = e.int; if (!it || e.dead) return;
+  if (isBoss(e) && it.type !== 'stun' || (e.type === 'ogre' && it.type === 'stun')) { execBoss(e); return; }
   if (it.type === 'atk') {
     const hit = it.cells.some(c => c[0] === S.px && c[1] === S.py);
     if (!QUIET) {
@@ -308,13 +477,11 @@ function execIntent(e) {
     }
     if (hit) hurtPlayer(e.atk, e);
     else if (!QUIET && it.kind === 'melee' && FX.missT !== S.t) { FX.missT = S.t; const [x, y] = cellC(it.cells[0][0], it.cells[0][1]); ftext(x, y + 8, 'DODGED: you left the red tile', C.dim, 13); SND.whiff(); }
-    if (e.type === 'boss') e.rest = 2;
   } else if (it.type === 'move') {
     if (e.type === 'archer') archerMove(e);
     else {
       for (let i = 0; i < e.mv; i++) {
         if (Math.abs(S.px - e.x) + Math.abs(S.py - e.y) <= 1) break;
-        if (e.type === 'boss' && Math.max(Math.abs(S.px - e.x), Math.abs(S.py - e.y)) <= 1) break;
         const ox = e.x, oy = e.y;
         if (!stepToward(e)) break;
         if (i > 0) { e.ox = ox - (e.x - ox); e.oy = oy - (e.y - oy); }   // wolf: tween covers both cells
@@ -334,6 +501,7 @@ function chainAdvance(v, wild) {
   else { chainMsg('CHAIN RESET: ' + v + ' is lower than ' + c.last, C.orange); c.n = 1; c.mult = 1; c.kind = ''; c.vals = [v]; }
   c.last = v; if (c.vals.length > 6) c.vals.shift();
   S.maxMult = Math.max(S.maxMult, c.mult);
+  if (c.mult > S.bestChain.mult) S.bestChain = { kind: c.kind || 'CHAIN', mult: c.mult };
   if (!QUIET && c.n > 1) {
     FX.chainPulse = 1;
     const [x, y] = cellC(S.px, S.py);
@@ -344,6 +512,7 @@ function chainAdvance(v, wild) {
 function effTop() {
   const top = topFace(); let v = top.v;
   if (top.k === 'wild' && S.chain.n > 0) v = Math.max(v, S.chain.last + 1);
+  if (top.k === 'clone' && S.lastHitV > 0) v = S.lastHitV;
   return { v, wild: top.k === 'wild', k: top.k };
 }
 function predictHit() {
@@ -355,9 +524,14 @@ function predictHit() {
   return { v: t.v, mult, dmg: Math.round((t.v + S.momentum * S.relic.mom) * mult * Math.pow(2, S.relic.glass)), keeps: c.n === 0 || t.v >= c.last || t.wild, k: t.k };
 }
 function calcDmg(v) { return Math.round((v + S.momentum * S.relic.mom) * S.chain.mult * Math.pow(2, S.relic.glass)); }
-function applyDamage(e, dmg, depth) {
+function applyDamage(e, dmg, depth, fv) {
   if (e.dead) return;
+  if (e.type === 'mimic' && !(fv > mimicArmor(e))) {      // only a higher face gets through its armour
+    if (!QUIET) { const [x, y] = cellC(e.x, e.y); ftext(x, y - 40, 'CLANG! armour ' + mimicArmor(e), '#ddd', 15); SND.clang(); burst(x, y - 10, 10, '#ffe08a', 3, { sz: 2 }); }
+    return;
+  }
   e.hp -= dmg; S.score += dmg; S.bestHit = Math.max(S.bestHit, dmg);
+  if (isBoss(e)) { S.dread = Math.max(0, S.dread - 2); if (e.hp > 0 && e.phase === 1 && e.hp <= e.maxHp / 2) bossPhase2(e); }
   if (e.dormant && e.hp > 0) e.dormant = false;
   if (!QUIET) {
     const [x, y] = cellC(e.x, e.y); FX.hit[e.id] = 1;
@@ -373,14 +547,19 @@ function applyDamage(e, dmg, depth) {
       for (const o of S.en) if (!o.dead) { const d = Math.abs(o.x - e.x) + Math.abs(o.y - e.y); if (d < bd) { bd = d; tgt = o; } }
       if (tgt) {
         if (!QUIET) { const [a, b] = cellC(e.x, e.y), [c2, d2] = cellC(tgt.x, tgt.y); FX.beams.push({ x0: a, y0: b - 14, x1: c2, y1: d2 - 14, life: 1, col: C.orange }); }
-        applyDamage(tgt, over, depth + 1);
+        applyDamage(tgt, over, depth + 1, 0);
       }
     }
   }
 }
 function killEnemy(e) {
   e.dead = true; S.kills++;
-  const bonus = 10 * S.floor * (e.type === 'elite' ? 15 : e.type === 'boss' ? 10 : 1);
+  const bonus = 10 * S.floor * (e.type === 'elite' ? 15 : isBoss(e) ? 10 : 1);
+  if (isBoss(e)) {
+    S.rare = true; S.bossKills++;
+    for (const o of S.en) if (!o.dead && o !== e) { o.dead = true; if (!QUIET) { const [x, y] = cellC(o.x, o.y); burst(x, y, 16, '#ccc', 3, { g: -0.05 }); } }   // its minions crumble
+    if (e.type === 'ogre') unlockDie('glass'); else if (e.type === 'lich') unlockDie('twin');
+  }
   S.score += bonus;
   if (e.type !== 'wraith') S.dread = Math.max(0, S.dread - 4);
   if (S.relic.vamp) S.hp = Math.min(S.maxHp, S.hp + S.relic.vamp);
@@ -393,12 +572,18 @@ function killEnemy(e) {
     ftext(x, y + 4, '+' + bonus, C.gold, 15, { vy: -0.7 });
     SND.kill(S.chain.n);
     if (S.relic.vamp) { const [px, py] = cellC(S.px, S.py); ftext(px, py - 40, '+' + S.relic.vamp + ' hp', C.pink, 14); }
-    if (e.type === 'elite' || e.type === 'boss') { FX.banner = { txt: e.type === 'boss' ? 'OGRE DOWN!' : 'ELITE SLAIN!', sub: e.type === 'elite' ? 'bonus pick' : '', life: 1, col: C.gold, top: 1 }; flash(0.5, '#ffe9a8'); shake(16); }
+    if (e.type === 'elite' || isBoss(e)) { FX.banner = { txt: isBoss(e) ? bossName(e) + ' DOWN!' : 'ELITE SLAIN!', sub: e.type === 'elite' ? 'bonus pick' : 'reward: a pick of 3 RARE upgrades', life: 1, col: C.gold, top: 1 }; flash(0.5, '#ffe9a8'); shake(16); if (isBoss(e)) SND.victory(); }
   }
-  S.freeze = Math.max(S.freeze, e.type === 'boss' || e.type === 'elite' ? 200 : 60);
+  S.freeze = Math.max(S.freeze, isBoss(e) ? 260 : e.type === 'elite' ? 200 : 60);
 }
 function hurtPlayer(dmg, e, causeTxt) {
   const [x, y] = cellC(S.px, S.py);
+  if (S.reflect > 0 && e && !e.dead) {      // mirror: the hit bounces back to the attacker
+    S.reflect = 0; const rd = S.reflectV * 3;
+    if (!QUIET) { const [ax, ay] = cellC(e.x, e.y); ftext(x, y - 56, 'MIRRORED!', KGLOW.reflect, 18); FX.beams.push({ x0: x, y0: y - 16, x1: ax, y1: ay - 16, life: 1, col: KGLOW.reflect }); SND.mirror(); ring(x, y - 16, KGLOW.reflect, 54, 5); }
+    applyDamage(e, rd, 0, S.reflectV);
+    return;
+  }
   if (S.barrier > 0 && e) {   // wards block foes, never the Dread's bite
     S.barrier = 0;
     if (!QUIET) { ftext(x, y - 50, 'BLOCKED', C.cyan, 18); ring(x, y - 16, C.cyan, 50, 5); SND.block(); burst(x, y - 16, 16, C.cyan, 4); }
@@ -420,6 +605,12 @@ function hurtPlayer(dmg, e, causeTxt) {
     die(causeTxt || (b.verb + ' ' + (b.a === 'the' ? 'the ' : b.a + ' ') + b.name + ' on floor ' + S.floor));
   }
 }
+function unlockDie(id) {          // meta-progression: a side effect outside the sim, never during bot lookahead
+  if (QUIET || unlocked.indexOf(id) >= 0) return;
+  unlocked.push(id); saveJSON('funlab.' + ID + '.unlocks', unlocked); newUnlocks.push(id);
+  FX.unlockMsg = { txt: 'NEW DIE UNLOCKED: ' + DICE[id].name.toUpperCase(), sub: DICE[id].desc, life: 1 };
+  SND.unlock();
+}
 function die(cause) {
   S.over = true; S.cause = cause; S.phase = 'over';
   if (!QUIET) {
@@ -427,35 +618,52 @@ function die(cause) {
     burst(x, y - 16, 70, '#f7f0e2', 7, { dec: 0.012, sz: 4 }); burst(x, y - 16, 30, C.red, 5);
     shake(24); flash(0.9, '#fff'); SND.die(); FX.overT = 0;
     if (S.score > best) { best = S.score; saveBest(best); }
+    if (S.daily) { const db = +loadJSON(dailyKey(S.daily), 0) || 0; dailyPrev = db; if (S.score > db) saveJSON(dailyKey(S.daily), S.score); }
+    copyState = '';
   }
   overAt = performance.now();
 }
 
 // ---------- the player's turn ----------
-function pinnedAt(e, dx, dy) { if (e.type === 'boss') return false; const bx = e.x + dx, by = e.y + dy; return !inB(bx, by) || !!enemyAt(bx, by); }
+function pinnedAt(e, dx, dy) { if (ET[e.type].heavy) return false; const bx = e.x + dx, by = e.y + dy; return !inB(bx, by) || !!enemyAt(bx, by); }
 function knock(e, dx, dy) {
-  if (e.dead || e.type === 'boss') return false;
+  if (e.dead || ET[e.type].heavy) return false;
   const bx = e.x + dx, by = e.y + dy;
   if (!inB(bx, by) || enemyAt(bx, by) || (bx === S.px && by === S.py)) return false;
+  if (e.type === 'mimic') { mimicRoll(e, dx, dy); e.int = { type: 'stun' }; if (!QUIET) { const [x, y] = cellC(bx, by); ftext(x, y - 52, 'rolled! armour ' + mimicArmor(e), '#ffd0dc', 14); } return true; }
   moveE(e, bx, by); e.mt = S.t - 20; e.int = { type: 'stun' };
   if (!QUIET) { const [x, y] = cellC(bx, by); burst(x, y + 16, 8, '#cfe8d8', 2, { g: -0.02, sz: 2 }); }
   return true;
 }
 function strike(e, dx, dy) {
   const t = effTop();
+  if (e.type === 'mimic' && t.v <= mimicArmor(e)) {     // the duel: your face must beat its face
+    if (!QUIET) { const [x, y] = cellC(e.x, e.y); ftext(x, y - 46, 'CLANG! ' + t.v + ' ≤ armour ' + mimicArmor(e), '#eee', 16); SND.clang(); shake(4); burst(x, y - 10, 12, '#ffe08a', 3.5, { sz: 2 }); }
+    S.freeze = Math.max(S.freeze, 60);
+    return;
+  }
   chainAdvance(t.v, t.wild);
-  const pinned = pinnedAt(e, dx, dy);
-  const dmg = calcDmg(t.v) * (pinned ? 2 : 1);
+  S.lastHitV = t.v;
+  const pinned = pinnedAt(e, dx, dy), punish = e.type === 'ogre' && e.rest > 0;
+  const dmg = calcDmg(t.v) * (pinned ? 2 : 1) * (punish ? 2 : 1);
+  const arcs = t.k === 'chain' ? S.en.filter(o => o !== e && !o.dead && Math.max(Math.abs(o.x - e.x), Math.abs(o.y - e.y)) <= 1).slice(0, 2) : [];
   S.momentum = 0;
+  if (!QUIET && punish) { const [x, y] = cellC(e.x, e.y); ftext(x, y - 66, 'PUNISH ×2', C.gold, 20, { vy: -0.5 }); }
   if (!QUIET) {
     const n = S.chain.n; SND.hit(n, dmg >= 20 || S.chain.mult >= 3 || pinned); shake(Math.min(18, 4 + dmg / 6 + S.chain.mult + (pinned ? 4 : 0)));
     if (pinned) { const [x, y] = cellC(e.x, e.y); ftext(x, y - 62, 'CRUSH \u00d72', C.orange, 18, { vy: -0.5 }); }
   }
-  applyDamage(e, dmg, 0);
+  const ex = e.x, ey = e.y;
+  applyDamage(e, dmg, 0, t.v);
   if (!e.dead && !pinned) knock(e, dx, dy);
   if (t.k === 'fire') {
     if (!QUIET) { const [x, y] = cellC(S.px, S.py); ring(x, y - 10, C.orange, 95, 7); burst(x, y - 10, 30, C.orange, 5.5, { g: -0.05 }); }
-    for (const o of S.en) if (o !== e && !o.dead && Math.max(Math.abs(o.x - S.px), Math.abs(o.y - S.py)) <= 1) applyDamage(o, dmg, 0);
+    for (const o of S.en) if (o !== e && !o.dead && Math.max(Math.abs(o.x - S.px), Math.abs(o.y - S.py)) <= 1) applyDamage(o, dmg, 0, t.v);
+  }
+  for (const o of arcs) {                                   // Arc face: lightning to 2 foes next to the target
+    if (o.dead) continue;
+    if (!QUIET) { const [a, b] = cellC(ex, ey), [c2, d2] = cellC(o.x, o.y); FX.beams.push({ x0: a, y0: b - 16, x1: c2, y1: d2 - 16, life: 1, col: KGLOW.chain, zig: 1 }); SND.zap(); }
+    applyDamage(o, Math.max(1, Math.round(dmg / 2)), 0, t.v);
   }
   const big = dmg >= 25 || S.chain.mult >= 4;
   S.freeze = Math.max(S.freeze, big ? 130 : 45);
@@ -470,12 +678,16 @@ function landing() {
     if (tg.length) {
       chainAdvance(top.v, false);
       const dmg = calcDmg(top.v); S.momentum = 0;
-      for (const e of tg) { applyDamage(e, dmg, 0); if (!e.dead) knock(e, e.x - S.px, e.y - S.py); }
+      S.lastHitV = top.v;
+      for (const e of tg) { applyDamage(e, dmg, 0, top.v); if (!e.dead) knock(e, e.x - S.px, e.y - S.py); }
       S.freeze = Math.max(S.freeze, 100);
     }
   } else if (top.k === 'ward') {
     if (!S.barrier && !QUIET) later(110, () => { const [x, y] = cellC(S.px, S.py); ring(x, y - 16, C.cyan, 46, 4); SND.ward(); });
     S.barrier = 1;
+  } else if (top.k === 'reflect') {
+    if (!S.reflect && !QUIET) later(110, () => { const [x, y] = cellC(S.px, S.py); ring(x, y - 16, KGLOW.reflect, 46, 4); SND.mirror(); });
+    S.reflect = 1; S.reflectV = top.v;
   } else if (top.k === 'heart') {
     if (S.hp < S.maxHp) { S.hp++; if (!QUIET) later(110, () => { const [x, y] = cellC(S.px, S.py); ftext(x, y - 50, '+1 hp', C.pink, 16); SND.heal(); burst(x, y - 20, 10, C.pink, 3, { g: -0.05 }); FX.hpPulse = 1; }); }
   }
@@ -507,6 +719,7 @@ function playerAct(dir) {
 function enemyPhase() {
   for (const e of S.en) { if (e.dead) continue; execIntent(e); if (S.over) return; }
   S.en = S.en.filter(e => !e.dead);
+  if (!S.en.some(q => !q.dormant)) { startClear(); return; }
   S.dread++;
   if (S.dread >= dreadMax()) {
     S.dread = 0; S.dreadSpawns++;
@@ -538,10 +751,10 @@ function startClear() {
     for (let i = 0; i < 60; i++) FX.parts.push({ x: BX + Math.random() * GN * CELL, y: BY - 10, vx: (Math.random() - 0.5) * 3, vy: Math.random() * 2, life: 1, dec: 0.008, col: [C.gold, C.pink, C.cyan, '#fff', C.orange][i % 5], sz: 4, g: 0.06, conf: Math.random() * 6 });
   }
 }
-function genCards() {
-  const pool = [];
-  for (const k in CARDS) {
-    const c = CARDS[k]; let w = c.w;
+function genCards(rare) {
+  const pool = [], table = rare ? RARES : CARDS;
+  for (const k in table) {
+    const c = table[k]; let w = c.w;
     if (c.unique && S.relic[k]) continue;
     if (k === 'glass' && S.maxHp <= 6) continue;
     if (k === 'patch' && S.hp < S.maxHp * 0.6) w *= 2.2;
@@ -551,9 +764,9 @@ function genCards() {
   const out = [];
   while (out.length < 3 && pool.length) {
     const k = wpick(pool); pool.splice(pool.findIndex(p => p[0] === k), 1);
-    const c = { type: k, face: -1 };
-    if (CARDS[k].face) {
-      const cand = []; for (let i = 0; i < 6; i++) if (!CARDS[k].kind || !S.die.f[i].k) cand.push(i);
+    const c = { type: k, face: -1, rare: !!rare };
+    if (table[k].face) {
+      const cand = []; for (let i = 0; i < 6; i++) if (!table[k].kind || !S.die.f[i].k) cand.push(i);
       c.face = cand[ri(cand.length)];
     }
     out.push(c);
@@ -564,7 +777,12 @@ function applyCard(c) {
   const f = c.face >= 0 ? S.die.f[c.face] : null, r = S.relic;
   switch (c.type) {
     case 'plus': f.v += 3; break;
-    case 'fire': case 'quake': case 'ward': case 'heart': case 'wild': f.k = c.type; break;
+    case 'fire': case 'quake': case 'ward': case 'heart': case 'wild': case 'reflect': case 'chain': case 'clone': f.k = c.type; break;
+    case 'gold': f.v += 6; break;
+    case 'stairs2': r.stairs += 2; break;
+    case 'twins2': r.twins += 2; break;
+    case 'wind': S.maxHp += 3; S.hp = S.maxHp; break;
+    case 'loaded': for (const q of S.die.f) q.v += 1; break;
     case 'odds': for (const q of S.die.f) if (q.v % 2 === 1) q.v += 2; break;
     case 'evens': for (const q of S.die.f) if (q.v % 2 === 0) q.v += 2; break;
     case 'twins': r.twins++; break;
@@ -580,27 +798,28 @@ function applyCard(c) {
     SND.pick();
     const [x, y] = cellC(S.px, S.py);
     burst(x, y - 20, 30, C.gold, 4.5, { g: -0.04 }); ring(x, y - 16, C.gold, 70, 5);
-    ftext(x, y - 60, CARDS[c.type].name.toUpperCase(), C.gold, 18, { dec: 0.012 });
+    ftext(x, y - 60, cardDef(c).name.toUpperCase(), C.gold, 18, { dec: 0.012 });
     if (c.face >= 0) FX.faceFlash[c.face] = 1.5;
-    if (c.type === 'odds' || c.type === 'evens') for (let i = 0; i < 6; i++) FX.faceFlash[i] = 1;
+    if (c.type === 'odds' || c.type === 'evens' || c.type === 'loaded') for (let i = 0; i < 6; i++) FX.faceFlash[i] = 1;
   }
 }
 function doPick(i) {
   if (!S.cards || !S.cards[i]) return;
   applyCard(S.cards[i]);
   S.picks--;
-  if (S.picks > 0) { genCards(); S.lock = 300; if (!QUIET) FX.banner = { txt: 'BONUS PICK', sub: '', life: 1, col: C.gold }; }
-  else nextFloor();
+  if (S.picks > 0) { genCards(false); S.lock = 300; if (!QUIET) FX.banner = { txt: 'BONUS PICK', sub: '', life: 1, col: C.gold }; }
+  else { S.rare = false; nextFloor(); }
 }
 function nextFloor() {
   S.floor++; S.phase = 'play'; S.dread = 0; S.dreadSpawns = 0; S.eliteKilled = false; S.roomTurns = 0; S.cards = null; S.anim = null;
   if (S.chain.n > 0) chainMsg('NEW FLOOR: chain cashed in', C.gold);
   S.chain = newChain();   // each floor is a fresh hand
   spawnFloor(); S.lock = 450;
+  if (S.floor >= 5) unlockDie('lucky');
   if (!QUIET) {
-    const boss = S.floor % 5 === 0;
-    FX.banner = { txt: 'FLOOR ' + S.floor, sub: boss ? 'the Ogre awaits' : S.en.some(e => e.type === 'elite') ? 'a sleeping Elite: bump it for a bonus pick' : '', life: 1, col: boss ? C.red : C.txt, top: 1 };
-    SND.floor();
+    const bo = S.en.find(isBoss);
+    if (bo) { FX.banner = { txt: bossName(bo), sub: ET[bo.type].tip, life: 1, col: ET[bo.type].col, top: 1, boss: 1 }; SND.stinger(); flash(0.25, ET[bo.type].col); }
+    else { FX.banner = { txt: 'FLOOR ' + S.floor, sub: S.en.some(e => e.type === 'elite') ? 'a sleeping Elite: bump it for a bonus pick' : '', life: 1, col: C.txt, top: 1 }; SND.floor(); }
   }
 }
 
@@ -633,9 +852,10 @@ function stepFX() {
   for (const k in FX.lunge) { FX.lunge[k].life -= 0.09; if (FX.lunge[k].life <= 0) delete FX.lunge[k]; }
   for (let i = 0; i < 6; i++) FX.faceFlash[i] = Math.max(0, FX.faceFlash[i] - 0.04);
   FX.shake *= 0.86; FX.flash *= 0.88; FX.chainPulse *= 0.9; FX.hpPulse *= 0.9; FX.hurt *= 0.92;
-  if (FX.banner) { FX.banner.life -= FX.banner.top ? 0.02 : 0.012; if (FX.banner.life <= 0) FX.banner = null; }
+  if (FX.banner) { FX.banner.life -= FX.banner.boss ? 0.008 : FX.banner.top ? 0.02 : 0.012; if (FX.banner.life <= 0) FX.banner = null; }
   if (FX.chainMsg) { FX.chainMsg.life -= 0.009; if (FX.chainMsg.life <= 0) FX.chainMsg = null; }
   if (FX.cellFlash) { FX.cellFlash.life -= 0.06; if (FX.cellFlash.life <= 0) FX.cellFlash = null; }
+  if (FX.unlockMsg) { FX.unlockMsg.life -= 0.006; if (FX.unlockMsg.life <= 0) FX.unlockMsg = null; }
   FX.disp += (S.score - FX.disp) * 0.2; if (Math.abs(S.score - FX.disp) < 1) FX.disp = S.score;
   if (S.over) FX.overT = Math.min(1, FX.overT + 0.05);
   if (FX.moves >= 3) FX.hintA = Math.max(0, FX.hintA - 0.01);
@@ -653,7 +873,7 @@ function step() {
     if (S.buf && DIRS[S.buf]) { const a = S.buf; S.buf = null; playerAct(a); }
     else S.buf = null;
   } else if (S.phase === 'clear') {
-    S.phase = 'pick'; S.picks = S.eliteKilled ? 2 : 1; genCards(); S.lock = 250; S.buf = null;
+    S.phase = 'pick'; S.picks = S.eliteKilled ? 2 : 1; genCards(S.rare); S.lock = 250; S.buf = null;
   } else if (S.phase === 'pick') {
     if (S.buf && /^pick[123]$/.test(S.buf)) { const i = +S.buf[4] - 1; S.buf = null; doPick(i); }
     else S.buf = null;
@@ -680,20 +900,26 @@ function icon(kind, x, y, r, col) {
   else if (kind === 'sword') { cx.moveTo(0.75, -0.95); cx.lineTo(0.95, -0.75); cx.lineTo(-0.2, 0.4); cx.lineTo(-0.4, 0.2); cx.closePath(); cx.moveTo(-0.55, 0.05); cx.lineTo(0.05, 0.65); cx.lineTo(-0.05, 0.75); cx.lineTo(-0.65, 0.15); cx.closePath(); cx.moveTo(-0.38, 0.5); cx.lineTo(-0.5, 0.38); cx.lineTo(-0.9, 0.78); cx.lineTo(-0.78, 0.9); cx.closePath(); }
   else if (kind === 'drop') { cx.moveTo(0, -1); cx.bezierCurveTo(0.5, -0.3, 0.75, 0.1, 0.7, 0.4); cx.arc(0, 0.4, 0.7, 0, Math.PI); cx.bezierCurveTo(-0.75, 0.1, -0.5, -0.3, 0, -1); }
   else if (kind === 'skull') { cx.arc(0, -0.15, 0.8, 0, 6.283); cx.rect(-0.45, 0.4, 0.9, 0.5); }
+  else if (kind === 'reflect') { cx.moveTo(0, -1); cx.lineTo(1, 0); cx.lineTo(0, 1); cx.lineTo(-1, 0); cx.closePath(); cx.moveTo(0, -0.45); cx.lineTo(-0.45, 0); cx.lineTo(0, 0.45); cx.lineTo(0.45, 0); cx.closePath(); cx.fill('evenodd'); cx.beginPath(); cx.moveTo(-0.15, -0.15); cx.lineTo(0.12, -0.12); cx.lineTo(0.15, 0.15); cx.lineTo(-0.12, 0.12); cx.closePath(); }
+  else if (kind === 'chain') { cx.moveTo(-0.1, -1); cx.lineTo(-0.7, 0.05); cx.lineTo(-0.2, 0.05); cx.lineTo(-0.5, 1); cx.lineTo(0.15, -0.15); cx.lineTo(-0.3, -0.15); cx.closePath(); cx.moveTo(0.55, -0.55); cx.lineTo(0.2, 0.15); cx.lineTo(0.5, 0.15); cx.lineTo(0.35, 0.85); cx.lineTo(0.95, -0.05); cx.lineTo(0.65, -0.05); cx.closePath(); }
+  else if (kind === 'clone') { cx.rect(-0.9, -0.9, 1.15, 1.15); cx.rect(-0.25, -0.25, 1.15, 1.15); cx.fill('evenodd'); cx.beginPath(); cx.rect(-0.25, -0.25, 0.5, 0.5); }
+  else if (kind === 'fist') { cx.moveTo(-0.8, -0.2); cx.lineTo(0.8, -0.2); cx.lineTo(0.8, 0.6); cx.quadraticCurveTo(0.8, 0.95, 0.45, 0.95); cx.lineTo(-0.45, 0.95); cx.quadraticCurveTo(-0.8, 0.95, -0.8, 0.6); cx.closePath(); for (let i = 0; i < 4; i++) { cx.moveTo(-0.6 + i * 0.4 + 0.2, -0.3); cx.arc(-0.6 + i * 0.4, -0.3, 0.2, 0, 6.283); } }
+  else if (kind === 'lock') { cx.rect(-0.75, -0.1, 1.5, 1.05); cx.moveTo(0.5, -0.1); cx.arc(0, -0.1, 0.5, 0, Math.PI, true); cx.lineTo(-0.3, -0.1); cx.arc(0, -0.1, 0.3, Math.PI, 0); cx.closePath(); }
+  else if (kind === 'eye') { cx.moveTo(-1, 0); cx.quadraticCurveTo(0, -0.9, 1, 0); cx.quadraticCurveTo(0, 0.9, -1, 0); cx.closePath(); cx.moveTo(0.35, 0); cx.arc(0, 0, 0.35, 0, 6.283); cx.fill('evenodd'); cx.beginPath(); cx.arc(0, 0, 0.15, 0, 6.283); }
   else { cx.arc(0, 0, 0.8, 0, 6.283); }
   cx.fill(); cx.restore();
 }
 const PIPS = { 1: [[50, 50]], 2: [[27, 27], [73, 73]], 3: [[25, 25], [50, 50], [75, 75]], 4: [[27, 27], [73, 27], [27, 73], [73, 73]], 5: [[25, 25], [75, 25], [50, 50], [25, 75], [75, 75]], 6: [[27, 24], [73, 24], [27, 50], [73, 50], [27, 76], [73, 76]] };
 // draw face contents in a 100x100 box at the current transform
-function faceArt(face, bg, flashA, numeral) {
+function faceArt(face, bg, flashA, numeral, ink) {
   rr(3, 3, 94, 94, 18); cx.fillStyle = bg; cx.fill();
   if (face.k) { cx.lineWidth = 6; cx.strokeStyle = KGLOW[face.k]; rr(7, 7, 86, 86, 15); cx.stroke(); }
-  const col = KCOL[face.k];
+  const col = ink || KCOL[face.k];
   if (face.v <= 6 && !numeral) {
     for (const [px, py] of PIPS[face.v]) {
       const r = face.v === 1 ? 15 : 9.5;
       cx.beginPath(); cx.arc(px, py, r, 0, 6.283);
-      cx.fillStyle = face.v === 1 && !face.k ? C.pip1 : col; cx.fill();
+      cx.fillStyle = face.v === 1 && !face.k && !ink ? C.pip1 : col; cx.fill();
     }
   } else {
     cx.font = '900 56px ' + FONT; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillStyle = col;
@@ -732,7 +958,8 @@ function rotV(v, k, c, s) {
 }
 function proj(p) { return [BX + (p[0] + p[2] * PXk) * CELL, BY + (p[1] - p[2] * PYk) * CELL]; }
 // cxw,cyw: world centre of the die footprint (cells). o: orientation. rot: {dx,dy,ang}. sq: squash (0..1)
-function drawDie3D(cxw, cyw, o, rot, sq, lift, hurtA) {
+function drawDie3D(cxw, cyw, o, rot, sq, lift, hurtA, opt) {
+  opt = opt || {}; const fset = opt.faces || S.die.f;
   const h = DS, zs = 1 - 0.2 * sq, xs = 1 + 0.1 * sq;
   let k = null, c = 1, s = 0, piv = null;
   if (rot && rot.ang) { k = [-rot.dy, rot.dx, 0]; c = Math.cos(rot.ang); s = Math.sin(rot.ang); piv = [cxw + rot.dx * h / 2, cyw + rot.dy * h / 2, 0]; }
@@ -759,21 +986,21 @@ function drawDie3D(cxw, cyw, o, rot, sq, lift, hurtA) {
     const { A, B, D, lt } = fc, Cc = [B[0] + D[0] - A[0], B[1] + D[1] - A[1]];
     // body edge (darker) for bevel
     cx.beginPath(); cx.moveTo(A[0], A[1]); cx.lineTo(B[0], B[1]); cx.lineTo(Cc[0], Cc[1]); cx.lineTo(D[0], D[1]); cx.closePath();
-    const e = Math.round(lt * 150);
-    cx.fillStyle = 'rgb(' + (e + 40) + ',' + (e + 28) + ',' + (e + 14) + ')'; cx.fill();
+    const e = Math.round(lt * 150), base = opt.base || [247, 240, 226], edge = opt.edge || [40, 28, 14];
+    cx.fillStyle = opt.base ? 'rgb(' + Math.round(edge[0] * lt) + ',' + Math.round(edge[1] * lt) + ',' + Math.round(edge[2] * lt) + ')' : 'rgb(' + (e + 40) + ',' + (e + 28) + ',' + (e + 14) + ')'; cx.fill();
     cx.save();
     cx.transform((B[0] - A[0]) / 100, (B[1] - A[1]) / 100, (D[0] - A[0]) / 100, (D[1] - A[1]) / 100, A[0], A[1]);
-    const r = Math.round(247 * lt), gg = Math.round(240 * lt), b = Math.round(226 * lt);
+    const r = Math.round(base[0] * lt), gg = Math.round(base[1] * lt), b = Math.round(base[2] * lt);
     const hr = hurtA > 0 ? hurtA : 0;
-    const bg = 'rgb(' + Math.round(r + (255 - r) * hr * 0.2) + ',' + Math.round(gg * (1 - hr * 0.55)) + ',' + Math.round(b * (1 - hr * 0.55)) + ')';
+    const bg = 'rgb(' + Math.round(r + (255 - r) * hr * 0.4) + ',' + Math.round(gg * (1 - hr * 0.4) + 255 * hr * (opt.base ? 0.3 : 0)) + ',' + Math.round(b * (1 - hr * 0.4) + 255 * hr * (opt.base ? 0.3 : 0)) + ')';
     const fid = o[fc.i];
-    faceArt(S.die.f[fid], bg, fc.i === 0 ? FX.faceFlash[fid] : FX.faceFlash[fid] * 0.5);
+    faceArt(fset[fid], bg, opt.base ? (fc.i === 0 ? opt.flash || 0 : 0) : fc.i === 0 ? FX.faceFlash[fid] : FX.faceFlash[fid] * 0.5, false, opt.ink);
     cx.restore();
   }
 }
 // ---- enemies ----
 function drawEnemy(e, sx, sy, t, hitA, extra) {
-  const b = ET[e.type], big = e.type === 'boss' ? 1.25 : e.type === 'elite' ? 1.05 : 1;
+  const b = ET[e.type], big = e.type === 'ogre' ? 1.3 : e.type === 'lich' ? 1.2 : e.type === 'elite' ? 1.05 : 1;
   const bob = Math.sin(t / 220 + e.id * 1.7);
   cx.save(); cx.translate(sx, sy + CELL * 0.28);
   cx.fillStyle = 'rgba(0,0,0,0.3)'; cx.beginPath(); cx.ellipse(0, 0, CELL * 0.34 * big, CELL * 0.13, 0, 0, 6.283); cx.fill();
@@ -825,15 +1052,24 @@ function drawEnemy(e, sx, sy, t, hitA, extra) {
     for (let i = 0; i < 4; i++) { const xx = 19 - (i + 1) * 9.5; cx.quadraticCurveTo(xx + 4.75, y0 + 8 * (i % 2 ? -1 : 1) + Math.sin(t / 120 + i) * 2, xx, y0); }
     cx.closePath(); cx.fill(); cx.globalAlpha = 1;
     cx.fillStyle = '#1a0b33'; cx.beginPath(); cx.ellipse(-7, y0 - 26, 4.5, 6.5, 0, 0, 6.283); cx.ellipse(7, y0 - 26, 4.5, 6.5, 0, 0, 6.283); cx.fill();
-  } else if (e.type === 'boss') {
-    const y0 = bob, rest = e.int && e.int.type === 'rest';
-    cx.fillStyle = col; cx.beginPath(); cx.moveTo(-24, y0); cx.bezierCurveTo(-28, y0 - 52, 28, y0 - 52, 24, y0); cx.closePath(); cx.fill();
+  } else if (e.type === 'lich') {
+    const y0 = bob * 2 - 4, glow = 0.6 + 0.4 * Math.sin(t / 140);
+    cx.fillStyle = e.phase === 2 ? '#5a2a8a' : '#3c2a5e'; cx.beginPath(); cx.moveTo(-22, y0 + 4); cx.quadraticCurveTo(-24, y0 - 46, 0, y0 - 54); cx.quadraticCurveTo(24, y0 - 46, 22, y0 + 4); cx.closePath(); cx.fill();
+    cx.fillStyle = hitA > 0.3 ? '#fff' : '#efe6ff'; cx.beginPath(); cx.ellipse(0, y0 - 30, 11, 12, 0, 0, 6.283); cx.fill();
+    cx.fillStyle = '#1a0b33'; cx.beginPath(); cx.ellipse(-4.5, y0 - 31, 3.5, 4.5, 0, 0, 6.283); cx.ellipse(4.5, y0 - 31, 3.5, 4.5, 0, 0, 6.283); cx.fill();
+    cx.fillStyle = 'rgba(195,155,255,' + glow + ')'; cx.beginPath(); cx.arc(-4.5, y0 - 31, 1.8, 0, 6.283); cx.arc(4.5, y0 - 31, 1.8, 0, 6.283); cx.fill();
+    cx.fillStyle = C.gold; cx.beginPath(); cx.moveTo(-10, y0 - 42); cx.lineTo(-10, y0 - 52); cx.lineTo(-5, y0 - 46); cx.lineTo(0, y0 - 55); cx.lineTo(5, y0 - 46); cx.lineTo(10, y0 - 52); cx.lineTo(10, y0 - 42); cx.closePath(); cx.fill();
+    cx.strokeStyle = '#8a6a3a'; cx.lineWidth = 3; cx.beginPath(); cx.moveTo(22, y0 + 2); cx.lineTo(26, y0 - 44); cx.stroke();
+    cx.fillStyle = 'rgba(195,155,255,' + glow + ')'; cx.shadowColor = '#c39bff'; cx.shadowBlur = 12; cx.beginPath(); cx.arc(26, y0 - 48, 5, 0, 6.283); cx.fill(); cx.shadowBlur = 0;
+  } else if (e.type === 'ogre') {
+    const y0 = bob, rest = e.int && e.int.type === 'stun', charge = e.int && (e.int.type === 'charge' || e.int.type === 'atk');
+    cx.fillStyle = e.phase === 2 && hitA <= 0.3 ? '#ff2d3a' : col; cx.beginPath(); cx.moveTo(-24, y0); cx.bezierCurveTo(-28, y0 - 52, 28, y0 - 52, 24, y0); cx.closePath(); cx.fill();
+    if (charge) { cx.fillStyle = '#7a3b2b'; cx.save(); cx.translate(20, y0 - 40); cx.rotate(-0.6 - 0.2 * Math.sin(t / 80)); rr(-4, -26, 8, 30, 3); cx.fill(); rr(-8, -34, 16, 12, 4); cx.fill(); cx.restore(); }
     cx.fillStyle = '#f3e6c8'; cx.beginPath(); cx.moveTo(-18, y0 - 34); cx.lineTo(-27, y0 - 52); cx.lineTo(-10, y0 - 40); cx.closePath(); cx.moveTo(18, y0 - 34); cx.lineTo(27, y0 - 52); cx.lineTo(10, y0 - 40); cx.closePath(); cx.fill();
     eyes(y0 - 24, 5.5, '#1a1220', rest);
     cx.strokeStyle = '#2b1e2f'; cx.lineWidth = 3; cx.beginPath(); cx.moveTo(-14, y0 - 32); cx.lineTo(-3, y0 - 28); cx.moveTo(14, y0 - 32); cx.lineTo(3, y0 - 28); cx.stroke();
     cx.fillStyle = '#2b1e2f'; rr(-11, y0 - 14, 22, 8, 3); cx.fill(); cx.fillStyle = '#fff'; cx.fillRect(-8, y0 - 14, 4, 4); cx.fillRect(4, y0 - 14, 4, 4);
   }
-  if (e.type === 'slime' && e.dormant) {}
   if (hitA > 0) { cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = hitA * 0.4; cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(0, -20, 26, 0, 6.283); cx.fill(); cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over'; }
   cx.restore();
 }
@@ -1141,8 +1377,8 @@ function cardText(c) {
     case 'wild': return 'Your ' + fv + ' face goes wild: it always extends your chain.';
     case 'odds': return '+2 pips on every odd face (' + S.die.f.filter(q => q.v % 2).map(q => q.v).join(', ') + ').';
     case 'evens': return '+2 pips on every even face (' + S.die.f.filter(q => q.v % 2 === 0).map(q => q.v).join(', ') + ').';
-    case 'twins': return 'Matching hits grow your mult by +2 extra. Pairs get nasty.';
-    case 'stairs': return 'Rising hits grow your mult by +2 extra. Climb the stairs.';
+    case 'twins': return 'Matching hits add +1 more mult each (stacks). Pairs get nasty.';
+    case 'stairs': return 'Rising hits add +1 more mult each (stacks). Climb the stairs.';
     case 'vamp': return 'Every kill heals 1 HP.';
     case 'steel': return 'Getting hit only halves your mult instead of breaking the chain.';
     case 'glass': return 'ALL damage ×2. Max HP −3. Greed is good?';
@@ -1329,11 +1565,18 @@ function frame(now) {
 
 // ---------- bot API ----------
 function previewMap() { const o = {}; for (const d of DLIST) o[d] = S.die.f[rollO(S.die.o, d)[0]].v; return o; }
+function bumpInfo(e, dx, dy, h) {
+  h = h || predictHit();
+  const pin = pinnedAt(e, dx, dy), blocked = e.type === 'mimic' && h.v <= mimicArmor(e), punish = e.type === 'ogre' && e.rest > 0;
+  const dmg = blocked ? 0 : h.dmg * (pin ? 2 : 1) * (punish ? 2 : 1);
+  return { dmg, pinned: pin, blocked, punish, arc: h.k === 'chain' && !blocked ? Math.max(1, Math.round(dmg / 2)) : 0, hp: e.hp };
+}
 function bumpMap() {
   const o = {}, h = predictHit();
-  for (const d of DLIST) { const v = DIRS[d], e = inB(S.px + v[0], S.py + v[1]) ? enemyAt(S.px + v[0], S.py + v[1]) : null; if (!e) continue; const pin = pinnedAt(e, v[0], v[1]); o[d] = { dmg: h.dmg * (pin ? 2 : 1), pinned: pin, hp: e.hp }; }
+  for (const d of DLIST) { const v = DIRS[d], e = inB(S.px + v[0], S.py + v[1]) ? enemyAt(S.px + v[0], S.py + v[1]) : null; if (!e) continue; o[d] = bumpInfo(e, v[0], v[1], h); }
   return o;
 }
+function warnCells() { const out = []; for (const e of S.en) if (!e.dead && e.int && e.int.type === 'charge') for (const c of e.int.cells) out.push([c[0], c[1], e.atk + 1, e.int.wind]); return out; }
 window.__game = {
   reset(seed) { manual = true; reset(seed); },
   getState() {
@@ -1345,8 +1588,10 @@ window.__game = {
       hit: predictHit(), bump: bumpMap(), chain: { n: S.chain.n, mult: S.chain.mult, last: S.chain.last }, momentum: S.momentum,
       relic: Object.assign({}, S.relic), dread: S.dread, dreadMax: dreadMax(), dreadSpawns: S.dreadSpawns, eliteKilled: S.eliteKilled, kills: S.kills, turns: S.turns,
       enemies: S.en.filter(e => !e.dead).map(e => ({ id: e.id, type: e.type, x: e.x, y: e.y, hp: e.hp, maxHp: e.maxHp, atk: e.atk, dormant: e.dormant,
+        boss: isBoss(e), phase: e.phase || 0, armor: e.type === 'mimic' ? mimicArmor(e) : 0, stunned: e.type === 'ogre' && e.rest > 0, wind: e.wind || 0,
         intent: e.int ? { type: e.int.type, kind: e.int.kind || null, cells: e.int.cells ? e.int.cells.map(c => c.slice()) : null } : null })),
-      danger, cards: S.cards ? S.cards.map(c => ({ type: c.type, face: c.face, faceV: c.face >= 0 ? S.die.f[c.face].v : null })) : null, picks: S.picks,
+      danger, warn: warnCells(), reflect: S.reflect, lastHitV: S.lastHitV, dieType: S.dieType, daily: S.daily, bossKills: S.bossKills,
+      cards: S.cards ? S.cards.map(c => ({ type: c.type, face: c.face, rare: !!c.rare, faceV: c.face >= 0 ? S.die.f[c.face].v : null })) : null, picks: S.picks,
     };
   },
   getActions() { return actions(); },
@@ -1358,6 +1603,8 @@ window.__game = {
   restore(s) { const c = structuredClone(s); S = c.S; carry = c.carry; },
   quiet(b) { QUIET = !!b; },
   render() { render(); },
+  // debug only (screenshots): jump to floor n. Never called by the lab or normal play.
+  debugFloor(n) { S.floor = Math.max(1, (n | 0) - 1); S.phase = 'play'; S.cards = null; S.over = false; S.pendEnemy = false; S.buf = null; nextFloor(); },
 };
 
 reset(Date.now() & 0x7fffffff);
