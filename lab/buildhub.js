@@ -100,6 +100,11 @@ h3.sec{font-size:22px;margin:38px 0 6px}
 .chart svg .dot{stroke:var(--surface);stroke-width:2}
 .chart svg .dot:hover,.chart svg .hit:hover+.dot{stroke:var(--ink)}
 .chart svg .grid{stroke:var(--line);stroke-width:1}
+.chart.wide{max-width:760px}
+.chart svg .r1{fill:var(--surface);stroke:var(--muted);stroke-width:2}
+.chart svg .r2{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.chart svg .bar{stroke:var(--line);stroke-width:2}
+.chart svg .up{stroke:var(--accent);stroke-opacity:.45;stroke-width:3}
 .chart svg .med{stroke:var(--ink);stroke-width:2;stroke-linecap:round}
 #tip{position:fixed;pointer-events:none;background:#0b0b10;border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;color:var(--ink-2);display:none;z-index:9;white-space:nowrap}
 #tip b{color:var(--ink);font-size:14px;margin-right:6px}
@@ -120,12 +125,15 @@ footer{color:var(--muted);font-size:13px;padding:40px 0 60px}
   <div class="kicker">The Fun Lab · ${new Date(summary.date).toISOString().slice(0, 10)}</div>
   <h1>Ten games. <span>One winner.</span></h1>
   <p class="lede">I researched what makes games fun and turned it into a 15-point rubric. Then I built 10 one-file browser games and ran 1,500 seeded sessions with random, heuristic and lookahead bots. A blind critic scored every game, and I played each one myself. Each tile below is playable, with keyboard or touch.</p>
-  <nav class="nav"><a href="#games">Games</a><a href="#charts">Score distributions</a><a href="REPORT.md">Full report</a><a href="research/FUN.md">The rubric (FUN.md)</a><a href="DECISIONS.md">Decisions</a></nav>
+  <nav class="nav"><a href="#games">Games</a><a href="#iterate">Before → after</a><a href="#charts">Score distributions</a><a href="REPORT.md">Full report</a><a href="research/FUN.md">The rubric (FUN.md)</a><a href="DECISIONS.md">Decisions</a></nav>
 </header>
 <section id="winner"></section>
 <h3 class="sec" id="games">The arcade, ranked</h3>
 <p class="sec-sub">Final = 0.30 × bot + 0.35 × blind critic + 0.35 × my own play (all out of 10). Your best scores are stored locally in your browser.</p>
 <div class="grid" id="grid"></div>
+<h3 class="sec" id="iterate">Round 1 → Round 2: what iteration bought</h3>
+<p class="sec-sub">The final score for each game before and after Phase 4. Hollow dot: round 1 (first build). Filled dot: round 2 (after bug fixes, a hard rework of the bottom 4, and a polish pass on the top 3). The final score combines the bots, the blind critic and me.</p>
+<div class="chart wide" id="dumbbell"></div>
 <h3 class="sec" id="charts">Score distributions per bot</h3>
 <p class="sec-sub">Each dot is one seeded session (50 per bot per game), plotted on a log scale. The white tick marks the median. A wide gap between random and smart means your choices matter. A wide spread across seeds means runs vary.</p>
 <div class="legend"><span><i style="background:var(--s-random)"></i>random bot</span><span><i style="background:var(--s-heuristic)"></i>heuristic bot</span><span><i style="background:var(--s-smart)"></i>smart (lookahead) bot</span></div>
@@ -229,13 +237,38 @@ for (const g of D.games) {
     svg,
   ]));
 }
+// dumbbell: round-1 final -> round-2 final
+(() => {
+  const host = document.getElementById('dumbbell');
+  const G = D.games.slice().sort((a, b) => b.final - a.final);
+  const Wd = 720, L = 110, R = 54, top = 10, rowH = 30, H = top + rowH * G.length + 28;
+  const lo = 5, hi = 10, x = v => L + (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * (Wd - L - R);
+  const svg = S('svg', { viewBox: '0 0 ' + Wd + ' ' + H, role: 'img', 'aria-label': 'Final score per game, round 1 versus round 2' });
+  for (let v = lo; v <= hi; v++) { const xx = x(v); svg.append(S('line', { x1: xx, x2: xx, y1: top, y2: top + rowH * G.length, class: 'grid' })); const t = S('text', { x: xx, y: H - 8, 'text-anchor': 'middle' }); t.textContent = v; svg.append(t); }
+  G.forEach((g, i) => {
+    const cy = top + rowH * i + rowH / 2;
+    const lab = S('text', { x: 0, y: cy + 4, class: 'lab' }); lab.textContent = g.name; svg.append(lab);
+    if (g.final1 != null) {
+      svg.append(S('line', { x1: x(g.final1), x2: x(g.final), y1: cy, y2: cy, class: g.final >= g.final1 ? 'up' : 'bar' }));
+      const a = S('circle', { cx: x(g.final1), cy, r: 6, class: 'r1' }); svg.append(a);
+    }
+    const b = S('circle', { cx: x(g.final), cy, r: 6, class: 'r2' }); svg.append(b);
+    const d = S('text', { x: Wd - R + 10, y: cy + 4, class: 'lab' }); d.textContent = (g.final >= (g.final1 ?? g.final) ? '+' : '') + f1(g.final - (g.final1 ?? g.final)); svg.append(d);
+    const hit = S('rect', { x: L - 6, y: cy - rowH / 2, width: Wd - L - R + 12, height: rowH, fill: 'transparent' });
+    hit.addEventListener('pointermove', e => { tip.style.display = 'block'; tip.innerHTML = ''; tip.append(el('b', { text: f1(g.final) }), document.createTextNode(g.name + ' · round 1 ' + f1(g.final1) + ' (#' + g.rank1 + ') → round 2 #' + g.rank)); tip.style.left = (e.clientX + 12) + 'px'; tip.style.top = (e.clientY - 30) + 'px'; });
+    hit.addEventListener('pointerleave', () => tip.style.display = 'none');
+    svg.append(hit);
+  });
+  host.append(el('h5', { text: 'Final score (0.30 bot + 0.35 critic + 0.35 mine), x-axis from 5 to 10' }),
+    el('div', { class: 'legend' }, [el('span', {}, [el('i', { style: 'background:transparent;border:2px solid var(--muted)' }), document.createTextNode('round 1')]), el('span', {}, [el('i', { style: 'background:var(--accent)' }), document.createTextNode('round 2 (final)')])]), svg);
+})();
 // table
 const tbl = document.getElementById('tbl');
-const head = el('tr', {}, ['Game', 'random med', 'heuristic med', 'smart med', 'skill ×', 'smart len (s)', 'smart CV', 'bot /10', 'critic', 'mine', 'final'].map(h => el('th', { text: h })));
+const head = el('tr', {}, ['Game', 'random med', 'heuristic med', 'smart med', 'skill ×', 'smart len (s)', 'smart CV', 'bot /10', 'critic', 'mine', 'final', 'round-1 final'].map(h => el('th', { text: h })));
 tbl.append(head);
 for (const g of D.games) {
   const sg = g.signals || {}, B = g.bots || {};
-  tbl.append(el('tr', {}, [g.name, fmt(B.random?.median ?? 0), fmt(B.heuristic?.median ?? 0), fmt(B.smart?.median ?? 0), fmt(sg.skillRatio || 0), Math.round(sg.smartMedianLenS || 0), f1(sg.smartCV), f1(g.bot), f1(g.critic), f1(g.mine), f1(g.final)].map(v => el('td', { text: String(v) }))));
+  tbl.append(el('tr', {}, [g.name, fmt(B.random?.median ?? 0), fmt(B.heuristic?.median ?? 0), fmt(B.smart?.median ?? 0), fmt(sg.skillRatio || 0), Math.round(sg.smartMedianLenS || 0), f1(sg.smartCV), f1(g.bot), f1(g.critic), f1(g.mine), f1(g.final), f1(g.final1)].map(v => el('td', { text: String(v) }))));
 }
 })();
 </script>
