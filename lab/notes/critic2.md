@@ -244,3 +244,50 @@ Setup: `lab/play.js` stepped-time server on port 8844, at most 15 screenshots pe
 - Ghost spawn intervals are not constant (5 s, then about 7.5 s), and only the "next" timer reveals this.
 - The ORB CHAIN resets after a short timeout that nothing on screen visualises.
 - I did not get to see the game-over panel (I ran out of screenshots), so I can't comment on it.
+
+---
+
+## 6. pipwalk
+
+**What it is (as I understood it):** a turn-based dice roguelike on a 7×7 tray. Arrows roll the die one cell, which changes its top face, and the arrows show which face will land on top. Bumping a foe hits it with the *current* top face, and the die does not roll. Consecutive hits that are rising or equal grow a CHAIN / STRAIGHT / MATCH multiplier, and damage is face × multiplier. A new floor "cashes in" the chain. Enemies telegraph attacks on red tiles (step off to dodge). There is no wait button ("NO WAITING: roll back and forth to stall"), and a Dread timer forces progress. After each floor clear you draft one of three die upgrades.
+
+| Run | Score | Length | Cause | Mode |
+|---|---|---|---|---|
+| 1 (seed 206) | 783 | ~19 s game time, about 30 turns, floor 3 | "bonked by a Skull on floor 3" | Deliberate on floors 1–2. Killed a slime with 5, then stalled left/right to bring 6 back on top and hit 6 (STRAIGHT ×2, floor clear). Drafted **Twin Fangs** (matching hits +2 mult), then hit 6, 6, 6, 6 for MATCH ×7 and a single +482 kill. Drafted Even Keel (+2 on even faces). Out of screenshots, I played floor 3 blind with a "probe a direction, undo if no hit" routine and was worn down. |
+| 2 (restart) | 198 | about 120 random inputs, floor 2 | "devoured by the Dread on floor 2" | **Blind probe**: random rolls and menu keys. |
+| 3 (restart) | 51 | about 90 random inputs, floor 1 | "devoured by the Dread on floor 1" | **Blind probe #2**, to check variance. |
+
+**Did I improve?** I had one deliberate run, so there is no run-to-run evidence. The skill gap is large: deliberate 783 vs random 198 and 51, so 4–15×. Within run 1 I went from "what does bump do?" to planning a six-roll route that would arrive next to the Elite with 6 on top.
+
+| # | Principle | Score | Why |
+|---|---|---|---|
+| 1 | Readable in 5 s | 2 | The first frame shows the die with the face each arrow will put on top (2/3/4/5), plus "Arrows/WASD roll · bump a foe to hit it with your TOP face · Hit with rising or matching faces to grow ×MULT". |
+| 2 | Clear goal, visible score | 2 | Score, floor, best, HP pips, CHAIN/MATCH ×n with "next ≥ 6 keeps it", a last-hits strip and the Dread bar. Goal: "clear each floor, hitting with rising or matching faces." |
+| 3 | Juicy feedback | 2 | Confetti on "FLOOR 1 CLEAR · chain ×2 +60", a "STRAIGHT ×2" stamp, "TWIN FANGS" floating text, a stun swirl, a "DODGED: you left the red tile" toast, and a die-roll tween. |
+| 4 | Forgiving input | 2 | Exact damage previews before you commit ("⚔42 KILL", "⚔6 push"), attack telegraphs on tiles, face previews on the arrows, and a contextual "roll back and forth to stall" tip. |
+| 5 | Fair, legible failure | 2 | "bonked by a Skull on floor 3", "devoured by the Dread on floor 2". |
+| 6 | Instant retry | 2 | Restart was immediate. (I did not see the game-over panel itself.) |
+| 7 | Interesting decisions | 2 | 783 vs 198 and 51. Routing the die so the right face is up when you arrive, stalling vs engaging, and synergy upgrade drafts. |
+| 8 | Pattern to learn | 1 | Die-orientation maths is a lovely learnable pattern (four rolls one way is identity, stalling preserves the face). Only one deliberate run, so improvement is unproven. |
+| 9 | Escalation | 2 | Floors add skulls and Elites, and the Dread clock forces action. |
+| 10 | Not solved | 2 | Died on floor 3. Upgrades change the maths each run. |
+| 11 | Risk and reward | 2 | Keep the chain (stall while enemies hit you and the Dread ticks) or break it with a lower face. Optional sleeping Elite (20 HP). |
+| 12 | Few verbs, deep use | 2 | Four arrows. A roll is movement *and* weapon selection, and a bump is attack, push and stun. |
+| 13 | Variety | 2 | Enemy mixes per floor and seed, and different upgrade drafts (Twin Fangs / Overflow / Ward Face, then Even Keel / Loaded Pips / Ward Face). |
+| 14 | Reward cadence / compounding | 2 | MATCH ×3 → ×5 → ×7 multiplied by face. One kill paid +482. Floor clears every few turns. |
+| 15 | One more go | 2 | I want to see how far a Twin Fangs + Even Keel "all 8s" build goes. |
+
+**Total 29/30, so total/3 = 9.7 and Fun score = 10.**
+
+**Primary MDA aesthetic felt:** Challenge (tactical puzzle), with Discovery in the die maths.
+
+**Best moment:** the "⚔42 KILL" preview over the slime with MATCH ×5 on the HUD, then the kill paying +482. Second: working out on paper that the rolls N, W, W, N, N, N land a 6 on top directly under the Elite.
+
+**Worst moment:** that six-roll plan was swallowed by the upgrade draft, because the arrow keys also navigate the menu. Soon after, I ran out of screenshots and got worn down blind on floor 3.
+
+**Would I play a 4th run?** Yes. This is the game I'd most like to keep playing.
+
+**Bugs, glitches, confusion:** no console errors.
+- **Arrow keys double as upgrade-menu navigation**, so moves pressed as a floor clears are silently eaten by the draft.
+- Floor 2 cleared while the sleeping Elite was still alive. Fine, but "clear the tray" doesn't say Elites are optional.
+- It took one bump to learn that a bump hits with the *current* face and doesn't roll. The text is accurate, but the face previews on the arrows suggest the opposite at first glance.
