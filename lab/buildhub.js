@@ -125,7 +125,7 @@ footer{color:var(--muted);font-size:13px;padding:40px 0 60px}
   <div class="kicker">The Fun Lab · ${new Date(summary.date).toISOString().slice(0, 10)}</div>
   <h1>Ten games. <span>One winner.</span></h1>
   <p class="lede">I researched what makes games fun and turned it into a 15-point rubric. Then I built 10 one-file browser games and ran 1,500 seeded sessions with random, heuristic and lookahead bots. A blind critic scored every game, and I played each one myself. Each tile below is playable, with keyboard or touch.</p>
-  <nav class="nav"><a href="#games">Games</a><a href="#iterate">Before → after</a><a href="#charts">Score distributions</a><a href="REPORT.md">Full report</a><a href="research/FUN.md">The rubric (FUN.md)</a><a href="DECISIONS.md">Decisions</a></nav>
+  <nav class="nav"><a href="#games">Games</a><a href="#iterate">Before → after</a><a href="#charts">Score distributions</a><a href="https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/REPORT.md">Full report</a><a href="https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/research/FUN.md">The rubric (FUN.md)</a><a href="https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/DECISIONS.md">Decisions</a><a href="https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/lab/notes/critic.md">Critic notes</a></nav>
 </header>
 <section id="winner"></section>
 <h3 class="sec" id="games">The arcade, ranked</h3>
@@ -165,7 +165,7 @@ if (W) {
       el('p', { text: D.winner.why }),
       el('a', { class: 'btn', href: 'games/' + W.id + '.html', text: 'Play ' + W.name + ' →' }),
       document.createTextNode(' '),
-      el('a', { class: 'btn ghost', href: 'REPORT.md', text: 'Read the receipts' }),
+      el('a', { class: 'btn ghost', href: 'https://github.com/overworkedsurfer-dotcom/troopy/blob/claude/fervent-cray-xjrm74/REPORT.md', text: 'Read the receipts' }),
     ]),
   ]));
 }

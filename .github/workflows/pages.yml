@@ -1,6 +1,7 @@
 name: Deploy Fun Lab to GitHub Pages
 on:
-  # push trigger is enabled once the hub exists (Phase 5)
+  push:
+    branches: ["claude/fervent-cray-xjrm74", "main"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,7 +24,9 @@ jobs:
       - name: Assemble site
         run: |
           mkdir -p _site
-          cp -r index.html report.html games assets research DECISIONS.md REPORT.md _site/ 2>/dev/null || true
+          cp -r index.html games assets research DECISIONS.md REPORT.md _site/
+          mkdir -p _site/lab && cp -r lab/notes _site/lab/ && cp lab/results/summary.v1.json lab/results/summary.v2.json _site/lab/ 2>/dev/null || true
+          rm -f _site/games/_example.html
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
