@@ -100,17 +100,17 @@
   {
    "name": "bot random runs 20s without error",
    "pass": true,
-   "detail": "score=36 ms=20000 wall=4ms"
+   "detail": "score=16 ms=6200 wall=2ms"
   },
   {
    "name": "bot heuristic runs 20s without error",
    "pass": true,
-   "detail": "score=780 ms=20000 wall=4ms"
+   "detail": "score=1710 ms=20000 wall=7ms"
   },
   {
    "name": "bot smart runs 20s without error",
    "pass": true,
-   "detail": "score=289 ms=20000 wall=242ms"
+   "detail": "score=351 ms=20000 wall=306ms"
   },
   {
    "name": "zero console/page errors",

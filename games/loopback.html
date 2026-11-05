@@ -24,15 +24,15 @@ const cv = document.getElementById('c'), cx = cv.getContext('2d');
 // ---------- tuning ----------
 const AX0 = 14, AY0 = 92, AX1 = 466, AY1 = 680;     // arena rect
 const HS = 3;                                        // history sample every 3 steps (lerped)
-const ACC = 0.55, FRIC = 0.84;                       // ~2.9 px/step top speed
+const ACC = 2.27, FRIC = 0.56;                       // ~2.9 px/step top speed; ~70% of it within 2 frames (snappy taps)
 const DASH_STEPS = 10, DASH_V = 8.4, DASH_CD = 105, DASH_BUF = 9, INV_AFTER = 2;
 const CH = 240;                                      // history numbers per frozen chunk (snapshots share full chunks)
 const SHRINK_GHOST = 10, SHRINK_STEPS = 120 * 60, MIN_HX = 70, MIN_HY = 88;   // hard ceiling: the loop tightens
 const P_HIT = 4.5, G_HIT = 6;                        // small hitboxes (drawn: 7 and 10)
-const BRUSH_D = 30, PHASE_D = 22, ORB_R = 17;
+const BRUSH_D = 30, PHASE_D = 22, ORB_R = 21, ORB_MAG = 22;   // generous pickup + gentle magnet in the last ~22 px
 const FADE = 36, WARN = 90;                          // ghost harmless 0.6 s; warning 1.5 s ahead
 const MULT_MAX = 8, MULT_HOLD = 150, MULT_DECAY = 0.004, COMBO_WIN = 190, COMBO_MAX = 12;
-function intervalFor(k) { return Math.round(Math.max(3000, 8000 - 170 * (k - 1)) / STEP); }   // steps before ghost k appears (after ghost k-1)
+function intervalFor(k) { return Math.round((k === 1 ? 5000 : Math.max(3000, 8000 - 170 * (k - 1))) / STEP); }   // steps before ghost k appears (after ghost k-1)
 const COL = { bg: '#05070f', floor: '#0a0f24', player: '#e9fdff', glow: '#4dfcff', orb: '#d7ff4f', gold: '#ffc23d', bad: '#ff3b6b', mult: '#ff7ae0', text: '#e9fdff' };
 function ghostCol(k, a) { return `hsla(${(292 + k * 41) % 360},100%,68%,${a == null ? 1 : a})`; }
 
@@ -92,7 +92,7 @@ let botDir = 'none', dashBuf = 0;
 const keys = { up: false, down: false, left: false, right: false };
 let stick = null;        // touch joystick {id, x0, y0, x, y} in logical coords
 let started = false;      // human real-time mode waits for the first key/tap (bots: manual mode ignores this)
-let touchSeen = false, lastTap = 0;
+let touchSeen = false, lastTap = 0, phasedEver = false;   // phasedEver: stop teaching PHASE once you've done it
 
 function newState(seed) {
   const s = {
@@ -130,7 +130,7 @@ function shards(x, y, n, col) {
     FX.parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1, dec: 1 / (70 + Math.random() * 60), col, sz: 3 + Math.random() * 6, shard: true, rot: Math.random() * TAU, vr: (Math.random() - 0.5) * 0.3 });
   }
 }
-function floatText(x, y, txt, col, size) { if (!QUIET) FX.texts.push({ x, y, txt, col, life: 1, sz: size || 16, age: 0 }); }
+function floatText(x, y, txt, col, size) { if (QUIET) return; if (FX.texts.length >= (S && S.shrink > 0.4 ? 3 : 6)) FX.texts.shift(); FX.texts.push({ x, y, txt, col, life: 1, sz: size || 16, age: 0 }); }
 function ring(x, y, col, r1, w) { if (!QUIET) FX.rings.push({ x, y, col, r: 3, r1: r1 || 50, life: 1, w: w || 3 }); }
 function shake(a) { if (!QUIET) FX.shake = Math.max(FX.shake, a); }
 function flash(a, col) { if (!QUIET) { FX.flash = Math.max(FX.flash, a); FX.flashCol = col || '255,255,255'; } }
@@ -151,6 +151,10 @@ function fxStep() {
   if (FX.banner) { FX.banner.t += STEP; if (FX.banner.t > 2600) FX.banner = null; }
   FX.shake *= 0.86; FX.flash *= 0.88; FX.chroma *= 0.9; FX.multPop *= 0.88; FX.comboPop *= 0.88; FX.beat *= 0.9;
   if (S && S.over) FX.overA = Math.min(1, FX.overA + 0.04);
+  if (S && !S.over && !phasedEver && !FX.phaseHint && S.dcd <= 0 && S.dash <= 0) {
+    for (const g of S.ghosts) if (S.n - g.born >= FADE && Math.hypot(g.x - S.x, g.y - S.y) < 60) { FX.phaseHint = { t: 0, k: g.k }; tone(990, 0.08, 'triangle', 0.05); break; }
+  }
+  if (FX.phaseHint && FX.phaseHint.t < 2800) FX.phaseHint.t += STEP;
   if (S && !S.over) { FX.trail.push({ x: S.x, y: S.y, d: S.dash > 0 }); if (FX.trail.length > 26) FX.trail.shift(); }
 }
 
@@ -225,20 +229,23 @@ function brush(g) {
   if (!QUIET) {
     const mx = (S.x + g.x) / 2, my = (S.y + g.y) / 2;
     burst(mx, my, 8, ghostCol(g.k), 2.5, 18); FX.multPop = 1; shake(2);
-    if (FX.time - (FX.lastBrush || -1e9) > 450) { FX.lastBrush = FX.time; floatText(S.x, S.y - 20, S.mult >= MULT_MAX ? 'BRUSH +' + pts : 'BRUSH ×' + S.mult.toFixed(1), COL.mult, 14); }
+    if (S.shrink < 0.4 && FX.time - (FX.lastBrush || -1e9) > 450) { FX.lastBrush = FX.time; floatText(S.x, S.y - 20, S.mult >= MULT_MAX ? 'BRUSH +' + pts : 'BRUSH ×' + S.mult.toFixed(1), COL.mult, 14); }
     tone(1500 + S.mult * 120, 0.06, 'triangle', 0.06); noise(0.12, 0.06, 5000, 0.5);
   }
 }
 
 function phase(g) {
   g.ph = S.dashId; S.phases++; S.phaseChain++;
+  if (!QUIET) phasedEver = true;
   S.mult = Math.min(MULT_MAX, S.mult + 0.6); S.multHold = MULT_HOLD; S.peakMult = Math.max(S.peakMult, S.mult);
   const pts = Math.round(60 * S.mult * S.phaseChain); S.score += pts;
   S.freeze = Math.max(S.freeze, 100);
   if (!QUIET) {
     burst(g.x, g.y, 28, ghostCol(g.k), 4, 30); burst(g.x, g.y, 10, '#fff', 5, 16); ring(g.x, g.y, ghostCol(g.k), 60, 4);
     shake(8); FX.chroma = 1; flash(0.18, '255,120,230'); FX.multPop = 1;
-    floatText(g.x, g.y - 24, (S.phaseChain > 1 ? 'PHASE ×' + S.phaseChain + '!' : 'PHASE!') + ' +' + pts, '#fff', 18);
+    const ptxt = (S.phaseChain > 1 ? 'PHASE ×' + S.phaseChain + '!' : 'PHASE!') + ' +' + pts, lp = FX.lastPhase;
+    if (S.phaseChain > 1 && lp && FX.texts.indexOf(lp) >= 0) { lp.txt = ptxt; lp.life = 1; lp.age = 0; lp.sz = Math.min(26, 18 + S.phaseChain); }   // one label per dash chain
+    else { floatText(g.x, g.y - 24, ptxt, '#fff', 18); FX.lastPhase = FX.texts[FX.texts.length - 1]; }
     tone(392, 0.25, 'triangle', 0.09); tone(587, 0.25, 'triangle', 0.08, 0, 0.03); tone(880 + S.phaseChain * 110, 0.35, 'sine', 0.08, 0, 0.06);
     noise(0.3, 0.09, 1200, 4);
   }
@@ -301,7 +308,7 @@ function step() {
     if (!QUIET) {
       FX.chroma = 1; flash(0.2, '200,80,255'); shake(5); ring(S.sx, S.sy, ghostCol(S.gk), 90, 4); burst(S.sx, S.sy, 24, ghostCol(S.gk), 3, 30);
       floatText(S.sx, S.sy - 30, 'GHOST #' + S.gk, ghostCol(S.gk), 18);
-      floatText(S.x, S.y - 34, 'SURVIVED +' + bonus, '#cfd8ff', 12);
+      if (S.shrink === 0) floatText(S.x, S.y - 34, 'SURVIVED +' + bonus, '#cfd8ff', 12);
       tone(110, 0.6, 'sawtooth', 0.06, 2); tone(165, 0.6, 'sine', 0.1, 2, 0.02); noise(0.5, 0.08, 300, 8);
     }
   } else if (!QUIET && S.nextG - S.n <= WARN && (S.nextG - S.n) % 30 === 0) {
@@ -334,10 +341,12 @@ function step() {
   }
 
   // ---- orbs ----
-  const want = S.gk >= 3 ? 2 : 1;
+  const want = 2;
   if (S.orbs.length < want) { S.orbT--; if (S.orbT <= 0) { spawnOrb(); S.orbT = 20; } }
   for (const o of S.orbs) {
     o.age++;
+    const od = Math.hypot(o.x - S.x, o.y - S.y);
+    if (od < ORB_R + P_HIT + ORB_MAG && od > 0.01) { const pull = Math.min(od, 1.8); o.x += (S.x - o.x) / od * pull; o.y += (S.y - o.y) / od * pull; }
     if (Math.hypot(o.x - S.x, o.y - S.y) < ORB_R + P_HIT) { o.got = true; collectOrb(o); }
   }
   S.orbs = S.orbs.filter(o => !o.got);
@@ -417,17 +426,20 @@ function render() {
 
   // ghosts: trail behind, lead line ahead (their future = your past), body + number
   cx.lineCap = 'round'; cx.lineJoin = 'round';
+  // declutter: trails/lead lines fade with distance from you; the 3 nearest threats stay at full brightness
+  const near = S.ghosts.map(g => [Math.hypot(g.x - S.x, g.y - S.y), g.k]).sort((p, q) => p[0] - q[0]).slice(0, 3).map(p => p[1]);
   for (const g of S.ghosts) {
     const m = S.n - g.born, out = g.x < S.ax0 - 4 || g.x > S.ax1 + 4 || g.y < S.ay0 - 4 || g.y > S.ay1 + 4;
     const live = m >= FADE && !out, a = out ? 0.22 : live ? 1 : 0.25 + 0.5 * (m / FADE);
-    const col = ghostCol(g.k, 1);
+    const col = ghostCol(g.k, 1), gd = Math.hypot(g.x - S.x, g.y - S.y);
+    const tf = S.over || near.indexOf(g.k) >= 0 || gd < 150 ? 1 : Math.max(0.12, 1 - (gd - 150) / 170);
     // tail
-    cx.strokeStyle = ghostCol(g.k, 0.22 * a); cx.lineWidth = 6; cx.beginPath();
+    cx.strokeStyle = ghostCol(g.k, 0.22 * a * tf); cx.lineWidth = 6; cx.beginPath();
     for (let j = 0; j <= 30; j += 3) { const p = histAt(Math.max(0, m - j)); j ? cx.lineTo(p[0], p[1]) : cx.moveTo(p[0], p[1]); }
     cx.stroke();
     // lead (where it is about to go)
     if (!out) {
-      cx.strokeStyle = ghostCol(g.k, 0.2 * a); cx.lineWidth = 1.5; cx.setLineDash([2, 5]); cx.beginPath();
+      cx.strokeStyle = ghostCol(g.k, (near.indexOf(g.k) >= 0 ? 0.32 : 0.2) * a * tf); cx.lineWidth = 1.5; cx.setLineDash([2, 5]); cx.beginPath();
       for (let j = 0; j <= 42; j += 3) { const p = histAt(m + j); j ? cx.lineTo(p[0], p[1]) : cx.moveTo(p[0], p[1]); }
       cx.stroke(); cx.setLineDash([]);
     }
@@ -537,8 +549,20 @@ function drawHUD() {
     cx.globalAlpha = FX.hintA; cx.textAlign = 'center'; cx.fillStyle = '#d6ccff'; cx.font = `700 14px ${mono}`;
     cx.fillText(touchSeen ? 'DRAG to move · TAP 2nd finger to dash' : 'ARROWS/WASD move · SPACE dash', W / 2, 698);
     cx.fillStyle = '#9b92d6'; cx.font = `12px ${mono}`;
-    cx.fillText('every few seconds your past self returns as a ghost', W / 2, 714);
+    cx.fillText('your past self returns as ghosts · dash THROUGH one = PHASE', W / 2, 714);
     cx.globalAlpha = 1;
+  }
+  // one-time contextual hint: teach PHASE the first time a ghost is close and dash is ready
+  if (FX.phaseHint && FX.phaseHint.t < 2800 && !S.over && !phasedEver) {
+    const h = FX.phaseHint, a = h.t < 150 ? h.t / 150 : h.t > 2300 ? (2800 - h.t) / 500 : 1, kg = S.ghosts.find(g => g.k === h.k);
+    const txt = touchSeen ? '2nd-finger TAP: dash THROUGH it = PHASE!' : 'SPACE: dash THROUGH it = PHASE!';
+    cx.globalAlpha = a; cx.font = `900 15px ${mono}`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    const tw = cx.measureText(txt).width / 2 + 10, tx = Math.max(tw + 2, Math.min(W - tw - 2, S.x)), ty = S.y > AY0 + 80 ? S.y - 44 : S.y + 44;
+    cx.fillStyle = 'rgba(5,7,15,0.85)'; cx.fillRect(tx - tw, ty - 13, tw * 2, 26);
+    cx.strokeStyle = COL.mult; cx.lineWidth = 1.5; cx.strokeRect(tx - tw + 0.5, ty - 12.5, tw * 2 - 1, 25);
+    cx.fillStyle = '#fff'; cx.fillText(txt, tx, ty + 1);
+    if (kg) { cx.strokeStyle = COL.mult; cx.lineWidth = 2; cx.setLineDash([3, 4]); cx.beginPath(); cx.arc(kg.x, kg.y, 17 + 3 * Math.sin(FX.time / 90), 0, TAU); cx.stroke(); cx.setLineDash([]); }
+    cx.globalAlpha = 1; cx.textBaseline = 'alphabetic';
   }
   // banner (eased)
   if (FX.banner && !S.over) {
