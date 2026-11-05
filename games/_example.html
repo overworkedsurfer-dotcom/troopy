@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Example Dodge</title>
+<meta name="description" content="Reference implementation of the Fun Lab game contract: dodge falling blocks, grab coins.">
+<style>
+  html,body{margin:0;height:100%;background:#0d0f1a;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+  canvas{display:block;margin:0 auto}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+(() => {
+'use strict';
+const ID = 'example';
+const W = 480, H = 640;              // logical resolution
+const STEP = 1000 / 60;
+const cv = document.getElementById('c'), cx = cv.getContext('2d');
+
+// ---------- seeded RNG (state lives in S.rng) ----------
+function rnd() {
+  let t = (S.rng = (S.rng + 0x6D2B79F5) | 0);
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+// ---------- best score ----------
+function loadBest() { try { return +localStorage.getItem('funlab.' + ID + '.best') || 0; } catch (e) { return 0; } }
+function saveBest(v) { try { localStorage.setItem('funlab.' + ID + '.best', String(v)); } catch (e) {} }
+let best = loadBest();
+
+// ---------- audio (lazy, fail-safe) ----------
+let AC = null;
+function audioInit() { try { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); } catch (e) { AC = null; } }
+function beep(f, d, type, v, slide) {
+  if (QUIET || !AC) return;
+  try {
+    const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain();
+    o.type = type || 'square'; o.frequency.setValueAtTime(f, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, f * slide), t + d);
+    g.gain.setValueAtTime(v || 0.1, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + d + 0.02);
+  } catch (e) {}
+}
+
+// ---------- state ----------
+let S = null;            // ALL sim state
+let FX = null;           // cosmetic only
+let QUIET = false, manual = false, carry = 0, overAt = 0;
+const held = { left: false, right: false };   // human input
+let botMove = 0;                                // -1/0/1 from bot input()
+
+function newState(seed) {
+  return {
+    rng: (seed | 0) || 1, t: 0, score: 0, over: false, cause: null,
+    px: W / 2, pv: 0, blocks: [], coins: [], spawnT: 0, coinT: 1500,
+    combo: 1, comboT: 0, speed: 1, freeze: 0, deaths: 0,
+  };
+}
+function newFX() { return { parts: [], texts: [], shake: 0, flash: 0, hintA: 1 }; }
+
+function reset(seed) { S = newState(seed); FX = newFX(); carry = 0; botMove = 0; }
+
+// ---------- FX helpers (never touch S) ----------
+function burst(x, y, n, col, spd) {
+  if (QUIET) return;
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * 6.283, s = (0.5 + Math.random()) * (spd || 3);
+    FX.parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1, col });
+  }
+}
+function floatText(x, y, txt, col) { if (!QUIET) FX.texts.push({ x, y, txt, col, life: 1 }); }
+function shake(a) { if (!QUIET) FX.shake = Math.max(FX.shake, a); }
+
+// ---------- simulation ----------
+function step() {
+  // cosmetic FX advance with sim time
+  for (const p of FX.parts) { p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.life -= 0.025; }
+  FX.parts = FX.parts.filter(p => p.life > 0);
+  for (const t of FX.texts) { t.y -= 0.8; t.life -= 0.02; }
+  FX.texts = FX.texts.filter(t => t.life > 0);
+  FX.shake *= 0.88; FX.flash *= 0.9;
+
+  if (S.over) return;
+  if (S.freeze > 0) { S.freeze -= STEP; return; }   // hitstop (deterministic)
+  S.t += STEP;
+  S.speed = 1 + S.t / 30000;                         // escalation: +1x every 30 s, unbounded => hard ceiling
+
+  // player
+  const dir = manual ? botMove || ((held.right ? 1 : 0) - (held.left ? 1 : 0)) : ((held.right ? 1 : 0) - (held.left ? 1 : 0));
+  S.pv += dir * 0.9; S.pv *= 0.82;                   // eased acceleration
+  S.px = Math.max(20, Math.min(W - 20, S.px + S.pv));
+
+  // spawn
+  S.spawnT -= STEP * S.speed;
+  if (S.spawnT <= 0) { S.spawnT = 700; const w = 30 + rnd() * 60; S.blocks.push({ x: rnd() * (W - w), y: -40, w, h: 24, graze: false }); }
+  S.coinT -= STEP;
+  if (S.coinT <= 0) { S.coinT = 1800 + rnd() * 1200; S.coins.push({ x: 30 + rnd() * (W - 60), y: -20 }); }
+
+  const PY = H - 60, PR = 14, HIT = 10;              // forgiving hitbox (10 < drawn 14)
+  for (const b of S.blocks) {
+    b.y += 3.2 * S.speed;
+    const nx = Math.max(b.x, Math.min(S.px, b.x + b.w)), ny = Math.max(b.y, Math.min(PY, b.y + b.h));
+    const d = Math.hypot(S.px - nx, PY - ny);
+    if (d < HIT) { die('crushed by a falling block'); return; }
+    if (d < 34 && !b.graze) {                        // risk/reward: near-miss graze
+      b.graze = true; S.combo = Math.min(16, S.combo + 1); S.comboT = 2500;
+      const g = 5 * S.combo; S.score += g; floatText(S.px, PY - 30, 'GRAZE +' + g, '#7ff');
+      beep(880 + S.combo * 40, 0.06, 'triangle', 0.06);
+    }
+  }
+  S.blocks = S.blocks.filter(b => b.y < H + 40);
+  for (const c of S.coins) {
+    c.y += 2.2 * S.speed;
+    if (Math.hypot(c.x - S.px, c.y - PY) < 26) {
+      c.got = true; const g = 25 * S.combo; S.score += g; S.freeze = 50;   // hitstop 3 frames
+      burst(c.x, c.y, 18, '#fd4', 4); shake(5); floatText(c.x, c.y - 10, '+' + g, '#fd4');
+      beep(660, 0.08, 'square', 0.08); beep(990, 0.12, 'square', 0.06);
+    }
+  }
+  S.coins = S.coins.filter(c => !c.got && c.y < H + 20);
+  if (S.comboT > 0) { S.comboT -= STEP; if (S.comboT <= 0) S.combo = 1; }
+  if (((S.t / STEP) | 0) % 60 === 0) S.score += 1;  // survival trickle
+}
+
+function die(cause) {
+  S.over = true; S.cause = cause;
+  burst(S.px, H - 60, 50, '#f55', 6); shake(18); if (!QUIET) FX.flash = 1;
+  beep(200, 0.5, 'sawtooth', 0.15, 0.25);
+  if (!QUIET && S.score > best) { best = S.score; saveBest(best); }
+  overAt = performance.now();
+}
+
+// ---------- render ----------
+function render() {
+  cx.save();
+  cx.fillStyle = '#0d0f1a'; cx.fillRect(0, 0, W, H);
+  if (FX.shake > 0.3) cx.translate((Math.random() - 0.5) * FX.shake, (Math.random() - 0.5) * FX.shake);
+  cx.fillStyle = '#f36'; for (const b of S.blocks) cx.fillRect(b.x, b.y, b.w, b.h);
+  cx.fillStyle = '#fd4'; for (const c of S.coins) { cx.beginPath(); cx.arc(c.x, c.y, 10, 0, 6.283); cx.fill(); }
+  if (!S.over) { cx.fillStyle = '#6cf'; cx.beginPath(); cx.arc(S.px, H - 60, 14, 0, 6.283); cx.fill(); }
+  for (const p of FX.parts) { cx.globalAlpha = p.life; cx.fillStyle = p.col; cx.fillRect(p.x - 2, p.y - 2, 4, 4); }
+  cx.globalAlpha = 1; cx.textAlign = 'center'; cx.font = 'bold 18px monospace';
+  for (const t of FX.texts) { cx.globalAlpha = t.life; cx.fillStyle = t.col; cx.fillText(t.txt, t.x, t.y); }
+  cx.restore(); cx.globalAlpha = 1;
+  // HUD
+  cx.fillStyle = '#fff'; cx.font = 'bold 22px monospace'; cx.textAlign = 'left'; cx.fillText('SCORE ' + S.score, 12, 30);
+  cx.textAlign = 'right'; cx.fillText('BEST ' + Math.max(best, S.score), W - 12, 30);
+  if (S.combo > 1) { cx.textAlign = 'center'; cx.fillStyle = '#7ff'; cx.fillText('x' + S.combo, W / 2, 30); }
+  if (FX.hintA > 0.01 && !S.over) { cx.globalAlpha = FX.hintA; cx.textAlign = 'center'; cx.fillStyle = '#aab'; cx.font = '16px monospace'; cx.fillText('← → or tap sides · graze for combo', W / 2, H - 16); cx.globalAlpha = 1; }
+  if (FX.flash > 0.02) { cx.fillStyle = 'rgba(255,255,255,' + FX.flash * 0.6 + ')'; cx.fillRect(0, 0, W, H); }
+  if (S.over) {
+    cx.fillStyle = 'rgba(0,0,0,0.6)'; cx.fillRect(0, 0, W, H);
+    cx.textAlign = 'center'; cx.fillStyle = '#fff'; cx.font = 'bold 40px monospace'; cx.fillText('GAME OVER', W / 2, H / 2 - 40);
+    cx.font = '18px monospace'; cx.fillStyle = '#f9a'; cx.fillText(S.cause || '', W / 2, H / 2 - 8);
+    cx.fillStyle = '#fff'; cx.fillText('score ' + S.score + '   best ' + best, W / 2, H / 2 + 24);
+    cx.fillStyle = '#aab'; cx.fillText('press any key / tap to retry', W / 2, H / 2 + 60);
+  }
+}
+
+// ---------- fit canvas ----------
+function fit() {
+  const dpr = window.devicePixelRatio || 1, s = Math.min(innerWidth / W, innerHeight / H);
+  cv.style.width = (W * s) + 'px'; cv.style.height = (H * s) + 'px';
+  cv.style.marginTop = ((innerHeight - H * s) / 2) + 'px';
+  cv.width = Math.round(W * s * dpr); cv.height = Math.round(H * s * dpr);
+  cx.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
+}
+addEventListener('resize', fit); fit();
+
+// ---------- human input ----------
+function humanRestart() { if (S.over && performance.now() - overAt > 400) { reset(Date.now() & 0x7fffffff); return true; } return false; }
+const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
+addEventListener('keydown', e => {
+  audioInit();
+  if (humanRestart()) return;
+  const k = KEYMAP[e.code]; if (k) { held[k] = true; botMove = 0; e.preventDefault(); }
+});
+addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) held[k] = false; });
+function pointer(e, down) {
+  if (down) { audioInit(); if (humanRestart()) return; }
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width;
+  held.left = down && x < 0.5; held.right = down && x >= 0.5; botMove = 0;
+}
+cv.addEventListener('pointerdown', e => { e.preventDefault(); pointer(e, true); });
+cv.addEventListener('pointermove', e => { if (e.buttons) pointer(e, true); });
+addEventListener('pointerup', e => pointer(e, false));
+
+// ---------- main loop ----------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(100, now - last); last = now;
+  if (!manual) { carry += dt; while (carry >= STEP) { step(); carry -= STEP; } }
+  if (S.t > 2500) FX.hintA = Math.max(0, FX.hintA - dt / 1500);   // fade hint once play is under way
+  render();
+  requestAnimationFrame(frame);
+}
+
+// ---------- bot API ----------
+window.__game = {
+  reset(seed) { manual = true; reset(seed); },
+  getState() {
+    return { t: S.t, score: S.score, over: S.over, cause: S.cause, difficulty: S.speed, px: S.px, pv: S.pv, py: H - 60, W, H, speed: S.speed, combo: S.combo,
+      blocks: S.blocks.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h })), coins: S.coins.map(c => ({ x: c.x, y: c.y })) };
+  },
+  getActions() { return S.over ? ['none'] : ['none', 'left', 'right']; },
+  input(a) { botMove = a === 'left' ? -1 : a === 'right' ? 1 : 0; },
+  tick(ms) { carry += ms; while (carry >= STEP) { step(); carry -= STEP; } },
+  isOver() { return S.over; },
+  score() { return S.score; },
+  snapshot() { return structuredClone({ S, carry, botMove }); },
+  restore(s) { const c = structuredClone(s); S = c.S; carry = c.carry; botMove = c.botMove; },
+  quiet(b) { QUIET = !!b; },
+  render() { render(); },
+};
+
+reset(Date.now() & 0x7fffffff);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

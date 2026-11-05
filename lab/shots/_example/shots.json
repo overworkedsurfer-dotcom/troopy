@@ -1,0 +1,40 @@
+{
+ "id": "_example",
+ "bot": "smart",
+ "seed": 1,
+ "lengthMs": 96400,
+ "finalScore": 20124,
+ "cause": "crushed by a falling block",
+ "replayMatches": true,
+ "shots": [
+  {
+   "name": "1-start",
+   "t": 1500,
+   "score": 1,
+   "over": false,
+   "file": "lab/shots/_example/1-start.png"
+  },
+  {
+   "name": "2-mid",
+   "t": 48200,
+   "score": 7142,
+   "over": false,
+   "file": "lab/shots/_example/2-mid.png"
+  },
+  {
+   "name": "3-intense",
+   "t": 94900,
+   "score": 19803,
+   "over": false,
+   "file": "lab/shots/_example/3-intense.png"
+  },
+  {
+   "name": "4-gameover",
+   "t": 96400,
+   "score": 20124,
+   "over": true,
+   "file": "lab/shots/_example/4-gameover.png"
+  }
+ ],
+ "errors": []
+}

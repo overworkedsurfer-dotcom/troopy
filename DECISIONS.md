@@ -1,0 +1,57 @@
+# Decisions Log
+
+These are calls I made on my own without stopping to ask, in the order I made them.
+
+## D1. Scoring rubric shape (Phase 1)
+- I chose 15 principles, each scored 0/1/2, giving a total out of 30 that maps to a 1–10 scale. This is coarse enough for a critic to apply consistently and fine enough to rank 10 games.
+- Robustness (console errors, determinism) is a **hard gate**, not a principle. A buggy game cannot be measured, so it should not be able to "earn back" points elsewhere.
+- Final rank weights: bot 30%, blind critic 35%, my own play 35%. Bots measure structure (skill gap, pacing, variance), but they cannot feel juice, so humans and humanlike judges get the majority.
+
+## D2. Twenty pitches (Phase 2)
+Each pitch combines a familiar genre with one novel twist. There are two pitches per requested genre.
+
+| # | Genre | Name | Pitch (genre + twist) |
+|---|-------|------|------------------------|
+| 1 | Arcade action | **KICKBACK** | An Asteroids-style arena shooter with no engine: every shot kicks you backward, so your gun is your only thruster. |
+| 2 | Arcade action | GRAZE | A bullet dodger where you score only by skimming bullets. Playing safe earns nothing. |
+| 3 | Puzzle | **TILTWELL** | A falling-block colour puzzle where you never rotate pieces. You rotate the whole well 90° and gravity re-settles everything. |
+| 4 | Puzzle | FUSE | A one-tap chain-reaction puzzle where whatever survives each blast multiplies for the next round. |
+| 5 | Roguelite | **PIPWALK** | A grid dungeon crawl where you *are* a die. Rolling onto a tile tips you over, and the face that lands on top is your attack. |
+| 6 | Roguelite | SHRINKWRAP | A survivors-like where every level-up makes you stronger but shrinks the arena. |
+| 7 | Rhythm | **UPTEMPO** | A 4-lane note highway where your accuracy drives the BPM: perfect hits speed the song (and multiplier) up, and sloppy hits slow it down. Difficulty adjustment becomes the mechanic. |
+| 8 | Rhythm | CALL & ECHO | A call-and-response rhythm game where every missed note becomes part of the next phrase. |
+| 9 | Physics | **JUNK ORBIT** | A slingshot comet around gravity wells to hit targets. Every comet you fire stays in orbit forever as debris, so your history becomes the level. |
+| 10 | Physics | JELLY TOWER | A soft-body stacking game in a wind that gets steadily stronger. |
+| 11 | Idle / incremental | **COMPOUND** | A whole incremental game squeezed into a 3-minute run against an exponentially rising debt line. Generators sit on a tiny grid where adjacency multiplies. |
+| 12 | Idle / incremental | SLOW BURN | An idle fire-keeper where every upgrade burns more fuel. |
+| 13 | Word | **SPELLSNAKE** | Snake where your body is the word. Eat letters to spell, then cash in a valid word to shrink. Longer words score more but leave you longer and in more danger. |
+| 14 | Word | WORDFALL | Tetris with letter blocks: spell words across or down to clear. |
+| 15 | Tiny strategy | **MAZEWRIGHT** | Tower defence where you never build towers. One central turret, a tiny grid, and three wall pieces per wave: the path you force is your only weapon. |
+| 16 | Tiny strategy | THREE LANES | A one-card-per-turn auto-battler across three lanes. |
+| 17 | 2-player local | **MAGSUMO** | Sumo on a shrinking ice ring where you cannot touch the other player. You can only steer and flip your magnet's polarity to attract or repel. |
+| 18 | 2-player local | TUG-PONG | Pong where your paddle grows as you fall behind. |
+| 19 | Weird | **LOOPBACK** | A dodge-and-collect arena where every 8 seconds a ghost of your own past movement starts replaying. Touching any past self kills you, so your own history is the bullet hell. |
+| 20 | Weird | YOU ARE THE FLOOR | An auto-runner where you don't control the runner, only the terrain under them. |
+
+## D3. Picking ten (Phase 2)
+The bold pitches are the ten to build, one per genre, which guarantees the variety the brief asks for. Inside each genre I picked the pitch whose twist best serves a principle from FUN.md, and which a bot could measure:
+
+- **KICKBACK over GRAZE.** One verb does two jobs: shooting is also how you move (principle 12, the *Downwell* lesson). GRAZE is a single-axis risk/reward idea, and I fold its near-miss bonus into KICKBACK and LOOPBACK instead.
+- **TILTWELL over FUSE.** Rotating the world produces emergent cascades from simple rules (principles 8 and 13). FUSE is closer to a toy, with mostly one tap per round.
+- **PIPWALK over SHRINKWRAP.** It is turn-based, so it is ideal for lookahead bots and for "interesting decisions" (principle 7). The die-as-body twist is new to me. SHRINKWRAP is closer to a survivors clone.
+- **UPTEMPO over CALL & ECHO.** It makes Jenova Chen's dynamic difficulty a visible, player-driven mechanic. Greed (staying perfect) raises both the score rate and the danger (principle 11). It also has a natural hard ceiling, so it is never solved.
+- **JUNK ORBIT over JELLY TOWER.** Self-made escalation (principle 9) with an emergent mess (principle 13). Deterministic soft-body physics is a big risk in one file.
+- **COMPOUND over SLOW BURN.** Its adjacency multipliers are the Balatro lesson (principle 14), and the debt line gives an idle game a real game-over and escalation.
+- **SPELLSNAKE over WORDFALL.** The cleanest risk/reward in the set: word length versus body length (principle 11).
+- **MAZEWRIGHT over THREE LANES.** Spatial decisions with visible consequences, so failure is legible (principle 5).
+- **MAGSUMO over TUG-PONG.** An indirect verb (polarity) is more novel than a paddle, and it plays solo against a CPU ladder.
+- **LOOPBACK over YOU ARE THE FLOOR.** The difficulty is generated entirely by the player's own past choices. That is weird, emergent, and easy to grok in 5 seconds.
+
+## D4. Engineering contract
+- All games follow `games/CONTRACT.md`: one HTML file, fixed-step simulation, all sim state in one snapshot-able object with a seeded RNG inside it, and `window.__game` with the 7 required methods plus `snapshot`, `restore`, `quiet` and `render`.
+- **Why `snapshot`/`restore`:** the "smart" bots need lookahead. Cloning sim state is the simplest correct way to search, and it doubles as a determinism test.
+- **Why `quiet`:** bot lookahead must not spray particles and sounds for futures that never happen.
+- **Cosmetic effects advance inside `tick()`** using a separate non-seeded RNG. Screenshots taken in stepped mode then show real juice, and the sim stays deterministic.
+- **Every game must have a hard ceiling** (a doom clock) so that even perfect play eventually ends. This is principle 10 ("not solved"), which bots with perfect reflexes would otherwise break.
+- **2-player game (MAGSUMO):** solo play is a gauntlet against CPU opponents that get stronger, and a second human joins by pressing their keys. The bot API drives player 1 in gauntlet mode.
+- **Word game dictionary:** embedded in the HTML from an MIT/public-domain word list, filtered to common words, so the file stays self-contained.
