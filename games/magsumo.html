@@ -117,16 +117,16 @@ let touchUI = false;
 function puck(x, y, q, m, thrust, flipcd) { return { x, y, vx: 0, vy: 0, ix: 0, iy: 0, q, m, thrust, flipcd, cd: 0, buf: 0, teeter: 0, brace: 0, bk: 0, out: false, hit: null }; }
 // The gauntlet teaches: LV1 is always the Wall, LV2 the Dancer, LV3 the Brawler, LV4 the Trickster; seeded after that.
 const STYLES = [
-  { tag: 'the Wall', mass: 1.35, thrust: 0.8, react: 1.1, flipcd: 1.1, back: 0.8, pSlam: 0, pDef: 0.08, edge: -8, tip: 'heavy & slow · pull it in, flip point-blank to SLAM it out' },
-  { tag: 'the Dancer', mass: 0.75, thrust: 1.22, react: 0.85, flipcd: 1, back: 1.2, pSlam: 0, pDef: 0.05, edge: 12, tip: 'light & quick · hold the centre, let it come to you' },
-  { tag: 'the Brawler', mass: 1.3, thrust: 0.92, react: 1, flipcd: 1, back: 0.55, pSlam: 0.12, pDef: 0, edge: 0, tip: 'it slams too · steer INTO a slam to brace' },
-  { tag: 'the Trickster', mass: 1, thrust: 1, react: 0.95, flipcd: 0.7, back: 1, pSlam: 0.05, pDef: 0.18, edge: 0, tip: 'flips back · slam it while its ring is charging' },
+  { tag: 'the Wall', mass: 1.35, thrust: 0.8, react: 1.1, flipcd: 1.1, back: 0.8, pSlam: 0, pDef: 0.08, pPush: 0.5, edge: -8, tip: 'heavy & slow · pull it in, flip point-blank to SLAM it out' },
+  { tag: 'the Dancer', mass: 0.75, thrust: 1.22, react: 0.85, flipcd: 1, back: 1.2, pSlam: 0, pDef: 0.05, pPush: 0.1, edge: 12, tip: 'light & quick · hold the centre, let it come to you' },
+  { tag: 'the Brawler', mass: 1.3, thrust: 0.92, react: 1, flipcd: 1, back: 0.55, pSlam: 0.12, pDef: 0, pPush: 0, edge: 0, tip: 'it slams too · steer INTO a slam to brace' },
+  { tag: 'the Trickster', mass: 1, thrust: 1, react: 0.95, flipcd: 0.7, back: 1, pSlam: 0.05, pDef: 0.18, pPush: 0.2, edge: 0, tip: 'flips back · slam it while its ring is charging' },
 ];
 function cpuStats(L, st) {
   const b = baseStats(L), y = STYLES[st || 0];
   return { name: b.name, tag: y.tag, tip: y.tip, react: b.react * y.react, thrust: b.thrust * y.thrust, mass: b.mass * y.mass, flipcd: b.flipcd * y.flipcd,
     pSlam: b.pSlam > 0 ? Math.min(0.98, b.pSlam + y.pSlam) : 0, pDef: Math.min(0.95, b.pDef + y.pDef * (1 - b.gentle)), noise: b.noise, back: b.back * y.back,
-    edge: b.edge + y.edge, passive: b.passive, brace: b.brace };
+    edge: b.edge + y.edge, passive: b.passive, brace: b.brace, pPush: y.pPush };
 }
 function baseStats(L) {
   const gentle = L <= 1 ? 1 : L === 2 ? 0.65 : L === 3 ? 0.3 : 0;     // LV1-2: slow, passive, never slam
@@ -142,8 +142,9 @@ function baseStats(L) {
 // slam still travels a sensible distance on grippy ice.
 function iceFor(round, mode) {
   const u = mode === 'solo' ? Math.min(1, Math.max(0, (round - 1) / 5)) : 0.6;
-  const e = u * u * (3 - 2 * u), fr = 2.4 - 1.4 * e, g = (175 + 145 * e) / 320;
-  return { e, fr, g, F: g * fr };
+  const e = u * u * (3 - 2 * u), fr = 2.1 - 1.1 * e, g = (185 + 135 * e) / 320;
+  const assist = mode === 'solo' ? Math.max(0.3, Math.min(1, 1 - (round - 5) / 7)) : 1;   // the ceiling: less help late
+  return { e, fr, g, F: g * fr, assist };
 }
 function newState(seed, mode) {
   const s = {
@@ -170,7 +171,7 @@ function startRound(first) {
   S.R0 = solo ? Math.max(170, 252 - 7 * (S.round - 1)) : 245;
   S.ringT = solo ? Math.max(13, 30 - 2.2 * (S.round - 1)) : 26;      // seconds until the ring is at its smallest
   S.ringR = S.R0; S.fightT = 0;
-  const d = S.R0 * 0.55, p1 = S.p[0], p2 = S.p[1];
+  const d = S.R0 * 0.62, p1 = S.p[0], p2 = S.p[1];
   // round 1 is always the same layout (you below, N vs S, attracting) so the first screen is the one you play
   const a = solo && S.round === 1 ? 0 : rnd() * 0.8 - 0.4;
   const q1 = solo && S.round === 1 ? 1 : (rnd() < 0.5 ? 1 : -1);
@@ -179,7 +180,7 @@ function startRound(first) {
   else Object.assign(p2, puck(CX - Math.sin(a) * d, CY - Math.cos(a) * d, 0, 1, P_THRUST, P_FLIPCD));
   p2.q = solo && S.round === 1 ? -p1.q : (rnd() < 0.65 ? -p1.q : p1.q);   // usually start attracting: instant action
   S.cpu = { think: 300, dx: 0, dy: 0 };
-  S.phase = 'count'; S.phaseT = first ? 800 : 1000; S.roundPts = 0; S.clutchUsed = false;
+  S.phase = 'count'; S.phaseT = first ? 800 : 750; S.roundPts = 0; S.clutchUsed = false;
   if (!QUIET && FX) {
     FX.trails = [[], []];
     if (solo) banner('ROUND ' + S.round, 'vs ' + cs.name + ' ' + cs.tag + '  (LV ' + L + ')', COL.cpu, S.level <= 4 ? cs.tip : null);
@@ -271,8 +272,8 @@ function step() {
   }
   // fight
   S.fightT += STEP;
-  const u = Math.min(1, S.fightT / 1000 / S.ringT);              // slow at first, then the squeeze
-  S.ringR = RMIN + (S.R0 - RMIN) * (1 - u * u);
+  const secs = S.fightT / 1000, u = Math.min(1, secs / S.ringT);   // slow at first, then the squeeze
+  S.ringR = Math.max(6, RMIN + (S.R0 - RMIN) * (1 - u * u) - Math.max(0, secs - S.ringT) * 8);   // sudden death past ringT
   // inputs: P1 = bot or human, P2 = CPU or human
   const d1 = S.botDir ? S.botDir : humanDir(0);
   let d2;
@@ -301,6 +302,10 @@ function step() {
       p.teeter = 0;
     }
   }
+  if (out0 && out1) {        // both going at once: the one farther out falls first
+    const r0 = Math.hypot(S.p[0].x - CX, S.p[0].y - CY), r1 = Math.hypot(S.p[1].x - CX, S.p[1].y - CY);
+    if (r0 > r1 + 1) out1 = false; else if (r1 > r0 + 1) out0 = false;
+  }
   if (out0 || out1) ringOut(out0, out1);
 }
 
@@ -324,10 +329,10 @@ function physics(scale) {
         } else mf *= 0.6;
       }
       let ax = ix * p.thrust * F + sgn * mf * nx / p.m, ay = iy * p.thrust * F + sgn * mf * ny / p.m;
-      if (p.teeter > 0 && !p.out && assisted(j)) {   // edge assist: steering inward while teetering pulls you back
+      if (p.teeter > 0 && !p.out && assisted(j) && S.ice.assist > 0 && S.fightT < S.ringT * 1000) {   // edge assist: steering inward while teetering pulls you back
         const pr = Math.hypot(p.x - CX, p.y - CY) || 1, ox = (p.x - CX) / pr, oy = (p.y - CY) / pr, din = -(ix * ox + iy * oy);
         if (din > 0.25) {
-          ax -= ox * ASSIST * F * din; ay -= oy * ASSIST * F * din;
+          const as = ASSIST * F * din * S.ice.assist; ax -= ox * as; ay -= oy * as;
           const vo = p.vx * ox + p.vy * oy;
           if (vo > 0) { const c = vo * Math.min(1, 9 * dt); p.vx -= ox * c; p.vy -= oy * c; }
           if (!QUIET && Math.random() < 0.3) FX.parts.push({ x: p.x + ox * PR, y: p.y + oy * PR, vx: ox * 2 + (Math.random() - 0.5) * 2, vy: oy * 2 + (Math.random() - 0.5) * 2, life: 0.7, dec: 0.04, col: '#bfefff', sz: 3, g: 0 });
@@ -421,7 +426,7 @@ function causeFor(i) {
 }
 
 function ringOut(out0, out1) {
-  S.phase = 'end'; S.phaseT = 1400;
+  S.phase = 'end'; S.phaseT = 1100;
   S.freeze = 200;                               // hitstop on ring-out, then slow-mo
   S.st.ringouts++;
   for (let i = 0; i < 2; i++) if ((i === 0 ? out0 : out1)) S.p[i].out = true;
@@ -478,18 +483,20 @@ function cpuThink() {
   const la = 0.28;
   const mx = me.x + me.vx * la, my = me.y + me.vy * la, fx = foe.x + foe.vx * la, fy = foe.y + foe.vy * la;
   const rMe = Math.hypot(mx - CX, my - CY), rF = Math.hypot(fx - CX, fy - CY) || 1;
-  let tx, ty, home = false;
+  let tx, ty, home = false, passive = 0;
   if (rMe > R - cs.edge) { tx = CX; ty = CY; home = true; }
   else {
     const back = Math.min(cs.back, rF * 0.8);
     tx = CX + (fx - CX) / rF * (rF - back); ty = CY + (fy - CY) / rF * (rF - back);
     if (Math.hypot(tx - mx, ty - my) < 24) { tx = fx; ty = fy; }
-    if (cs.passive > 0) { tx += (CX - tx) * cs.passive; ty += (CY - ty) * cs.passive; }   // gentle CPUs hang back
+    // gentle CPUs hang back near the centre, but pounce when you drift toward the edge
+    passive = cs.passive * Math.max(0, Math.min(1, (R - 85 - rF) / 40));
+    if (passive > 0) { tx += (CX - tx) * passive; ty += (CY - ty) * passive; }
   }
   let dx = tx - mx, dy = ty - my; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
   const jit = (rnd() - 0.5) * 2 * cs.noise, c = Math.cos(jit), s = Math.sin(jit);
   S.cpu.dx = dx * c - dy * s; S.cpu.dy = dx * s + dy * c;
-  const lazy = dl < 8 ? 0.3 : !home && cs.passive > 0 ? 1 - 0.5 * cs.passive : 1;
+  const lazy = dl < 8 ? 0.3 : 1 - 0.5 * passive;
   S.cpu.dx *= lazy; S.cpu.dy *= lazy;
   // polarity tactics (LV1-2 never slam, so they never slam-counter either)
   if (me.cd <= 0 && me.buf <= 0) {
@@ -501,6 +508,7 @@ function cpuThink() {
     else if (attract && d < 2 * PR + SLAM_RANGE + 10 && !meIn) { if (cs.pSlam > 0 && u < cs.pDef * 0.6) slam = true; }
     else if (!attract && !meIn && d < 150) { if (u < cs.pDef) S.flipQ[1] = true; }
     else if (!attract && meIn && d > 190) { if (u < 0.12 + cs.pDef * 0.2) S.flipQ[1] = true; }
+    else if (attract && meIn && d > 2 * PR + SLAM_RANGE + 24 && d < 210) { if (u < cs.pPush) S.flipQ[1] = true; }   // hold the centre: push you away
     if (slam) {
       S.flipQ[1] = true;
       if (rnd() < cs.brace) { const l = d || 1; S.cpu.dx = (foe.x - me.x) / l; S.cpu.dy = (foe.y - me.y) / l; }
@@ -647,7 +655,7 @@ function render() {
   // pucks
   for (let i = 0; i < 2; i++) {
     const p = S.p[i];
-    let sc = 1; if (p.out) sc = Math.max(0.3, S.phaseT / 1400);
+    let sc = 1; if (p.out) sc = Math.max(0.3, S.phaseT / 1100);
     const sq = FX.squash[i] * 0.25, fp = FX.flipPop[i];
     cx.save(); cx.translate(p.x, p.y); cx.scale(sc * (1 + sq + fp * 0.25), sc * (1 - sq + fp * 0.25));
     if (p.teeter > 0 && !p.out) cx.rotate(Math.sin(now / 40) * 0.12);
@@ -752,7 +760,7 @@ function drawHUD(now, pulse) {
   }
   // ring timer (shrink)
   if (!S.over) {
-    const f = (S.ringR - RMIN) / Math.max(1, S.R0 - RMIN), bw = 150, by = 100;
+    const f = Math.max(0, (S.ringR - RMIN) / Math.max(1, S.R0 - RMIN)), bw = 150, by = 100;
     cx.fillStyle = 'rgba(160,210,255,0.15)'; cx.fillRect(W / 2 - bw / 2, by, bw, 6); cx.fillStyle = f < 0.3 ? '#ff6b7d' : '#bfe6ff'; cx.fillRect(W / 2 - bw / 2 + bw * (1 - f) / 2, by, bw * f, 6);
     cx.font = font(12); cx.fillStyle = f < 0.3 ? 'rgba(255,107,125,' + (0.6 + 0.4 * pulse) + ')' : '#8fa0c8'; cx.textAlign = 'center'; cx.fillText(f < 0.3 ? 'RING SHRINKS · SQUEEZE!' : 'RING SHRINKS', W / 2, by + 22);
   }
