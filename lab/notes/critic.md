@@ -97,3 +97,50 @@ curve was obvious.
 - **Would I play a 4th run?** Yes, immediately. It's the most "I can do better" game here.
 - **Bugs / friction:** No console errors. Movement has a short acceleration ramp, so tiny taps travel less than expected, which made precise orb pickups fiddly in stepped mode. Late game (8+ ghosts) gets visually busy: the numbered rings help, but trails overlap a lot. The "phase" mechanic isn't explained on screen. I found it by accident from the "0 phases" stat on the first game-over screen. Ghosts that replay positions outside the shrunken arena are drawn faded, which is a nice touch but not explained.
 
+---
+
+## 3. Tiltwell
+
+**What it is:** A Puyo-style 8×8 well. Coloured pairs (vertical or horizontal, no rotation) drop in. Match 4+
+of a colour, each colour with its own shape icon. **Q/E rotate the whole well 90°** so gravity re-settles
+everything, which can set up pops and chains. You have 3 tilt charges, and popping recharges them. Grey stones
+rise from marked columns every N drops ("▲2 in 7"), and chains "block" stones. Levels speed things up and add
+stones.
+
+**Runs**
+| Run | Seed | Score | Length | Cause |
+|---|---|---|---|---|
+| 1 | 101 | 433 | ~49 s | the well overflowed — no room for the next piece |
+| 2 | 102 | 690 | ~53 s | the well overflowed — no room for the next piece |
+
+Improved? **Somewhat** (433 → 690). To stay on the screenshot budget, I played the first ~10 pieces of each run
+deliberately and finished both runs with a blind "spread the drops" pattern, so the end scores are noisy. The
+deliberate parts clearly got better: in run 2 I predicted a Q-tilt exactly, and it lined up three blues for a
+pop on the next drop.
+
+| # | Principle | Score | Justification |
+|---|---|---|---|
+| 1 | Readable in 5 s | 2 | The controls line, rules line, a ghost landing preview, NEXT, TILTS and STONES are all on the first screen, with no menu. Dropping a piece is obvious. |
+| 2 | Clear goal, visible score | 2 | Score, level and best are always shown. Goal: "match 4+ of a colour, keep the well from spilling". |
+| 3 | Juicy feedback | 2 | Pops burst into particles with floating +N. "CHAIN ×2!" fills the board, and the HUD flashes "+1 TILT!" and "BLOCKED −1". The whole well physically rotates on a tilt, and level-ups get a banner ("faster · more stones"). |
+| 4 | Forgiving input | 1 | The dashed ghost landing preview is real assistance. But **ArrowUp silently triggers a tilt**: my first two "rotate?" presses burned 2 of 3 tilts, and the first one, on an empty well, gave no visible feedback. A couple of quick left/right taps were also dropped, so pieces landed one column off. |
+| 5 | Fair, legible failure | 2 | "WELL SPILLED — the well overflowed — no room for the next piece", plus level, longest chain and stones broken. |
+| 6 | Instant retry | 2 | "press any key to tilt again". |
+| 7 | Interesting decisions | 2 | Tilting is a big, legible decision. You can predict the re-settle (I did, exactly), and it trades a scarce charge for a board reshuffle. "Spend a tilt now vs. save it" is a real choice. |
+| 8 | Pattern to learn | 1 | There's a clear learnable layer on top of basic matching: predicting where columns end up after a tilt. My score improved, but the blind tails make that weak evidence. |
+| 9 | Escalation / flow | 2 | Levels arrive quickly (level 3 by ~45 s). Each one is faster, and stones go from "2 in 7" to "3 in 2". |
+| 10 | Not solved | 2 | Rising stones and speed-ups guarantee pressure. |
+| 11 | Risk and reward | 1 | Holding colours for a bigger chain (which also blocks stones) against the well filling up is the classic Puyo tension. It's present, but in my short runs it never felt sharp. Saving tilts versus spending them is the more interesting gamble. |
+| 12 | Few verbs, deep use | 2 | Move, drop and tilt. Tilt is both your combo setup and your emergency exit, and popping both scores and recharges tilts. |
+| 13 | Variety | 2 | Seeds change the piece order and which columns get stones (0/4 vs 0/1), and one tilt makes the board look completely different. |
+| 14 | Reward cadence / compounding | 2 | A pop every 2–3 drops if you plan, and chains multiply (+40 → CHAIN ×2 +130). |
+| 15 | One more go | 2 | Best and NEW BEST are shown, and the restart prompt is thematic. I'd happily replay to land a 3-chain off a tilt. |
+
+**Total: 27 / 30 → Fun score 9**
+
+- **MDA aesthetic felt:** Challenge (puzzle), with Discovery in learning how tilts re-settle.
+- **Best moment:** Predicting a counter-clockwise tilt, watching three scattered blues slide into a row exactly as planned, then finishing them with the next drop.
+- **Worst moment:** Learning that ArrowUp spends a tilt. I lost two of my three charges in the first second without knowing why the TILTS meter had emptied.
+- **Would I play a 4th run?** Yes. The tilt is a fresh twist on a familiar genre, and I want to try chaining off a tilt on purpose.
+- **Bugs / friction:** No console errors. ArrowUp maps to tilt but isn't shown in the controls line. Pieces fall on their own (gravity), which isn't obvious until level 2 speeds it up. The LEVEL 2 banner briefly covers the middle of the board while a piece is falling. The first-look screen showed a different starting pair (red/green) than the one I actually got after my first keypress (red/red), which is a little disorienting.
+
