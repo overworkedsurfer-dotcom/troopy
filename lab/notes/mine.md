@@ -39,3 +39,27 @@ Played through `lab/play.js` (time-stepped, real key events, screenshots between
 - **Felt good:** buying a ×2 COLUMN lens under three seeds. Wealth dropped (−$11, only ×1.39 above the tide), then a "GROWTH ×3.5" banner fired, and on the log chart my line swooped back up away from the tide. That dip-then-compound shape *is* the twist working: investment as risk/reward. The card preview "+5.29%/s here" updates with the cursor, so placement is a real spatial decision.
 - **Got bad:** the cards show exact %/s deltas, which makes it a bit of a calculator: you pick the biggest green number. The SCORE (100·log10 wealth) creeps up 149 → 300, so the HUD's "number go up" is the wealth, not the score. After a few blind buys the 5×5 grid got visually busy (×2, ×4, ×0.5 badges everywhere).
 - **Fix ideas:** make the score itself juicier (pop on milestones), and maybe hide the exact delta behind a hover so intuition matters.
+
+## PIPWALK
+- Run 1 (partial): cleared floor 1 in 4 moves (61 pts), picked "Odd Luck" (+2 on odd faces), and started floor 2 with a skull (HP 8) and two slimes (HP 4).
+- **Felt good:** planning a roll so the 6 lands on top just as the slime steps adjacent, then the "⚔6 KILL" badge on the foe before I commit. Thinking two rolls ahead is the fun, and it's a novel kind of thinking: real die topology as a movement puzzle. After Odd Luck the 5 face became a big numeral **7** on the cube, which is a lovely "my die is changing" moment. The upgrade cards are clear, and confetti marks the floor clear.
+- **Got bad:** the preview dice on neighbouring cells use pips, and at phone size I misread a 5 as a 3 once. Numerals on the previews would remove all doubt. The early floors are slow-ish for a human (a run would be 4–6 min).
+- **Legibility is excellent otherwise:** foe intents ("1"), HP badges, DREAD countdown, "next ≥ 5 keeps it" chain hint, and the LAST HITS strip.
+
+## MAZEWRIGHT
+- Run 1: 1,618 pts, 56 s, wave 5. Cause: "a Swift broke the core on wave 5 (8 leaks this wave)". I built a 3-wall detour on wave 1 (path ×2), then tested pure greed: GO with all walls held (×4/×5 bank) every wave.
+- **Felt good:** the live dashed path re-routing the moment I placed walls is instant comprehension, with a "×2" path bonus and an "undo" tag. "BANK IF YOU GO NOW ×4" is a beautifully legible temptation. Greed on wave 2 took me from 285 to 630 but cost 5 core HP, a real trade. "Glass Core (all damage ×1.8, core max −8, *risky*)" is a great Balatro-ish card.
+- **Got bad:** during the wave you mostly watch. PULSE helps but it's a single press. Pure greed dies on wave 5, as it should, but I never had a mid-wave "save it" moment.
+- **Overall:** clear, strategic, and the most "interesting decisions per minute" of the set so far.
+
+## JUNK ORBIT
+- Run 1: 6,480 pts, 73 s, level 4. Cause: "comet #32 came back around (fired 0:16 ago)", another lovely "your own history killed you" message. I aimed carefully for the first 3 shots, then spammed alternating aim + fire for the rest.
+- **Felt good:** sweeping the aim left and watching the dotted preview bend *around* the planet and ring the far star, then "SLINGSHOT +200" and "×1.5 STREAK". The preview makes orbital mechanics feel learnable. The "captured = safe (blue) / loose = coming back! (orange)" legend is clear.
+- **Got bad:** my first straight-up shot produced a radial orbit, a dot bobbing up and down through the planet. Two screenshots caught it at the apex, so it looked frozen. (Not a bug; I probed the state and it oscillates with a ~3 s period.) More importantly, **blind spamming scored 6.5k in 73 s**, which is roughly the random bot's median. Careless play is rewarded more than it should be, and by the end the screen is a tangle of orbits that's hard to read.
+- **Fix ideas:** reduce the reward for unaimed volume (cooldown or streak decay on misses), and fade older captured orbits harder so the screen stays legible.
+
+## MAGSUMO
+- Run 1, round 1: I lost to "PEBBLE the Trickster (LV 1)" by ring-out in about 7.5 s, with 2 hearts left. I landed one MAGNET SLAM (+20) by attracting and then flipping at point-blank, but the Trickster flipped back and pulled itself in. Later it pulled *me* in and SLAMMED me to the edge, and the ice carried me out.
+- **Felt good:** field lines that physically show attraction (blue loops) versus repulsion (red spokes) teach magnetism with zero text. The slam has real impact: pink flash, "MAGNET SLAM!" and "SLAMMED!". A CPU with a named personality that *used my own trick against me* was a great moment. The edge-danger red arc on the ring is readable.
+- **Got bad:** ice momentum plus 4-way steering means I overshoot constantly. Round 1 against an LV 1 CPU should probably be winnable for a newcomer, and I lost it. The flip cooldown ("charging...") isn't visible on the puck itself, only in the corner HUD.
+- **Fix ideas:** make the LV 1 CPU gentler (slower reaction, no slam-counter on round 1), add a cooldown ring on the puck, and slightly more traction early.

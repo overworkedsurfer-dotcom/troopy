@@ -1,0 +1,13 @@
+{
+  "_doc": "My own scores after round-1 play. rubric = 15 FUN.md principles (0/1/2), in order 1..15; gut = felt fun 1-10. 'mine' in the ranking uses gut (see DECISIONS D6).",
+  "kickback":   { "rubric": [2,2,2,1,2,2,2,0,2,2,1,2,1,1,1], "gut": 5.5 },
+  "tiltwell":   { "rubric": [2,2,2,2,2,2,2,1,2,2,1,2,2,1,1], "gut": 7.0 },
+  "spellsnake": { "rubric": [2,2,2,2,2,2,2,2,2,2,2,2,2,1,2], "gut": 8.5 },
+  "loopback":   { "rubric": [2,2,2,2,2,2,2,2,2,2,2,2,1,1,2], "gut": 8.0 },
+  "pipwalk":    { "rubric": [2,2,2,2,2,2,2,2,2,2,1,2,2,1,1], "gut": 7.5 },
+  "mazewright": { "rubric": [2,2,2,2,2,2,2,2,2,2,2,2,1,1,2], "gut": 8.0 },
+  "uptempo":    { "rubric": [2,2,2,1,2,2,1,2,2,2,2,1,2,2,1], "gut": 7.0 },
+  "compound":   { "rubric": [2,2,2,1,2,2,2,1,2,2,2,1,1,2,1], "gut": 6.5 },
+  "junkorbit":  { "rubric": [2,2,2,2,2,2,1,2,2,2,2,2,2,2,1], "gut": 7.0 },
+  "magsumo":    { "rubric": [2,1,2,1,2,2,2,1,2,2,2,2,1,1,1], "gut": 6.5 }
+}

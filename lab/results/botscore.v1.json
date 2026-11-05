@@ -1,0 +1,162 @@
+{
+ "kickback": {
+  "score10": 9.5,
+  "components": {
+   "legible": 1,
+   "skill": 1,
+   "slope": 1,
+   "pacing": 1,
+   "solved": 1,
+   "variety": 1,
+   "cadence": 1,
+   "flail": 0.31
+  },
+  "heuristicLadderPos": 0.54,
+  "flailRatio": 0.038,
+  "bugFree": true
+ },
+ "loopback": {
+  "score10": 9.2,
+  "components": {
+   "legible": 1,
+   "skill": 1,
+   "slope": 1,
+   "pacing": 0.87,
+   "solved": 1,
+   "variety": 0.5,
+   "cadence": 1,
+   "flail": 1
+  },
+  "heuristicLadderPos": 0.52,
+  "flailRatio": 0.12,
+  "bugFree": true
+ },
+ "tiltwell": {
+  "score10": 8.3,
+  "components": {
+   "legible": 1,
+   "skill": 1,
+   "slope": 0.51,
+   "pacing": 1,
+   "solved": 1,
+   "variety": 0.54,
+   "cadence": 1,
+   "flail": 0.35
+  },
+  "heuristicLadderPos": 0.85,
+  "flailRatio": 0.041,
+  "bugFree": true
+ },
+ "spellsnake": {
+  "score10": 9.1,
+  "components": {
+   "legible": 1,
+   "skill": 1,
+   "slope": 0.88,
+   "pacing": 1,
+   "solved": 1,
+   "variety": 1,
+   "cadence": 0.88,
+   "flail": 0.19
+  },
+  "heuristicLadderPos": 0.74,
+  "flailRatio": 0.027,
+  "bugFree": true
+ },
+ "pipwalk": {
+  "score10": 9.5,
+  "components": {
+   "legible": 1,
+   "skill": 1,
+   "slope": 0.61,
+   "pacing": 1,
+   "solved": 1,
+   "variety": 1,
+   "cadence": 1,
+   "flail": 1
+  },
+  "heuristicLadderPos": 0.18,
+  "flailRatio": 0.212,
+  "bugFree": true
+ },
+ "mazewright": {
+  "score10": 8.3,
+  "components": {
+   "legible": 1,
+   "skill": 1,
+   "slope": 0.39,
+   "pacing": 1,
+   "solved": 1,
+   "variety": 1,
+   "cadence": 0.8,
+   "flail": 0.02
+  },
+  "heuristicLadderPos": 0.88,
+  "flailRatio": 0.79,
+  "bugFree": true
+ },
+ "uptempo": {
+  "score10": 7.6,
+  "components": {
+   "legible": 1,
+   "skill": 1,
+   "slope": 0.25,
+   "pacing": 1,
+   "solved": 1,
+   "variety": 0.43,
+   "cadence": 1,
+   "flail": 0
+  },
+  "heuristicLadderPos": 0.92,
+  "flailRatio": 0.007,
+  "bugFree": true
+ },
+ "compound": {
+  "score10": 9.1,
+  "components": {
+   "legible": 1,
+   "skill": 0.84,
+   "slope": 0.54,
+   "pacing": 1,
+   "solved": 1,
+   "variety": 1,
+   "cadence": 0.94,
+   "flail": 1
+  },
+  "heuristicLadderPos": 0.16,
+  "flailRatio": 0.27,
+  "bugFree": true
+ },
+ "junkorbit": {
+  "score10": 9.3,
+  "components": {
+   "legible": 1,
+   "skill": 0.49,
+   "slope": 1,
+   "pacing": 1,
+   "solved": 1,
+   "variety": 1,
+   "cadence": 1,
+   "flail": 1
+  },
+  "heuristicLadderPos": 0.35,
+  "flailRatio": 0.327,
+  "bugFree": true
+ },
+ "magsumo": {
+  "score10": 9.1,
+  "components": {
+   "legible": 1,
+   "skill": 1,
+   "slope": 0.84,
+   "pacing": 1,
+   "solved": 1,
+   "variety": 0.51,
+   "cadence": 1,
+   "flail": 1
+  },
+  "heuristicLadderPos": 0.75,
+  "flailRatio": 0.111,
+  "bugFree": true
+ }
+}

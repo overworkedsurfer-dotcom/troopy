@@ -55,3 +55,21 @@ The bold pitches are the ten to build, one per genre, which guarantees the varie
 - **Every game must have a hard ceiling** (a doom clock) so that even perfect play eventually ends. This is principle 10 ("not solved"), which bots with perfect reflexes would otherwise break.
 - **2-player game (MAGSUMO):** solo play is a gauntlet against CPU opponents that get stronger, and a second human joins by pressing their keys. The bot API drives player 1 in gauntlet mode.
 - **Word game dictionary:** embedded in the HTML from an MIT/public-domain word list, filtered to common words, so the file stays self-contained.
+
+## D5. The bot metric saturated, so I added a graded v2 score (Phase 3)
+- The v1 threshold signals (`lab/run.js`) gave **all 10 games 10/10**. Every builder was handed the thresholds and tuned to them, which is Goodhart's law in miniature. A metric everyone passes ranks nothing.
+- `lab/botscore.js` (v2) scores the **same FUN.md principles** on continuous scales:
+  - skill gap: log10 of the smart/random median ratio, with full credit at about 30×;
+  - mastery slope: where the heuristic bot sits on the log ladder between random and smart, where 0.3–0.7 counts as smooth;
+  - pacing band: 90–240 s;
+  - variety: smart-bot score CV, with full credit at 0.4;
+  - reward cadence: the median longest scoreless gap;
+  - a half-weight "flail ratio": random-bot session length divided by smart-bot length. Instant death is harsh, and immortal flailing means no agency.
+- The ranking uses v2. v1 stays as the pass/fail gate.
+
+## D6. "My score" is my felt score, not my rubric tally
+- I scored my own play both ways (`lab/notes/mine-scores.json`). My rubric tallies came out 7.7–9.7, about 1.5 points above my gut on every game. The rubric checks that the *structures* of fun are present, and most games have them. It can't tell a game I loved from a game I merely respected.
+- The critic already scores strictly against the rubric. So, to avoid double-counting the rubric, the ranking uses my gut score (1–10, recorded *before* I saw the critic's numbers). The rubric tallies are reported alongside.
+
+## D7. Fun scores keep one decimal
+- FUN.md says `round(total/3)`. With 10 games bunched at 7–9 that throws away the resolution needed to rank them, so all components keep one decimal.
