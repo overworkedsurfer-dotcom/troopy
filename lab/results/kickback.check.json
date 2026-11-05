@@ -25,7 +25,7 @@
   {
    "name": "real-time mode advances sim after input",
    "pass": true,
-   "detail": "t 0 -> 2866.666666666663"
+   "detail": "t 0 -> 2849.9999999999964"
   },
   {
    "name": "window.__game has all methods",
@@ -35,7 +35,7 @@
   {
    "name": "touch: game responds / runs",
    "pass": true,
-   "detail": "t=1650.0000000000018"
+   "detail": "t=1666.6666666666686"
   },
   {
    "name": "touch: canvas fits 390px viewport",
@@ -105,12 +105,12 @@
   {
    "name": "bot heuristic runs 20s without error",
    "pass": true,
-   "detail": "score=520 ms=20000 wall=6ms"
+   "detail": "score=520 ms=20000 wall=7ms"
   },
   {
    "name": "bot smart runs 20s without error",
    "pass": true,
-   "detail": "score=2230 ms=20000 wall=346ms"
+   "detail": "score=2230 ms=20000 wall=309ms"
   },
   {
    "name": "zero console/page errors",

@@ -35,7 +35,7 @@ const html = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>The Fun Lab</title>
-<meta name="description" content="10 small browser games, 1,500 seeded bot sessions, a blind critic, and one winner.">
+<meta name="description" content="10 small browser games, 3,000 seeded bot sessions, two blind critics, and one winner.">
 <style>
 :root{
   --bg:#0c0d14; --surface:#14151f; --surface-2:#1c1e2b; --line:#2a2c3b; --ink:#f0efec; --ink-2:#c3c2b7; --muted:#8d8b98;
@@ -47,7 +47,7 @@ const html = `<!doctype html>
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
 a{color:inherit}
-.wrap{max-width:1180px;margin:0 auto;padding:0 var(--gutter)}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(var(--gutter),env(safe-area-inset-left,0px));padding-right:max(var(--gutter),env(safe-area-inset-right,0px))}
 header.top{padding:40px 0 18px}
 .kicker{font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.18em;color:var(--muted);text-transform:uppercase}
 h1{font-size:clamp(34px,6vw,64px);line-height:1;margin:10px 0 10px;letter-spacing:-.02em}
@@ -276,4 +276,12 @@ for (const g of D.games) {
 </html>
 `;
 fs.writeFileSync(path.join(ROOT, 'index.html'), html);
+// Artifact variant: same page without the document skeleton (the Artifact host adds it)
+{
+  const head = html.slice(html.indexOf('<head>') + 6, html.indexOf('</head>'));
+  const title = head.match(/<title>[\s\S]*?<\/title>/)[0], desc = head.match(/<meta name="description"[^>]*>/)[0], style = head.match(/<style>[\s\S]*?<\/style>/)[0];
+  const body = html.slice(html.indexOf('<body>') + 6, html.lastIndexOf('</body>'));
+  fs.mkdirSync(path.join(__dirname, 'artifact'), { recursive: true });
+  fs.writeFileSync(path.join(__dirname, 'artifact', 'index.html'), title + '\n<meta name="claude:viewport-fit-sides" content="cover">\n' + desc + '\n' + style + '\n' + body);
+}
 console.log('wrote index.html with', games.length, 'games');
