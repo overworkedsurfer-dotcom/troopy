@@ -97,3 +97,6 @@ None of them scrolls horizontally. The smallest text is the KICKBACK and LOOPBAC
 
 ## SPELLSNAKE, after polish (Phase 4)
 - Round 2: the opening panel said "try BAT", with B, A and T clustered just ahead. My routing was clumsy (I overshot A once), but BAT was castable at 4.4 s, against about 13 s for the first cast in round 1. The "words need 3+ letters · keep eating" and "CAST before the fuse ends, or your tail grows" lines explain the two rules the critic tripped on. The opening pace (245 ms/cell) feels controllable. Gut score moves from 8.5 to 9.0.
+
+## Verified: the first key doesn't re-roll (human mode)
+I loaded tiltwell, spellsnake, junkorbit and magsumo in real time and pressed one key. Piece, next, tiles, stars, pole and CPU name were unchanged; only time and movement advanced. The critic's "first screen differs" note comes from the play tool's seed switch, which is now fixed in `lab/play.js`.

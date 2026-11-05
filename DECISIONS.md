@@ -102,3 +102,7 @@ Provisional final = 0.30 × bot (v2, round-1 data) + 0.35 × blind critic + 0.35
   - MAZEWRIGHT (a close 4th) also got its friction fixes.
 - **Every bug the critic found was fixed in every game.** TILTWELL: Up spent a tilt, and taps were dropped. UPTEMPO: the start key braked. MAZEWRIGHT: digit picks and dropped cursor presses. COMPOUND: unreadable numbers. PIPWALK: preview pips were misread.
 - **Round 2:** a fresh blind critic (it hasn't seen the round-1 notes) replays the reworked bottom 4 and the polished top 3. The full bot lab re-runs on all 10 as `v2`.
+
+## D9. "The first screen isn't the board you play" was a tool artifact
+- The critic reported that in 4 games the opening layout changed after the first key. I checked in real-time human mode: pressing a key only advances the game, and the tiles, stars, poles and CPU stay identical (`lab/notes/mine.md`). What happened is that `lab/play.js` took its first-look screenshot under the page's own random seed, then called `reset(seed)`.
+- The fix: `/open` now returns both `firstLook` (the human first impression) and `startFrame` (the seeded board you play), with a note explaining the difference. The finding is excluded from game scoring.

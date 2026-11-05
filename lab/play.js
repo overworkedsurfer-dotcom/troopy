@@ -68,7 +68,10 @@ async function handle(u) {
       const first = await shot('firstlook');
       await page.evaluate(seed => window.__game.reset(seed), +q.seed || 1);
       await page.evaluate(() => window.__game.render());
-      return { ok: true, firstLook: first, note: 'now in stepped mode: time only moves via /step, /wait, /tap', ...(await status()) };
+      const start = await shot('start');
+      return { ok: true, firstLook: first, startFrame: start,
+        note: 'firstLook = what a human sees on load (real-time mode, its own random seed, so the layout differs). startFrame = the seeded board you will actually play. Now in stepped mode: time only moves via /step, /wait, /tap',
+        ...(await status()) };
     }
     case '/step': {
       const keys = (q.keys || '').split(/[+,]/).filter(Boolean);
