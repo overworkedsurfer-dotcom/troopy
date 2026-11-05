@@ -1,0 +1,344 @@
+<title>Fun Lab Playtest</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&display=swap">
+<style>
+/* Layout: one column; a step card on top, the game frame below it, owner-only results at the bottom.
+   Deliberate single dark "arcade" look, shared with the Fun Lab hub. */
+:root{
+  --bg:#0c0d14; --surface:#14151f; --surface-2:#1c1e2b; --line:#2a2c3b;
+  --ink:#f0efec; --ink-2:#c3c2b7; --muted:#8d8b98; --accent:#ffd34d; --accent-ink:#141006;
+  --good:#3ecf8e; --warn:#ff8a5c;
+  --display:"Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --body:system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--body)}
+.wrap{max-width:860px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:18px}
+.kicker{font:600 12px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+h1{font:800 clamp(28px,5vw,44px)/1.05 var(--display);margin:8px 0 6px;letter-spacing:-.01em;text-wrap:balance}
+h1 em{font-style:normal;color:var(--accent)}
+h2{font:700 22px/1.2 var(--display);margin:0;text-wrap:balance}
+p{margin:0;color:var(--ink-2);max-width:65ch}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button{font:700 15px/1 var(--body);border-radius:10px;padding:11px 16px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--ink-2)}
+button:focus-visible,textarea:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button[disabled]{opacity:.45;cursor:not-allowed}
+button.pick{min-width:44px;padding:10px 0;font-variant-numeric:tabular-nums}
+button.pick[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.steps{display:flex;gap:6px;flex-wrap:wrap}
+.steps span{font:600 12px/1 var(--mono);padding:6px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.steps span.on{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
+.steps span.done{color:var(--good);border-color:var(--good)}
+.stage{display:flex;flex-direction:column;align-items:center;gap:10px}
+.frame{width:100%;max-width:540px;height:min(78vh,800px);border:1px solid var(--line);border-radius:12px;background:#000;display:block}
+.meta{display:flex;justify-content:space-between;gap:12px;width:100%;max-width:540px;flex-wrap:wrap;font-size:14px;color:var(--ink-2)}
+.meta b{color:var(--ink);font-variant-numeric:tabular-nums}
+.q{display:flex;flex-direction:column;gap:8px}
+.q label,.q .lab{font-weight:700;color:var(--ink)}
+.q small{color:var(--muted)}
+textarea{width:100%;min-height:70px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;font:15px/1.4 var(--body);resize:vertical}
+.note{font-size:13px;color:var(--muted)}
+.note.warn{color:var(--warn)}
+.pill{display:inline-block;font:700 12px/1 var(--mono);padding:5px 8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2)}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:600}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="kicker">The Fun Lab · human playtest</div>
+    <h1>Play five games. <em>Tell us the truth.</em></h1>
+    <p>Bots and AI critics have already played these games. They never heard the sound and couldn't react in real time. You can. It takes about 12 minutes: play each game a few times, then rate it.</p>
+  </header>
+
+  <nav class="steps" id="steps" aria-label="Progress"></nav>
+
+  <!-- step: intro + sound check -->
+  <section class="card" id="intro">
+    <h2>Before you start</h2>
+    <p>Use a keyboard if you can, and turn your sound on. Your answers are saved to this page as you go, so you can stop and come back later.</p>
+    <div class="q">
+      <span class="lab">Sound check</span>
+      <div class="row">
+        <button id="tone">▶ Play test sound</button>
+        <button id="heard" disabled>I heard it</button>
+        <button id="silent" disabled>I heard nothing</button>
+      </div>
+      <small id="soundNote">Press play, then tell us if you heard a chime.</small>
+    </div>
+    <div class="row"><button class="primary" id="start" disabled>Start the first game</button></div>
+    <p class="note" id="saveNote"></p>
+  </section>
+
+  <!-- step: playing a game -->
+  <section class="card" id="play" hidden>
+    <div class="row" style="justify-content:space-between">
+      <div><div class="kicker" id="gGenre"></div><h2 id="gName"></h2></div>
+      <span class="pill" id="gIndex"></span>
+    </div>
+    <p id="gPitch"></p>
+    <p class="note">Click the game once so it gets your keyboard. Play at least <b>3 runs</b>: dying is part of it, and a key or tap restarts.</p>
+    <div class="stage">
+      <iframe class="frame" id="frame" title="Game" allow="autoplay"></iframe>
+      <div class="meta"><span>Runs finished: <b id="mRuns">0</b></span><span>Best: <b id="mBest">0</b></span><span>Last: <b id="mLast">–</b></span></div>
+      <div class="row"><button class="primary" id="toRate" disabled>Rate this game →</button></div>
+      <p class="note" id="rateGate">Finish 2 runs (or play 2½ minutes) to rate it.</p>
+    </div>
+  </section>
+
+  <!-- step: rating -->
+  <section class="card" id="rate" hidden>
+    <h2 id="rName">Rate it</h2>
+    <div class="q"><span class="lab">How fun was it?</span><div class="row" id="qFun"></div><small>1 = I'd never play it again · 10 = I can't stop</small></div>
+    <div class="q"><span class="lab">When you lost, did it feel fair?</span><div class="row" id="qFair"></div><small>1 = cheap, not my fault · 5 = completely my fault</small></div>
+    <div class="q"><span class="lab">Did the controls do what you meant?</span><div class="row" id="qResp"></div><small>1 = fought the controls · 5 = perfectly responsive</small></div>
+    <div class="q"><span class="lab">Sound</span><div class="row" id="qSound"></div></div>
+    <div class="q"><span class="lab">Do you want another go right now?</span><div class="row" id="qAgain"></div></div>
+    <div class="q"><label for="comment">Anything else? <small>(optional: best moment, worst moment, what confused you)</small></label><textarea id="comment" maxlength="400"></textarea></div>
+    <div class="row"><button class="primary" id="saveRate" disabled>Save and continue</button><button id="backPlay">← Keep playing</button></div>
+  </section>
+
+  <!-- step: done -->
+  <section class="card" id="done" hidden>
+    <h2>Thank you. That's everything.</h2>
+    <p>Your runs and ratings are saved. Here's how you did:</p>
+    <div class="tbl"><table id="mine"></table></div>
+  </section>
+
+  <!-- owner-only: live results -->
+  <section class="card" id="results" hidden>
+    <div class="row" style="justify-content:space-between"><h2>Results so far</h2><span class="pill" id="rCount"></span></div>
+    <p class="note">Only you see this panel. Testers each see only their own runs. Ratings are on a 1–10 scale for fun and 1–5 for fairness and controls. "Learning" compares each tester's 1st run with their 3rd.</p>
+    <div class="tbl"><table id="agg"></table></div>
+    <p class="note" id="rNote"></p>
+  </section>
+</div>
+
+<script>
+(() => {
+'use strict';
+const GAMES = [
+  { id: 'kickback', name: 'KICKBACK', genre: 'Arcade action', pitch: 'No engine: every shot kicks you backward, so your gun is your only thruster. Don\'t touch the electric rim.' },
+  { id: 'magsumo', name: 'MAGSUMO', genre: 'Magnet sumo', pitch: 'You can\'t push. Steer, and flip your magnet to attract or repel. Flip right next to the other puck to SLAM it off the ice.' },
+  { id: 'uptempo', name: 'UPTEMPO', genre: 'Rhythm', pitch: 'Hit notes on the beat with D F J K. Play perfectly and the song speeds up. Sound matters most in this one.' },
+  { id: 'spellsnake', name: 'SPELLSNAKE', genre: 'Word', pitch: 'Snake where your body is the word. Eat letters, then press Space to cast a word.' },
+  { id: 'pipwalk', name: 'PIPWALK', genre: 'Roguelite (the lab\'s winner)', pitch: 'You are a die. Rolling is moving, and the face on top is your attack.' },
+];
+const $ = id => document.getElementById(id);
+const LS = 'funlab.playtest.v1';
+let S = null;                 // this tester's record
+let db = null, user = null, docRef = null, uid = null, canSave = false, writeChain = Promise.resolve();
+
+function fresh() {
+  const order = GAMES.map(g => g.id);
+  for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  return { v: 1, startedAt: Date.now(), updatedAt: Date.now(), sound: null, order, idx: -1, done: false, games: {}, ua: navigator.userAgent.slice(0, 160) };
+}
+function loadLocal() { try { const s = JSON.parse(localStorage.getItem(LS) || 'null'); return s && s.v === 1 ? s : null; } catch (e) { return null; } }
+function saveLocal() { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) {} }
+function persist() {
+  S.updatedAt = Date.now(); saveLocal();
+  if (!docRef || !canSave) return;
+  const body = JSON.parse(JSON.stringify(S));
+  writeChain = writeChain.then(() => docRef.set(body)).catch(e => {
+    if (e && e.code === 'invalid_argument') { canSave = false; note('Your answers are kept in this browser only. This link doesn\'t allow saving for your account.', true); }
+    else note('Couldn\'t save just now. Your answers are kept in this browser and will save with your next answer.', true);
+  });
+}
+function note(t, warn) { const n = $('saveNote'); n.textContent = t; n.className = 'note' + (warn ? ' warn' : ''); }
+const G = id => GAMES.find(g => g.id === id);
+const gameRec = id => (S.games[id] = S.games[id] || { runs: [], rating: null, device: {} });
+
+// ---------- progress pills ----------
+function renderSteps() {
+  const el = $('steps'); el.textContent = '';
+  const mk = (t, cls) => { const s = document.createElement('span'); s.textContent = t; if (cls) s.className = cls; el.append(s); };
+  mk('Sound check', S.idx < 0 ? 'on' : 'done');
+  S.order.forEach((id, i) => mk((i + 1) + ' · ' + G(id).name, S.done || i < S.idx ? 'done' : i === S.idx ? 'on' : ''));
+}
+function show(step) { for (const id of ['intro', 'play', 'rate', 'done']) $(id).hidden = id !== step; renderSteps(); }
+
+// ---------- sound check ----------
+let AC = null;
+$('tone').addEventListener('click', () => {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)(); AC.resume();
+    const t = AC.currentTime; [523.25, 659.25, 783.99].forEach((f, i) => {
+      const o = AC.createOscillator(), g = AC.createGain(); o.type = 'triangle'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t + i * 0.12); g.gain.exponentialRampToValueAtTime(0.25, t + i * 0.12 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.12 + 0.6);
+      o.connect(g); g.connect(AC.destination); o.start(t + i * 0.12); o.stop(t + i * 0.12 + 0.65);
+    });
+  } catch (e) { $('soundNote').textContent = 'This browser blocked audio. Tell us below.'; }
+  $('heard').disabled = false; $('silent').disabled = false;
+});
+function setSound(v) {
+  S.sound = v; persist();
+  $('soundNote').textContent = v === 'heard' ? 'Great, sound works.' : 'Noted. Please check your volume or mute switch if you can. You can still play.';
+  $('start').disabled = false; $('heard').setAttribute('aria-pressed', v === 'heard'); $('silent').setAttribute('aria-pressed', v !== 'heard');
+}
+$('heard').addEventListener('click', () => setSound('heard'));
+$('silent').addEventListener('click', () => setSound('none'));
+$('start').addEventListener('click', () => { if (S.idx < 0) { S.idx = 0; persist(); } startGame(); });
+
+// ---------- playing: iframe + telemetry ----------
+let poll = null, running = false, runStart = 0, inputs = 0, playStart = 0, gateTimer = null;
+function startGame() {
+  const id = S.order[S.idx], g = G(id), rec = gameRec(id);
+  $('gName').textContent = g.name; $('gGenre').textContent = g.genre; $('gPitch').textContent = g.pitch;
+  $('gIndex').textContent = 'Game ' + (S.idx + 1) + ' of ' + S.order.length;
+  updateMeta(); show('play');
+  const fr = $('frame');
+  running = false; clearInterval(poll); clearInterval(gateTimer);
+  playStart = performance.now();
+  fr.onload = () => {
+    let w; try { w = fr.contentWindow; } catch (e) { return; }
+    try { const a = w.document.getElementById('funlab-home'); if (a) a.remove(); } catch (e) {}
+    try {
+      w.addEventListener('keydown', e => { inputs++; rec.device.keys = (rec.device.keys || 0) + 1; }, true);
+      w.addEventListener('pointerdown', e => { inputs++; const k = e.pointerType || 'mouse'; rec.device[k] = (rec.device[k] || 0) + 1; }, true);
+    } catch (e) {}
+    try { fr.focus(); w.focus(); } catch (e) {}
+  };
+  fr.src = 'games/' + id + '.html';
+  poll = setInterval(() => tick(id), 150);
+  gateTimer = setInterval(updateGate, 1000);
+  updateGate();
+}
+function tick(id) {
+  let w, g; try { w = $('frame').contentWindow; g = w && w.__game; } catch (e) { return; }
+  if (!g) return;
+  let st, over; try { st = g.getState(); over = g.isOver(); } catch (e) { return; }
+  if (!running && !over && st.t > 0) { running = true; runStart = performance.now(); inputs = 0; }
+  if (running && over) {
+    running = false;
+    const rec = gameRec(id);
+    rec.runs.push({ s: Math.round(g.score()), ms: Math.round(st.t), c: st.cause ? String(st.cause).slice(0, 120) : null, in: inputs, w: Math.round(performance.now() - runStart), at: Date.now() });
+    persist(); updateMeta(); updateGate();
+  }
+}
+function updateMeta() {
+  const rec = gameRec(S.order[S.idx]), r = rec.runs;
+  $('mRuns').textContent = r.length; $('mBest').textContent = r.length ? Math.max(...r.map(x => x.s)).toLocaleString() : '0';
+  $('mLast').textContent = r.length ? r[r.length - 1].s.toLocaleString() : '–';
+}
+function updateGate() {
+  const rec = gameRec(S.order[S.idx]), played = (performance.now() - playStart) / 1000;
+  const ok = rec.runs.length >= 2 || played >= 150;
+  $('toRate').disabled = !ok;
+  $('rateGate').textContent = ok ? (rec.runs.length >= 3 ? 'Rate it whenever you\'re ready.' : 'You can rate it now, but a 3rd run tells us more.') : 'Finish 2 runs (or play 2½ minutes) to rate it.';
+}
+$('toRate').addEventListener('click', () => openRate());
+
+// ---------- rating ----------
+let draft = {};
+function picks(el, key, values, labels) {
+  el.textContent = '';
+  values.forEach((v, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'pick'; b.textContent = labels ? labels[i] : String(v);
+    if (labels) b.style.padding = '10px 14px';
+    b.setAttribute('aria-pressed', draft[key] === v ? 'true' : 'false');
+    b.addEventListener('click', () => { draft[key] = v; picks(el, key, values, labels); checkRate(); });
+    el.append(b);
+  });
+}
+function openRate() {
+  clearInterval(poll); clearInterval(gateTimer);
+  const id = S.order[S.idx]; draft = Object.assign({}, gameRec(id).rating || {});
+  $('rName').textContent = 'Rate ' + G(id).name;
+  picks($('qFun'), 'fun', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  picks($('qFair'), 'fair', [1, 2, 3, 4, 5]);
+  picks($('qResp'), 'resp', [1, 2, 3, 4, 5]);
+  picks($('qSound'), 'sound', ['helped', 'neutral', 'annoying', 'off'], ['It made it better', 'Didn\'t notice', 'It was annoying', 'My sound was off']);
+  picks($('qAgain'), 'again', [true, false], ['Yes', 'No']);
+  $('comment').value = draft.comment || '';
+  checkRate(); show('rate');
+}
+function checkRate() { $('saveRate').disabled = !(draft.fun && draft.fair && draft.resp && draft.sound && draft.again != null); }
+$('backPlay').addEventListener('click', () => { startGame(); });
+$('saveRate').addEventListener('click', () => {
+  const id = S.order[S.idx];
+  gameRec(id).rating = { fun: draft.fun, fair: draft.fair, resp: draft.resp, sound: draft.sound, again: draft.again, comment: $('comment').value.trim().slice(0, 400), at: Date.now() };
+  S.idx++;
+  if (S.idx >= S.order.length) { S.done = true; persist(); finish(); }
+  else { persist(); startGame(); }
+});
+
+// ---------- done ----------
+function td(tr, t, th) { const c = document.createElement(th ? 'th' : 'td'); c.textContent = t; tr.append(c); }
+function finish() {
+  $('frame').src = 'about:blank'; clearInterval(poll); clearInterval(gateTimer);
+  const t = $('mine'); t.textContent = '';
+  const h = document.createElement('tr'); ['Game', 'Runs', 'Best', '1st run', 'Last run', 'Your fun'].forEach(x => td(h, x, true)); t.append(h);
+  for (const id of S.order) {
+    const r = gameRec(id), runs = r.runs.map(x => x.s), tr = document.createElement('tr');
+    [G(id).name, runs.length, runs.length ? Math.max(...runs).toLocaleString() : '–', runs.length ? runs[0].toLocaleString() : '–', runs.length ? runs[runs.length - 1].toLocaleString() : '–', r.rating ? r.rating.fun + '/10' : '–'].forEach(x => td(tr, String(x)));
+    t.append(tr);
+  }
+  show('done');
+}
+
+// ---------- owner results ----------
+const med = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+const f1 = x => x == null ? '–' : (Math.round(x * 10) / 10).toFixed(1);
+const big = x => x == null ? '–' : Math.round(x).toLocaleString();
+function renderResults(testers) {
+  $('rCount').textContent = testers.length + (testers.length === 1 ? ' tester' : ' testers');
+  const t = $('agg'); t.textContent = '';
+  const h = document.createElement('tr');
+  ['Game', 'Testers', 'Runs', 'Median run 1', 'Median run 3', 'Learning ×', 'Median best', 'Fun /10', 'Fair /5', 'Controls /5', 'Another go', 'Sound helped'].forEach(x => td(h, x, true)); t.append(h);
+  for (const g of GAMES) {
+    const recs = testers.map(x => x.games && x.games[g.id]).filter(Boolean);
+    const runs = recs.flatMap(r => r.runs || []);
+    const r1 = recs.filter(r => r.runs && r.runs[0]).map(r => r.runs[0].s), r3 = recs.filter(r => r.runs && r.runs[2]).map(r => r.runs[2].s);
+    const pairs = recs.filter(r => r.runs && r.runs[2] && r.runs[0]).map(r => (r.runs[2].s + 1) / (r.runs[0].s + 1));
+    const best = recs.filter(r => r.runs && r.runs.length).map(r => Math.max(...r.runs.map(x => x.s)));
+    const rt = recs.map(r => r.rating).filter(Boolean);
+    const tr = document.createElement('tr');
+    [g.name, recs.length, runs.length, big(med(r1)), big(med(r3)), pairs.length ? f1(med(pairs)) + '×' : '–', big(med(best)), f1(avg(rt.map(x => x.fun))), f1(avg(rt.map(x => x.fair))), f1(avg(rt.map(x => x.resp))),
+      rt.length ? Math.round(100 * rt.filter(x => x.again).length / rt.length) + '%' : '–',
+      rt.filter(x => x.sound !== 'off').length ? Math.round(100 * rt.filter(x => x.sound === 'helped').length / rt.filter(x => x.sound !== 'off').length) + '%' : '–'].forEach(x => td(tr, String(x)));
+    t.append(tr);
+  }
+  const heard = testers.filter(x => x.sound === 'heard').length;
+  $('rNote').textContent = testers.length ? heard + ' of ' + testers.length + ' testers passed the sound check. ' + testers.filter(x => x.done).length + ' finished all five games.' : 'No testers yet. Share this page with people at Contributor level so their runs can be saved.';
+}
+
+// ---------- boot ----------
+S = loadLocal() || fresh();
+note('Checking whether your answers can be saved…');
+function resumeView() { if (S.done) finish(); else { show('intro'); if (S.idx >= 0 && S.sound) { $('start').disabled = false; $('start').textContent = 'Continue where you left off'; } } }
+resumeView();
+renderSteps();
+
+(async () => {
+  const c = window.claude;
+  if (!c || !c.use) { note('Your answers are kept in this browser only.'); return; }
+  try { [db, user] = await Promise.all([c.use('db'), c.use('user')]); } catch (e) { db = null; }
+  if (!db || !user) { note('Your answers are kept in this browser only. Sign in to save them to the study.'); return; }
+  uid = await user.id();
+  if (!uid) { note('Your answers are kept in this browser only. Sign in to save them to the study.'); return; }
+  docRef = db.doc('testers/' + uid);
+  try {
+    const snap = await docRef.get();
+    if (snap.exists) { const remote = snap.data(); if (remote && remote.v === 1 && (remote.updatedAt || 0) > (S.updatedAt || 0) && $('play').hidden && $('rate').hidden) { S = JSON.parse(JSON.stringify(remote)); saveLocal(); resumeView(); } }
+    canSave = true; note('Your answers are saved to the study as you go.');
+  } catch (e) { note('Your answers are kept in this browser only.', true); }
+  if (await user.isOwner() || await user.canEdit()) {
+    $('results').hidden = false; renderResults([]);
+    const timer = setTimeout(() => { $('rNote').textContent = 'Results can\'t be reached yet. They\'ll appear here when the connection comes back.'; }, 10000);
+    db.collection('testers').onSnapshot(s => { if (!s.metadata.fromCache) clearTimeout(timer); renderResults(s.docs.map(d => d.data()).filter(Boolean)); }, () => { clearTimeout(timer); $('rNote').textContent = 'Results couldn\'t load. Reload the page to try again.'; });
+  }
+})();
+})();
+</script>
