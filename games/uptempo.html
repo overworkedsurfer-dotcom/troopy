@@ -102,7 +102,7 @@ function newFX() {
     overT: 0, gauge: 0, floorPush: 0, newBest: false, hpDisp: 100, jolt: 0, gearTxt: null, surgeTxt: null, surgeWarn: 0, floorTxt: null };
 }
 function reset(seed) {
-  S = newState(seed); FX = newFX(); carry = 0; audK = -1; if (AU) AU.ok = false;
+  S = newState(seed); FX = newFX(); carry = 0; audK = -1;
   S.prog = (rnd() * PROGS.length) | 0; S.root = ((rnd() * 8) | 0) - 3; S.style = (rnd() * 4) | 0;   // every seed is a different song
   S.title = ADJ[(rnd() * ADJ.length) | 0] + ' ' + NOUN[(rnd() * NOUN.length) | 0];
   planSurge(); while (S.genBar * 4 < VB + 2) genBar();
@@ -173,9 +173,14 @@ function audioInit() {
   try {
     if (!AC) {
       AC = new (window.AudioContext || window.webkitAudioContext)();
-      const m = AC.createGain(); m.gain.value = 0.78;
-      const comp = AC.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.2;
-      m.connect(comp); comp.connect(AC.destination);
+      // master: gain -> tanh soft-clipper (WaveShaper, no oversampling = zero latency). A DynamicsCompressor would add
+      // ~6 ms of look-ahead to every kick and push the groove off the beat.
+      const m = AC.createGain(); m.gain.value = 0.72;
+      const pre = AC.createGain(); pre.gain.value = 0.5;
+      const sh = AC.createWaveShaper(), cv = new Float32Array(2049);
+      for (let i = 0; i < cv.length; i++) { const x = (i / (cv.length - 1)) * 2 - 1; cv[i] = Math.tanh(2 * x); }
+      sh.curve = cv; sh.oversample = 'none';
+      m.connect(pre); pre.connect(sh); sh.connect(AC.destination);
       const musF = AC.createBiquadFilter(); musF.type = 'lowpass'; musF.frequency.value = 16000; musF.Q.value = 0.8;
       const mus = AC.createGain(); mus.connect(musF); musF.connect(m);
       const lead = AC.createGain(); lead.connect(m);
@@ -185,25 +190,40 @@ function audioInit() {
       lead.connect(dly); dly.connect(dF); dF.connect(fb); fb.connect(dly); dF.connect(wet); wet.connect(m);
       const nb = AC.createBuffer(1, AC.sampleRate, AC.sampleRate), d = nb.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-      AU = { m, musF, mus, lead, dly, noise: nb, aA: 0, aS: 0, ok: false, base: 16000 };
+      AU = { m, musF, mus, lead, dly, noise: nb, off: null, base: 16000 };
     }
     if (AC.state === 'suspended') AC.resume();
   } catch (e) { AC = null; AU = null; }
 }
 function live() { return !QUIET && AC && AU && AC.state === 'running'; }
-// The groove is scheduled ~80 ms AHEAD of the sim (and compensated for output latency) so each kick
-// is heard exactly when its beat line crosses the hit line. The cursor is audio-only, outside S.
-let audK = -1, AL = 0, AK = 0;
+// Beat-sync. Every 16th of the groove is scheduled AHEAD of the sim so that it is HEARD exactly when the sim crosses it:
+//   sim -> wall:  the real-time loop feeds exact rAF deltas into S.t + carry, so sim time X is reached at
+//                 wall = frameNow + (X - (S.t + carry))   (recomputed every frame: no anchor, no accumulated drift)
+//   wall -> heard context time: getOutputTimestamp() pairs the context time reaching the speaker with performance.now();
+//                 its offset is slewed 5% per step toward each new reading (tracks clock skew, never jumps).
+// Fallback when getOutputTimestamp is missing: currentTime minus (baseLatency + outputLatency). All of this is audio-only,
+// outside S; the sim never reads it.
+let audK = -1, AL = 0, AK = 0, frameNow = 0;
+function heardOffset() {                      // (context seconds heard) - (wall seconds), smoothed
+  let est = null;
+  try { if (AC.getOutputTimestamp) { const o = AC.getOutputTimestamp(); if (o && o.contextTime > 0 && o.performanceTime > 0) est = o.contextTime - o.performanceTime / 1000; } } catch (e) {}
+  if (est == null) est = AC.currentTime - (AC.baseLatency || 0) - (AC.outputLatency || 0) - performance.now() / 1000;
+  if (AU.off == null || Math.abs(est - AU.off) > 0.08) AU.off = est; else AU.off += (est - AU.off) * 0.05;
+  return AU.off;
+}
 function schedAudio(mpb) {
   if (!live()) { audK = -1; return; }
   try {
-    const now = AC.currentTime, outLat = clamp(AC.outputLatency || AC.baseLatency || 0, 0, 0.05);
-    if (!AU.ok || Math.abs(AU.aA + (S.t - AU.aS) / 1000 - now) > 0.045) { AU.aA = now; AU.aS = S.t; AU.ok = true; }
+    const now = AC.currentTime, off = heardOffset();
+    const renderAhead = clamp(now - (off + performance.now() / 1000), 0, 0.5);        // render clock ahead of the speaker
+    const leadMs = 1000 * clamp(renderAhead + 0.04, 0.06, 0.4);
+    const simNow = S.t - STEP + carry;                                                  // sim clock at frameNow (S.t already advanced this step)
     if (audK < 0) audK = Math.floor(S.beat * 4);
-    const kMax = Math.floor((S.beat + 80 / mpb) * 4);
+    const kMax = Math.floor((S.beat + leadMs / mpb) * 4);
     for (let k = audK + 1; k <= kMax; k++) {
       const simMs = S.t + (k / 4 - S.beat) * mpb;
-      playSix(k, Math.max(now, AU.aA + (simMs - AU.aS) / 1000 - outLat), mpb / 1000);
+      const at = manual ? now + Math.max(0, simMs - S.t) / 1000 : off + (frameNow + (simMs - simNow)) / 1000;
+      playSix(k, Math.max(now, at), mpb / 1000);
     }
     if (kMax > audK) audK = kMax;
   } catch (e) { aerr(e); }
@@ -891,7 +911,7 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 // ---------- main loop ----------
 let last = performance.now();
 function frame(now) {
-  const dt = Math.min(100, now - last); last = now;
+  const dt = Math.min(100, now - last); last = now; frameNow = now;
   if (!manual && !waiting) { carry += dt; while (carry >= STEP - 1e-6) { step(); carry -= STEP; } }
   render();
   requestAnimationFrame(frame);

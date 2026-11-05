@@ -298,6 +298,7 @@ function genFloor() {
   for (let k = 0; k < nE; k++) { const i = take(ip); if (i >= 0) S.items.push({ x: i % COLS, y: (i / COLS) | 0, k: 'ember' }); }
   if (rnd() < 0.45) { const i = take(ip); if (i >= 0) S.items.push({ x: i % COLS, y: (i / COLS) | 0, k: 'oil' }); }
   S.seen = new Array(NT).fill(0); S.vis = new Array(NT).fill(0);
+  S.seen[stx + sty * COLS] = 1;   // a cold draft: you always know where the stairs are, the question is when to take them
   S.gloom = 0; S.ft = 0; S.flareT = 0; S.flareKills = 0; S.spawnT = 1; S.gnawT = Math.max(2, 9 - Math.floor(d / 2));
   S.doomAt = Math.max(16, 76 - 6 * d) + (boss ? 14 : 0);
   S.floorSeed = (S.rng >>> 0) % 1000003;
@@ -340,8 +341,8 @@ function wakeCheck() {
       e.awake = true; e.ready = false;
       if (!QUIET) {
         ftext(tX(e.x), tY(e.y) - 22, '!', C.red, 20); SND.wake();
-        if (e.type === 'husk') coach('husk', 'Husks are slow: strike them while they rest (z), step away when their eyes burn.');
-        if (e.type === 'warden') { coach('warden', 'The Warden: move, move, CHARGE, SLAM. Hit it while it charges, then step out of the red.', C.red); banner('THE WARDEN', 'it guards the sealed stairs', C.red); }
+        if (e.type === 'husk') coach('husk', 'Husks are slow: strike while they rest (\u2026) for a CLEAN HIT, step away when their eyes burn red.');
+        if (e.type === 'warden') { coach('warden', 'The Warden: move, move, CHARGE, SLAM. Hit it while it charges, then step out of the red. Fire burns it double.', C.red); banner('THE WARDEN', 'it guards the sealed stairs', C.red); }
       }
     }
   }
@@ -390,7 +391,9 @@ function playerAct(a) {
   const e = inB(nx, ny) ? enemyAt(nx, ny) : null;
   if (e) {
     S.act = { k: 'bump', dx: d[0], dy: d[1], t0: S.t };
-    dmgEnemy(e, bumpDmg(), S.relic.brand > 0, 'bump');
+    const clean = (e.type === 'husk' && e.awake && !e.ready) || (e.type === 'warden' && e.awake && wardenNext(e) === 'charge');
+    if (clean && !QUIET) ftext(tX(e.x), tY(e.y) - 34, 'CLEAN HIT +1', '#ffe27a', 12);
+    dmgEnemy(e, bumpDmg() + (clean ? 1 : 0), S.relic.brand > 0, 'bump');
     S.freeze = Math.max(S.freeze, 45); S.lock = 110;
   } else if (!walk(nx, ny)) {
     S.act = { k: 'wait', dx: d[0], dy: d[1], t0: S.t }; S.lock = 80;
@@ -499,7 +502,7 @@ function doFlare() {
   S.act = { k: 'flare', t0: S.t };
   if (!QUIET) {
     const x = tX(S.px), y = tY(S.py);
-    FX.bloom = 1; flash(0.55, '#fff0c8'); shake(9); ring(x, y, '#fff2c0', S.flareR * CELL, 7, 0.12); ring(x, y, '#ff8a2a', S.flareR * CELL * 0.7, 4, 0.18);
+    FX.bloom = 1; flash(0.32, '#ffc878'); shake(9); ring(x, y, '#fff2c0', S.flareR * CELL, 7, 0.12); ring(x, y, '#ff8a2a', S.flareR * CELL * 0.7, 4, 0.18);
     burst(x, y, 70, '#ffcf6a', 6, { g: -0.03 }); SND.flare();
     ftext(x, y - 30, free ? 'FLARE (oil)' : 'FLARE −' + flareCost(), '#fff2c0', 16);
   }
@@ -635,7 +638,8 @@ function wardenAct(e, dist) {
   }
 }
 function wardenRage(e) {
-  e.ph2 = true; e.cyc = 0; e.mark = null;
+  const nx = wardenNext(e);                     // keep the telegraphed next action: no surprise strike on the phase change
+  e.ph2 = true; e.cyc = nx === 'move' ? 0 : nx === 'charge' ? 1 : 2;
   for (let k = 0; k < 2; k++) spawnShade(e.x, e.y, 1.5, 4.5);
   if (!QUIET) { banner('THE WARDEN RAGES', 'faster pattern · cross-shaped slam', C.red); flash(0.4, '#ff3020'); shake(12); SND.doom(); }
 }
@@ -690,7 +694,8 @@ function doomTick() {
   if (--S.gnawT <= 0) {
     S.gnawT = Math.max(2, 9 - Math.floor(d / 2) - Math.floor(k / 12));
     if (rawLight() > 1) { S.gloom++; if (!QUIET) { ftext(tX(S.px), tY(S.py) - 40, 'the dark presses in', C.violet, 13, { dec: 0.012 }); SND.gloom(); } }
-    else hurtPlayer(1 + Math.floor(k / 40), null, 'swallowed by the rising dark');
+    else if (k >= 20) hurtPlayer(1 + Math.floor(k / 40), null, 'swallowed by the rising dark, ' + k + ' turns after it rose,');
+    else if (!QUIET) ftext(tX(S.px), tY(S.py) - 40, 'the dark circles you', C.violet, 12, { dec: 0.012 });
   }
 }
 function hurtPlayer(dmg, e, verb) {
@@ -840,12 +845,12 @@ function drawTile(g, x, y) {
     for (let dy = -1; dy <= 1 && !near; dy++) for (let dx = -1; dx <= 1; dx++) if (!isWallT(x + dx, y + dy)) { near = true; break; }
     if (!near) { g.fillStyle = '#0c0807'; g.fillRect(X, Y, CELL, CELL); return; }
     const j = 0.88 + h * 0.24;
-    g.fillStyle = rgb(92 * j, 70 * j, 56 * j); g.fillRect(X, Y, CELL, CELL);
+    g.fillStyle = rgb(70 * j, 52 * j, 42 * j); g.fillRect(X, Y, CELL, CELL);
     g.fillStyle = 'rgba(255,220,180,0.06)'; g.fillRect(X, Y, CELL, 3);
     g.strokeStyle = 'rgba(20,12,8,0.45)'; g.lineWidth = 1;
     g.beginPath(); g.moveTo(X, Y + 10.5); g.lineTo(X + CELL, Y + 10.5); g.moveTo(X + (h < 0.5 ? 9.5 : 19.5), Y); g.lineTo(X + (h < 0.5 ? 9.5 : 19.5), Y + 10.5); g.stroke();
     if (!isWallT(x, y + 1)) {          // front face toward the floor below
-      g.fillStyle = rgb(58 * j, 42 * j, 33 * j); g.fillRect(X, Y + 16, CELL, CELL - 16);
+      g.fillStyle = rgb(44 * j, 31 * j, 25 * j); g.fillRect(X, Y + 16, CELL, CELL - 16);
       g.fillStyle = 'rgba(255,200,150,0.18)'; g.fillRect(X, Y + 16, CELL, 1.5);
       g.strokeStyle = 'rgba(15,9,6,0.6)'; g.beginPath(); g.moveTo(X, Y + 23.5); g.lineTo(X + CELL, Y + 23.5);
       g.moveTo(X + (h2 < 0.5 ? 7.5 : 14.5), Y + 16); g.lineTo(X + (h2 < 0.5 ? 7.5 : 14.5), Y + 23.5); g.moveTo(X + (h2 < 0.5 ? 21.5 : 26.5), Y + 23.5); g.lineTo(X + (h2 < 0.5 ? 21.5 : 26.5), Y + CELL); g.stroke();
@@ -853,8 +858,8 @@ function drawTile(g, x, y) {
     return;
   }
   const j = 0.86 + h * 0.2;
-  g.fillStyle = rgb(122 * j, 104 * j, 88 * j); g.fillRect(X, Y, CELL, CELL);
-  g.fillStyle = rgb(110 * j, 93 * j, 78 * j);
+  g.fillStyle = rgb(138 * j, 118 * j, 100 * j); g.fillRect(X, Y, CELL, CELL);
+  g.fillStyle = rgb(124 * j, 106 * j, 89 * j);
   if (h2 < 0.5) { g.fillRect(X + 1, Y + 1, 13, 13); g.fillRect(X + 16, Y + 16, 13, 13); } else { g.fillRect(X + 16, Y + 1, 13, 13); g.fillRect(X + 1, Y + 16, 13, 13); }
   g.strokeStyle = 'rgba(30,20,14,0.35)'; g.lineWidth = 1; g.strokeRect(X + 0.5, Y + 0.5, CELL - 1, CELL - 1);
   if (h < 0.18) { g.strokeStyle = 'rgba(30,20,14,0.45)'; g.beginPath(); g.moveTo(X + 6 + h * 40, Y + 8); g.lineTo(X + 12 + h * 30, Y + 15); g.lineTo(X + 10 + h * 50, Y + 22); g.stroke(); }
@@ -883,9 +888,9 @@ function buildLight(ppx, ppy, R, flareA, fade) {
     let r = 0, g = 0, b = 0;
     if (S.vis[i]) {
       const fx = (sx + 0.5) / 2 - 0.5, fy = (sy + 0.5) / 2 - 0.5;
-      let I = 1 - Math.hypot(fx - ppx, fy - ppy) / (R + 0.9); I = I < 0 ? 0 : Math.pow(I, 0.75);
+      let I = 1 - Math.hypot(fx - ppx, fy - ppy) / (R + 0.9); I = I < 0 ? 0 : Math.pow(I, 1.05);
       for (const q of lit) { const J = 1 - Math.hypot(fx - q.x, fy - q.y) / 3.4; if (J > I) I = J * 0.95; }
-      const v = Math.min(1.15, 0.22 + I) * fade;
+      const v = Math.min(1.15, 0.2 + I * 1.05) * fade;
       r = 255 * Math.min(1, 0.14 + v * 0.95); g = 255 * Math.min(1, 0.07 + 0.82 * Math.pow(v, 1.25)); b = 255 * Math.min(1, 0.05 + 0.62 * Math.pow(v, 2.2));
       if (flareA > 0) { r += (255 - r) * flareA; g += (250 - g) * flareA * 0.9; b += (225 - b) * flareA * 0.7; }
       if (r < mr) r = mr; if (g < mg) g = mg; if (b < mb) b = mb;
@@ -905,10 +910,11 @@ function drawItems(t) {
 }
 function drawPlayer(x, y, t) {
   const f = clamp01(FX.hpDisp / Math.max(1, S.maxHp)), dim = isDim(), wob = 1 + Math.sin(t * 0.023) * 0.06 + Math.sin(t * 0.051) * 0.04;
-  const base = y + 9, h = (9 + 10 * f) * wob, w = 6 + 4 * f, sway = Math.sin(t * 0.017) * 2;
+  const base = y + 10, h = (11 + 12 * f) * wob, w = 7 + 5 * f, sway = Math.sin(t * 0.017) * 2;
+  cx.fillStyle = 'rgba(20,8,2,0.55)'; cx.beginPath(); cx.ellipse(x, base + 4.5, 8, 2.5, 0, 0, 6.283); cx.fill();
   const hurtA = clamp01(1 - (S.t - S.hurtT) / 260);
-  cx.fillStyle = '#e8d6b8'; rr(cx, x - 5.5, base - 2, 11, 7, 2.5); cx.fill();
-  cx.fillStyle = '#c4ab88'; cx.fillRect(x - 5.5, base + 2.5, 11, 2.5);
+  cx.fillStyle = '#efe0c4'; rr(cx, x - 6.5, base - 2, 13, 7, 2.5); cx.fill();
+  cx.fillStyle = '#c4ab88'; cx.fillRect(x - 6.5, base + 2.5, 13, 2.5);
   const gr = cx.createLinearGradient(0, base - h, 0, base);
   gr.addColorStop(0, hurtA > 0.3 ? '#ffffff' : '#fff4b8'); gr.addColorStop(0.5, '#ffb347'); gr.addColorStop(1, dim ? '#4a74ff' : '#ff5a1f');
   cx.fillStyle = gr;
@@ -918,7 +924,7 @@ function drawPlayer(x, y, t) {
   cx.fillStyle = 'rgba(255,250,220,0.9)'; cx.beginPath(); cx.moveTo(x + sway * 0.6, base - h * 0.62);
   cx.bezierCurveTo(x + w * 0.45, base - h * 0.35, x + w * 0.5, base - 2, x, base - 1.5);
   cx.bezierCurveTo(x - w * 0.5, base - 2, x - w * 0.45, base - h * 0.35, x + sway * 0.6, base - h * 0.62); cx.fill();
-  cx.fillStyle = '#4a1a06'; cx.beginPath(); cx.arc(x - 2.4, base - 5, 1.25, 0, 6.283); cx.arc(x + 2.4, base - 5, 1.25, 0, 6.283); cx.fill();
+  cx.fillStyle = '#4a1a06'; cx.beginPath(); cx.arc(x - 2.8, base - 5.5, 1.5, 0, 6.283); cx.arc(x + 2.8, base - 5.5, 1.5, 0, 6.283); cx.fill();
 }
 function drawMoth(x, y, t, e, hitA) {
   const flap = 0.45 + 0.55 * Math.abs(Math.sin(t * (e.aware ? 0.045 : 0.02) + e.id * 1.7));
@@ -939,9 +945,11 @@ function drawMoth(x, y, t, e, hitA) {
 function drawHusk(x, y, t, e, hitA) {
   const br = Math.sin(t * 0.004 + e.id) * 0.8;
   cx.save(); cx.translate(x, y + 2);
-  cx.fillStyle = hitA > 0.4 ? '#ffffff' : '#7b7366';
-  cx.beginPath(); cx.moveTo(-11, 10); cx.quadraticCurveTo(-13, -4 - br, -4, -10 - br); cx.quadraticCurveTo(6, -13 - br, 11, -2); cx.quadraticCurveTo(13, 6, 11, 10); cx.closePath(); cx.fill();
-  cx.fillStyle = 'rgba(30,24,20,0.45)'; cx.beginPath(); cx.moveTo(-11, 10); cx.quadraticCurveTo(0, 4, 11, 10); cx.closePath(); cx.fill();
+  cx.fillStyle = hitA > 0.4 ? '#ffffff' : '#3d3832';
+  cx.beginPath(); cx.moveTo(-12, 11); cx.quadraticCurveTo(-14, -4 - br, -4, -11 - br); cx.quadraticCurveTo(7, -14 - br, 12, -2); cx.quadraticCurveTo(14, 6, 12, 11); cx.closePath(); cx.fill();
+  cx.strokeStyle = '#120d0a'; cx.lineWidth = 2; cx.stroke();
+  cx.strokeStyle = 'rgba(220,205,180,0.55)'; cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(-11, -1); cx.quadraticCurveTo(-11, -8 - br, -4, -10 - br); cx.quadraticCurveTo(5, -12 - br, 9, -4); cx.stroke();
+  cx.fillStyle = 'rgba(10,8,6,0.5)'; cx.beginPath(); cx.moveTo(-12, 11); cx.quadraticCurveTo(0, 5, 12, 11); cx.closePath(); cx.fill();
   cx.strokeStyle = e.awake ? 'rgba(255,120,40,0.75)' : 'rgba(255,120,40,0.3)'; cx.lineWidth = 1.2;
   cx.beginPath(); cx.moveTo(-5, -6); cx.lineTo(-2, -1); cx.lineTo(-4, 4); cx.moveTo(5, -4); cx.lineTo(3, 2); cx.stroke();
   if (!e.awake) { cx.strokeStyle = '#2a2420'; cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(-6, -3); cx.lineTo(-2, -3); cx.moveTo(2, -3); cx.lineTo(6, -3); cx.stroke(); }
@@ -961,9 +969,11 @@ function drawShade(x, y, t, e, hitA, alpha) {
 }
 function drawWarden(x, y, t, e, hitA) {
   const nx = wardenNext(e), chg = nx === 'slam';
-  cx.save(); cx.translate(x, y); cx.scale(1.3, 1.3);
-  cx.fillStyle = hitA > 0.4 ? '#ffffff' : '#3e3b47';
+  cx.save(); cx.translate(x, y - 2); cx.scale(1.45, 1.45);
+  cx.fillStyle = hitA > 0.4 ? '#ffffff' : '#5a5666';
   cx.beginPath(); cx.moveTo(-11, 11); cx.lineTo(-12, -4); cx.quadraticCurveTo(-11, -12, 0, -13); cx.quadraticCurveTo(11, -12, 12, -4); cx.lineTo(11, 11); cx.closePath(); cx.fill();
+  cx.strokeStyle = '#120d10'; cx.lineWidth = 1.6; cx.stroke();
+  cx.strokeStyle = 'rgba(230,220,255,0.45)'; cx.lineWidth = 1.2; cx.beginPath(); cx.moveTo(-10, -5); cx.quadraticCurveTo(-9, -11, 0, -12); cx.stroke();
   cx.fillStyle = '#5c5868'; cx.beginPath(); cx.moveTo(-12, -4); cx.lineTo(-16, -15); cx.lineTo(-7, -10); cx.closePath(); cx.moveTo(12, -4); cx.lineTo(16, -15); cx.lineTo(7, -10); cx.closePath(); cx.fill();
   cx.fillStyle = '#1a1820'; cx.fillRect(-9, -4, 18, 5);
   const glow = chg ? 0.75 + 0.25 * Math.sin(t * 0.03) : 0.6;
@@ -982,6 +992,20 @@ function drawEnemies(t) {
     else if (e.type === 'shade') drawShade(x, y, t, e, hitA, 1);
     else drawWarden(x, y, t, e, hitA);
   }
+}
+function drawEyes(t) {     // eyes glow in the dark: a silhouette at the edge of your light still reads
+  cx.save(); cx.globalCompositeOperation = 'lighter';
+  for (const e of S.en) {
+    if (e.dead || !S.vis[e.x + e.y * COLS]) continue;
+    const [ex, ey] = enemyPos(e), x = MX + (ex + 0.5) * CELL, y = MY + (ey + 0.5) * CELL;
+    let col = null, r = 1.6, dx = 4, yy = y, glowR = 7;
+    if (e.type === 'husk') { if (!e.awake) continue; col = e.ready ? '255,70,40' : '170,70,40'; r = e.ready ? 2.2 : 1.5; yy = y - 1; }
+    else if (e.type === 'moth') { if (!e.aware) continue; col = '255,150,60'; r = 1.1; dx = 1.2; yy = y - 5 + Math.sin(t * 0.006 + e.id) * 1.5; glowR = 5; }
+    else if (e.type === 'shade') { col = '143,233,255'; r = 1.7; dx = 3.5; yy = y - 4; }
+    else { const chg = wardenNext(e) === 'slam'; col = chg ? '255,210,60' : '255,70,40'; r = 2.2; dx = 6; yy = y - 2.5; glowR = chg ? 16 : 10; }
+    for (const s of [-1, 1]) { glow(x + s * dx, yy, glowR, col, 0.55); cx.fillStyle = 'rgb(' + col + ')'; cx.beginPath(); cx.arc(x + s * dx, yy, r, 0, 6.283); cx.fill(); }
+  }
+  cx.restore();
 }
 function chevron(x, y, dx, dy, col) {
   cx.save(); cx.translate(x, y); cx.rotate(Math.atan2(dy, dx));
@@ -1065,7 +1089,7 @@ function drawWorld(t) {
   const [ppx, ppy] = playerPos();
   const ov = S.over ? clamp01(FX.overT / 0.9) : 0;
   const R = S.over ? FX.deathR * (1 - ov * ov) * (1 + (Math.random() - 0.5) * 0.3 * (1 - ov)) : Math.max(0.6, FX.dispR + FX.fl);
-  const flareA = Math.min(0.85, FX.bloom * 0.7 + (S.flareT > 0 && !S.over ? 0.12 : 0));
+  const flareA = Math.min(0.6, FX.bloom * 0.55 + (S.flareT > 0 && !S.over ? 0.08 : 0));
   buildLight(ppx, ppy, R, flareA, 1 - 0.72 * ov);
   cx.globalCompositeOperation = 'multiply';
   cx.imageSmoothingEnabled = true;
@@ -1074,7 +1098,7 @@ function drawWorld(t) {
   const px = MX + (ppx + 0.5) * CELL, py = MY + (ppy + 0.5) * CELL;
   glow(px, py, Math.max(12, R * CELL * 0.9), '255,150,60', (S.flareT > 0 ? 0.26 : 0.16) * (1 - ov));
   glow(px, py - 4, 22, '255,200,120', 0.35 * (1 - ov));
-  if (FX.bloom > 0.02) glow(px, py, 260, '255,230,170', FX.bloom * 0.45);
+  if (FX.bloom > 0.02) glow(px, py, 200, '255,190,110', FX.bloom * 0.22);
   for (const b of S.braz) if (b.lit && S.seen[b.x + b.y * COLS]) glow(tX(b.x), tY(b.y) - 4, 70 + Math.sin(t * 0.02 + b.x) * 4, '255,140,50', 0.22);
   for (const it of S.items) if (it.k === 'ember' && S.vis[it.x + it.y * COLS]) glow(tX(it.x), tY(it.y), 16, '255,150,60', 0.4);
   const st = S.stairs; if (S.seen[st[0] + st[1] * COLS]) glow(tX(st[0]), tY(st[1]), 26, S.sealed ? '255,60,40' : '120,170,255', 0.22 + 0.08 * Math.sin(t * 0.004));
@@ -1082,6 +1106,7 @@ function drawWorld(t) {
   cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over';
   for (const p of FX.parts) if (!p.add) { cx.globalAlpha = clamp01(p.life); cx.fillStyle = p.col; cx.fillRect(p.x - p.sz / 2, p.y - p.sz / 2, p.sz, p.sz); }
   cx.globalAlpha = 1;
+  drawEyes(t);
   // lit braziers burn above the darkness
   for (const b of S.braz) if (b.lit && S.seen[b.x + b.y * COLS]) {
     const x = tX(b.x), y = tY(b.y) + 1;
@@ -1094,15 +1119,15 @@ function drawWorld(t) {
     let pd = null; for (const e of S.en) if (!e.dead && e.type !== 'shade' && S.vis[e.x + e.y * COLS]) { pd = bfs(S.px, S.py); break; }
     drawEnemyUI(t, pd);
   }
-  if (!S.over || ov < 0.6) {
+  for (const r of FX.rings) { cx.globalAlpha = clamp01(r.life); cx.strokeStyle = r.col; cx.lineWidth = r.w * r.life + 0.5; cx.beginPath(); cx.arc(r.x, r.y, Math.max(1, r.r), 0, 6.283); cx.stroke(); }
+  cx.globalAlpha = 1;
+  for (const tt of FX.texts) { cx.globalAlpha = clamp01(tt.life * 1.6); cx.font = F(Math.round(tt.sz * (1 + tt.pop * 0.35)), '900'); const hw = cx.measureText(tt.txt).width / 2 + 4; txt(tt.txt, Math.max(MX + hw, Math.min(MX + MAPW - hw, tt.x)), Math.max(MY + 12, tt.y), F(Math.round(tt.sz * (1 + tt.pop * 0.35)), '900'), tt.col, 'center', 3.5); }
+  cx.globalAlpha = 1;
+  if (!S.over || ov < 0.6) {      // your flame is drawn last: numbers never hide where you are
     cx.globalAlpha = S.over ? 1 - ov / 0.6 : 1;
     drawPlayer(px, py, t);
     cx.globalAlpha = 1;
   }
-  for (const r of FX.rings) { cx.globalAlpha = clamp01(r.life); cx.strokeStyle = r.col; cx.lineWidth = r.w * r.life + 0.5; cx.beginPath(); cx.arc(r.x, r.y, Math.max(1, r.r), 0, 6.283); cx.stroke(); }
-  cx.globalAlpha = 1;
-  for (const tt of FX.texts) { cx.globalAlpha = clamp01(tt.life * 1.6); txt(tt.txt, tt.x, tt.y, F(Math.round(tt.sz * (1 + tt.pop * 0.35)), '900'), tt.col, 'center', 3.5); }
-  cx.globalAlpha = 1;
   cx.restore();
   // vignette + hurt pulse over the map
   const vg = cx.createRadialGradient(W / 2, MY + MAPH / 2, MAPH * 0.3, W / 2, MY + MAPH / 2, MAPH * 0.72);
@@ -1123,21 +1148,30 @@ function drawHUD(t) {
   cx.fillStyle = hg; cx.fillRect(0, 0, W, MY - 2);
   const L = S.over ? 0 : lightR(), dim = !S.over && isDim();
   // row 1
-  txt('DEPTH ' + S.depth, 14, 26, F(16, '900'), S.depth % 4 === 0 ? '#ff8a6a' : C.amber, 'left');
-  txt(String(Math.round(FX.disp)), W / 2, 26, F(30, '900'), C.txt, 'center', 4);
-  txt('BEST ' + Math.max(best, S.score), W - 14, 20, F(12, '800'), C.dim, 'right');
-  txt('SCORE', W - 14, 35, F(9, '800'), C.faint, 'right');
-  // row 2: light pips
+  txt('DEPTH ' + S.depth, 14, 22, F(16, '900'), S.depth % 4 === 0 ? '#ff8a6a' : C.amber, 'left');
+  txt(String(Math.round(FX.disp)), W / 2, 22, F(28, '900'), C.txt, 'center', 4);
+  txt('BEST ' + Math.max(best, S.score), W - 14, 17, F(12, '800'), C.dim, 'right');
+  txt('SCORE', W / 2, 41, F(8, '800'), C.faint, 'center');
+  // row 2: light = flame pips (2 pips = 1 tile of light), minus what depth and the rising dark take
   const lc = dim ? '#7f9cff' : S.flareT > 0 ? '#fff0c0' : C.amber;
-  txt('LIGHT', 14, 58, F(10, '800'), C.dim, 'left');
-  txt(String(L), 54, 58, F(18, '900'), lc, 'left', 3);
-  const n = S.maxHp, pw = Math.min(17, 232 / n), x0 = 84;
-  for (let k = 0; k < n; k++) { const on = k < S.hp; flarePip(x0 + pw * (k + 0.5), 58, pw * 0.48, on, on ? (dim ? '#6f8dff' : k < S.hp - 0.5 ? '#ffb347' : '#ffb347') : null); }
-  if (S.hurtT > S.t - 400 && !S.over) { cx.globalAlpha = clamp01(1 - (S.t - S.hurtT) / 400); cx.fillStyle = '#ff4a3a'; cx.fillRect(x0, 68, pw * n, 2); cx.globalAlpha = 1; }
-  // embers
-  cx.fillStyle = '#ff8a2a'; diamond(W - 98, 58, 5, 7); cx.fillStyle = '#ffe2a0'; diamond(W - 98, 57.5, 2, 3);
-  txt(String(S.embers), W - 88, 58, F(15, '900'), C.txt, 'left');
-  txt('×' + fmtMult(S.emberMult * (S.relic.purse && dim ? Math.pow(2, S.relic.purse) : 1) * Math.pow(1.5, S.relic.wick)), W - 14, 58, F(13, '900'), S.emberMult > 1 || (S.relic.purse && dim) ? C.gold : C.dim, 'right');
+  txt('LIGHT', 14, 57, F(10, '800'), C.dim, 'left');
+  txt(String(L), 52, 57, F(18, '900'), lc, 'left', 3);
+  cx.font = F(18, '900'); const lw = cx.measureText(String(L)).width;
+  txt(L === 1 ? 'tile' : 'tiles', 55 + lw, 59, F(9, '800'), C.faint, 'left');
+  const n = S.maxHp, pw = Math.min(14, 190 / n), x0 = 108;
+  for (let k = 0; k < n; k++) { const on = k < S.hp, px = x0 + pw * (k + 0.5) + Math.floor(k / 2) * 3; flarePip(px, 57, pw * 0.5, on, on ? (dim ? '#6f8dff' : '#ffb347') : null); }
+  const pend = x0 + pw * n + Math.floor((n - 1) / 2) * 3;
+  if (S.hurtT > S.t - 400 && !S.over) { cx.globalAlpha = clamp01(1 - (S.t - S.hurtT) / 400); cx.fillStyle = '#ff4a3a'; cx.fillRect(x0, 66, pend - x0, 2); cx.globalAlpha = 1; }
+  const pen = [];
+  if (amb(S.depth) < 0) pen.push('depth \u2212' + (-amb(S.depth)));
+  if (S.gloom > 0) pen.push('dark \u2212' + S.gloom);
+  txt(pen.length && !S.over ? 'dimmed by ' + pen.join(' \u00b7 ') : '2 flames = 1 tile of light', x0, 74, F(9, '800'), pen.length ? '#b9a2ff' : C.faint, 'left');
+  // embers: count and what the next one is worth (the depth multiplier, made visible)
+  const ev = Math.max(1, Math.round(emberValue() * Math.pow(1.5, S.relic.wick)));
+  txt(String(S.embers), W - 14, 57, F(16, '900'), C.txt, 'right');
+  cx.font = F(16, '900'); const ew = cx.measureText(String(S.embers)).width;
+  cx.fillStyle = '#ff8a2a'; diamond(W - 24 - ew, 57, 5, 7); cx.fillStyle = '#ffe2a0'; diamond(W - 24 - ew, 56.5, 2, 3);
+  txt('+' + ev + ' each' + (S.emberMult > 1 ? ' (\u00d7' + fmtMult(S.emberMult) + ')' : ''), W - 14, 74, F(9, '900'), ev > 10 * S.depth ? C.gold : C.dim, 'right');
   // row 3: state + doom
   let tag, tc;
   if (S.over) { tag = 'SNUFFED OUT'; tc = C.red; }
@@ -1146,13 +1180,13 @@ function drawHUD(t) {
   else if (dim) { tag = 'DIM · Shades can strike'; tc = '#8fa8ff'; }
   else if (L >= 5) { tag = 'BRIGHT · Moths sense ' + mothSense() + ' tiles'; tc = C.amber; }
   else { tag = 'Moths sense ' + mothSense() + ' tiles'; tc = C.dim; }
-  txt(tag, 14, 86, F(11, '800'), tc, 'left');
-  let oilX = 236; for (let k = 0; k < Math.min(4, S.oil); k++) { const ox = oilX + k * 13; cx.fillStyle = '#2b8278'; rr(cx, ox - 4, 82, 8, 9, 2); cx.fill(); cx.fillStyle = '#57d3bf'; cx.fillRect(ox - 3, 85, 6, 4); cx.fillStyle = '#c9a27a'; cx.fillRect(ox - 1.5, 78, 3, 4); }
-  if (S.oil > 4) txt('+' + (S.oil - 4), oilX + 52, 86, F(10, '800'), C.oil, 'left');
+  txt(tag, 14, 91, F(11, '800'), tc, 'left');
+  let oilX = 236; for (let k = 0; k < Math.min(4, S.oil); k++) { const ox = oilX + k * 13; cx.fillStyle = '#2b8278'; rr(cx, ox - 4, 87, 8, 9, 2); cx.fill(); cx.fillStyle = '#57d3bf'; cx.fillRect(ox - 3, 90, 6, 4); cx.fillStyle = '#c9a27a'; cx.fillRect(ox - 1.5, 83, 3, 4); }
+  if (S.oil > 4) txt('+' + (S.oil - 4), oilX + 52, 91, F(10, '800'), C.oil, 'left');
   if (S.phase === 'play' && !S.over) {
     const left = S.doomAt - S.ft;
-    if (left > 0) txt('dark rises in ' + left, W - 14, 86, F(11, '800'), left <= 8 ? '#c8a8ff' : C.faint, 'right');
-    else txt('THE DARK RISES' + (S.gloom ? ' −' + S.gloom : ''), W - 14, 86, F(11, '900'), 'rgba(190,160,255,' + (0.7 + 0.3 * Math.sin(t * 0.01)) + ')', 'right');
+    if (left > 0) txt('dark rises in ' + left, W - 14, 91, F(11, '800'), left <= 8 ? '#c8a8ff' : C.faint, 'right');
+    else txt('THE DARK RISES' + (S.gloom ? ' −' + S.gloom : ''), W - 14, 91, F(11, '900'), 'rgba(190,160,255,' + (0.7 + 0.3 * Math.sin(t * 0.01)) + ')', 'right');
   }
   // warden bar
   const wd = S.en.find(e => !e.dead && e.type === 'warden' && e.awake);
@@ -1254,7 +1288,7 @@ function render() {
   if (FX.tip && S.phase === 'play' && !S.over) {
     const tp = FX.tip, a = clamp01(tp.life * 4) * clamp01((1 - tp.life) * 12);
     const lines = wrap(tp.txt, MAPW - 40, F(12, '800'));
-    const hh = 12 + lines.length * 16, yb = MY + MAPH - hh - 8;
+    const hh = 12 + lines.length * 16, yb = S.py > ROWS * 0.55 ? MY + 30 : MY + MAPH - hh - 8;
     cx.globalAlpha = a; cx.fillStyle = 'rgba(8,5,6,0.86)'; rr(cx, MX + 10, yb, MAPW - 20, hh, 9); cx.fill();
     cx.strokeStyle = 'rgba(255,190,120,0.3)'; cx.lineWidth = 1; rr(cx, MX + 10.5, yb + 0.5, MAPW - 21, hh - 1, 9); cx.stroke();
     lines.forEach((ln, j) => txt(ln, W / 2, yb + 14 + j * 16, F(12, '800'), tp.col));
