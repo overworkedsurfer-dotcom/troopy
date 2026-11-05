@@ -291,3 +291,77 @@ Setup: `lab/play.js` stepped-time server on port 8844, at most 15 screenshots pe
 - **Arrow keys double as upgrade-menu navigation**, so moves pressed as a floor clears are silently eaten by the draft.
 - Floor 2 cleared while the sleeping Elite was still alive. Fine, but "clear the tray" doesn't say Elites are optional.
 - It took one bump to learn that a bump hits with the *current* face and doesn't roll. The text is accurate, but the face previews on the arrows suggest the opposite at first glance.
+
+---
+
+## 7. spellsnake
+
+**What it is (as I understood it):** Snake where "YOUR BODY IS THE WORD". You eat Scrabble-style letter tiles (with point values) in order. With 3+ letters you press Space/Enter to cast the word before a fuse bar runs out ("or your tail grows"). A HUD hint suggests a word ("try OAT"). Ringed letters finish a word. Casting an invalid or too-short word "SPITs" the last letter back out, and spat letters seem to turn into rocks. Walls and rocks kill. Hitting a wall first gives a red "TURN!" grace pause.
+
+| Run | Score | Length | Cause | Mode |
+|---|---|---|---|---|
+| 1 (seed 207) | 70 | ~15 s | "crashed into a rock" | Deliberate. Aimed for the suggested OAT: overshot T by a column, cast "OA" by mistake (SPIT), re-routed, ate A, then cast after T and got SPIT again (still unclear to me whether I'd missed T). Then routed to the ringed K for **OAK** ("WORD! · SPACE casts OAK for +70"). Then N, then a blind dash along a row into a rock that hadn't been there in my last look. |
+| 2 (restart ×5) | 0, 0, 0, 0, 0 | 1.5–7 s | wall ×4, rock ×1 | **Blind probes**: random turns/casts, 5 seeds. |
+| 3 (restart) | 30 | ~14 s | "crashed into the wall" | Deliberate. Corrected my turn timing and nailed the suggested **ARE** (+30, "ARE!" with tiles flying up). Then got only "O" of a planned ONE/HONE loop. The "TURN!" grace saved me at one wall, and then I hit a wall blind. |
+
+**Did I improve?** No: 70, then 30. My turns kept landing about one cell late (240–320 ms per cell, and stepped time made each turn a timing guess). Deliberate play still beat random (which scored 0 every time), but my absolute scores were tiny. A keyboard human would do much better here, since this is the most timing-sensitive game for a stepped player after kickback.
+
+| # | Principle | Score | Why |
+|---|---|---|---|
+| 1 | Readable in 5 s | 2 | "YOUR BODY IS THE WORD · press an arrow key to start", "eat 3+ letters to spell a word — try PET", and controls on the bottom bar. |
+| 2 | Clear goal, visible score | 2 | Score, best, level, COMBO ×n, a live word bar and a fuse bar. Goal: "eat letters in order to spell a word, then cast it before the fuse ends." |
+| 3 | Juicy feedback | 2 | "ARE! +30 · 3 letters ×1" with tiles flying to the HUD, a particle burst and shockwave ring, "WORD!" gilding the body letters, "SPIT" text, and a red head with "TURN!" at walls. |
+| 4 | Forgiving input | 1 | There is a wall grace ("TURN!"), word suggestions and a confirmation hint ("SPACE casts OAK for +70"). But rocks appeared in places I had not spat, and I died to one I never saw. |
+| 5 | Fair, legible failure | 2 | "crashed into a rock" / "crashed into the wall", plus a stats line ("1 words cast · level 1 · best word OAK +70"). |
+| 6 | Instant retry | 2 | "press any key to slither again". |
+| 7 | Interesting decisions | 2 | Deliberate 70/30 vs random 0 (×5). Which word to aim for, letter values vs path length, and cast now vs extend all matter. |
+| 8 | Pattern to learn | 1 | My score went down run to run, and turn timing was a cliff for me. |
+| 9 | Escalation | 1 | The fuse, accumulating rocks and a growing body. I never got past level 1, and sessions were about 15 s. |
+| 10 | Not solved | 2 | Not even close. |
+| 11 | Risk and reward | 2 | Longer and higher-value words vs the fuse and a longer body. A failed cast spits a letter that becomes an obstacle. Combo multiplier. |
+| 12 | Few verbs, deep use | 2 | Four turns plus cast. Movement *is* spelling, and cast both scores and (on a bad word) undoes a letter. |
+| 13 | Variety | 2 | Letter layouts and suggested words differ per seed (PET, OAT, ARE). |
+| 14 | Reward cadence / compounding | 1 | COMBO ×1.25 compounds, but I managed only one word every 10+ s. |
+| 15 | One more go | 1 | "★ NEW BEST ★" is shown, and the concept is charming. My "yes" is a frustrated one, driven by believing real-time control would fix things. |
+
+**Total 25/30, so total/3 = 8.3 and Fun score = 8.**
+
+**Primary MDA aesthetic felt:** Challenge, with a little Expression (choosing your own word).
+
+**Best moment:** the body letters turning gold with "WORD!" and the hint "SPACE casts OAK for +70 · resets the fuse". That realisation that the ringed K had closed the word for me.
+
+**Worst moment:** following the game's own suggestion (OAT), casting, and getting "SPIT" without being able to tell whether I'd missed the T or the cast was rejected.
+
+**Would I play a 4th run?** Yes, but only because I think real-time arrow keys would fix my timing problem. As played, it was the most frustrating game after magsumo.
+
+**Bugs, glitches, confusion:** no console errors.
+- What triggers SPIT isn't explained up front (pressing cast with under 3 letters, and possibly an unknown word, spits the last letter).
+- Where rocks come from is unclear: some came from my spits, but at least one appeared where I had not spat.
+- Turns felt one cell late (likely a stepped-time artifact; worth checking that turn buffering applies on the next cell).
+- The wall "TURN!" grace worked once, but a later wall hit killed me outright.
+
+---
+
+## Final ranking
+
+| Rank | Game | Total /30 | Total/3 | Fun score | One-line verdict |
+|---|---|---|---|---|---|
+| 1 | pipwalk | 29 | 9.7 | **10** | A tactical dice puzzle with exact damage previews and a 6-6-6-6 MATCH build that pays +482. The deepest and best-explained game here. |
+| 2 | loopback | 27 | 9.0 | **9** | The most original idea: your own past path becomes the enemy, and planning around yourself is a real, fair skill (1874 vs ≤332 random). |
+| 3 | compound | 27 | 9.0 | **9** | A Balatro-ish engine race against an accelerating tide. Real economic trade-offs and a 4.8× skill gap, but dense jargon and idle stretches. |
+| 4 | junkorbit | 26 | 8.7 | **9** | Gorgeous gravity-arc aiming and the best death text in the set, but spam-firing out-scored careful aim. |
+| 5 | spellsnake | 25 | 8.3 | **8** | A charming "your body is the word" hook with lovely feedback. Brutal turn timing and opaque SPIT/rock rules for a first-timer. |
+| 6 | kickback | 24 | 8.0 | **8** | The best verb design (recoil is weapon, engine and brake), but random mashing's CHAIN ×7 beat everything I did on purpose. |
+| 7 | magsumo | 21 | 7.0 | **7** | A great braced-slam moment and beautiful field lines, but I never won a round against LV1, and "on your own" deaths felt unexplained. |
+
+(loopback and compound are tied on total; loopback ranks higher on skill gap.)
+
+### Overall observations
+- The **turn-based or thinkable games** (pipwalk, loopback, compound) showed the clearest skill gaps over random (4–100×), and they let me *reason*, which is where most of my fun came from. The **twitch games** (kickback, magsumo, junkorbit) had cases where mindless input matched or beat deliberate play. Stepped time and a 15-screenshot budget handicap those games, but a designer should still check that spam isn't the best strategy (in junkorbit, spammed misses become debris that spam then "saves" for +75).
+- **Failure messages are a lab-wide strength.** "comet #5 came back around (fired 0:38 ago)", "hit by ghost #3 (you, 21s ago)" and "the tide (+3.19%/s) outgrew your engine (+2.31%/s)" all tell you exactly which decision killed you.
+- **Contextual coaching pop-ups** ("brace: keep steering INTO them as you flip", "NO WAITING: roll back and forth to stall", "SPACE: dash THROUGH it = PHASE!") were the most effective teaching device I met. They appear at the moment the lesson matters.
+- **Recurring friction to fix:**
+  - Keys that double as menu navigation (pipwalk's draft swallows queued moves).
+  - "press again to build" building at the cursor rather than the advertised best spot (compound).
+  - Scoring systems named only on the game-over stats line ("point-blank", "peak ×" in kickback).
+  - Death causes that blame the player ("on your own") when no input was made (magsumo).

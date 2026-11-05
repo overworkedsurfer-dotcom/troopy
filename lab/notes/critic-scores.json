@@ -1,13 +1,70 @@
 {
-  "_doc": "Blind critic fun scores (1-10) from lab/notes/critic.md. round = which critic pass the score comes from (1 = full blind pass over all 10; 2 = fresh blind critic on reworked/polished games). r1 kept for history.",
-  "loopback":   { "score": 10, "total": 30, "round": 1, "r1": 10 },
-  "pipwalk":    { "score": 10, "total": 29, "round": 1, "r1": 10 },
-  "mazewright": { "score": 10, "total": 29, "round": 1, "r1": 10 },
-  "tiltwell":   { "score": 9,  "total": 27, "round": 1, "r1": 9 },
-  "uptempo":    { "score": 9,  "total": 27, "round": 1, "r1": 9 },
-  "spellsnake": { "score": 9,  "total": 26, "round": 1, "r1": 9 },
-  "kickback":   { "score": 8,  "total": 25, "round": 1, "r1": 8 },
-  "compound":   { "score": 8,  "total": 25, "round": 1, "r1": 8 },
-  "magsumo":    { "score": 7,  "total": 20, "round": 1, "r1": 7 },
-  "junkorbit":  { "score": 6,  "total": 19, "round": 1, "r1": 6 }
+ "_doc": "Blind critic fun scores (1-10) from lab/notes/critic.md. round = which critic pass the score comes from (1 = full blind pass over all 10; 2 = fresh blind critic on reworked/polished games). r1 kept for history.",
+ "loopback": {
+  "score": 9,
+  "total": 27,
+  "round": 2,
+  "r1": 10,
+  "r2": 9
+ },
+ "pipwalk": {
+  "score": 10,
+  "total": 29,
+  "round": 2,
+  "r1": 10,
+  "r2": 10
+ },
+ "mazewright": {
+  "score": 10,
+  "total": 29,
+  "round": 1,
+  "r1": 10
+ },
+ "tiltwell": {
+  "score": 9,
+  "total": 27,
+  "round": 1,
+  "r1": 9
+ },
+ "uptempo": {
+  "score": 9,
+  "total": 27,
+  "round": 1,
+  "r1": 9
+ },
+ "spellsnake": {
+  "score": 8,
+  "total": 25,
+  "round": 2,
+  "r1": 9,
+  "r2": 8
+ },
+ "kickback": {
+  "score": 8,
+  "total": 24,
+  "round": 2,
+  "r1": 8,
+  "r2": 8
+ },
+ "compound": {
+  "score": 9,
+  "total": 27,
+  "round": 2,
+  "r1": 8,
+  "r2": 9
+ },
+ "magsumo": {
+  "score": 7,
+  "total": 21,
+  "round": 2,
+  "r1": 7,
+  "r2": 7
+ },
+ "junkorbit": {
+  "score": 9,
+  "total": 26,
+  "round": 2,
+  "r1": 6,
+  "r2": 9
+ }
 }
