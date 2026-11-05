@@ -190,3 +190,50 @@ assumed) and turn timing. The word game on top was immediately fun.
 - **Would I play a 4th run?** Yes. The Snake + Scrabble fusion is genuinely clever, and I want to plan a 6-letter word.
 - **Bugs / friction:** No console errors. The first-look screenshot showed a different letter layout than the one actually dealt after my first keypress. Two-letter words like "AS" don't count, and nothing says the minimum is 3. Spat letters fly to a seemingly random spot before becoming rocks (one landed far across the board), which is hard to track. "Starving" is never explained. Speed is high for a first-time player, so the first 30 seconds are mostly wall deaths.
 
+---
+
+## 5. Pipwalk
+
+**What it is:** A turn-based roguelite on a 7×7 tray. You're a die. Each arrow press *rolls* the die one cell,
+which changes its top face, and the four neighbouring faces are previewed around it. Bumping a foe hits it
+for your TOP face's value without rolling. Hitting with rising or equal faces builds a CHAIN/MATCH ×mult.
+Clear the tray to pick one of three upgrades (Twin Fangs, Glass Cannon, Vampire Pips, Quake Face, Heart Face,
+and so on). A DREAD meter counts turns until an unkillable-feeling Dread spawns, and kills push it back.
+
+**Runs**
+| Run | Seed | Score | Length | Cause |
+|---|---|---|---|---|
+| 1 | 101 | 870 | ~45 s (≈50 turns) | Devoured by the Dread on floor 4 |
+| 2 | 102 | 659 | ~50 s | Devoured by the Dread on floor 4 |
+
+Improved? **No** (870 → 659). Run 1 had a lucky build: Twin Fangs + Glass Cannon, then three matching 5-hits
+for MATCH ×5 and a +530 burst. Run 2 offered sustain upgrades instead. In both runs I played floors 1–3 by
+hand and then (to save screenshots) ran floor 4 with a blind rocking pattern, which can't kill floor-4 foes
+(14 HP skulls, a 34 HP elite). So floor 4 was the wall both times.
+
+| # | Principle | Score | Justification |
+|---|---|---|---|
+| 1 | Readable in 5 s | 2 | "Arrows/WASD roll · bump a foe to hit it with your TOP face" is on screen, with face previews around the die. My first input was meaningful. The die-roll mental model takes a minute, but the previews carry you. |
+| 2 | Clear goal, visible score | 2 | Score, floor, best, HP, chain, LAST HITS, die net and dread are always visible. Goal: "clear each tray with chained hits before the Dread arrives". |
+| 3 | Juicy feedback | 2 | Floating damage numbers, "KILL" previews, "PAIR ×3" banners, confetti and a "FLOOR 1 CLEAR / chain ×2 +60" banner on clears, a red-flash "CHAIN BROKEN -2" on taking damage, and the die visibly tumbling. Only the "dodged" tag was confusing. |
+| 4 | Forgiving input | 2 | Turn-based, with full information. Each foe shows a pre-hit preview ("⚔5 KILL" or "⚔5 push", plus incoming damage). There's no twitch, so every mistake is a planning mistake. |
+| 5 | Fair, legible failure | 2 | "THE DIE IS CAST — Devoured by the Dread on floor 4", with floor, kills, best hit and top mult. The dread bar warned me for 14 turns. |
+| 6 | Instant retry | 2 | "press any key to roll again". |
+| 7 | Interesting decisions | 2 | Every move both repositions you and picks your next attack value, and you can see your neighbour faces. Choosing between "roll to set up a 6, or bump now with a 5" is a real puzzle, and upgrades are a 1-of-3 build choice. |
+| 8 | Pattern to learn | 1 | I learned to wait in place (rock back and forth) so foes come to me, and to line up equal faces for MATCH. Score didn't improve, because upgrade luck dominated across my two runs. |
+| 9 | Escalation / flow | 2 | Foe HP climbs fast by floor (3 → 5 → 8–10 → 14 and a 34-HP elite), and the Dread timer forces tempo. |
+| 10 | Not solved | 2 | Foe scaling plus the Dread means a static strategy dies. |
+| 11 | Risk and reward | 2 | "Glass Cannon: ALL damage ×2, Max HP −3. Greed is good?" names the tension outright. Holding a chain against taking a hit is another one. |
+| 12 | Few verbs, deep use | 2 | Four arrows. Each roll is movement, weapon selection *and* a turn tick, and a bump is an attack that also keeps your face. A textbook dual-purpose verb. |
+| 13 | Variety | 2 | Foe layouts and the upgrade draft differ by seed. Run 1 went glass-cannon match build, run 2 went sustain. |
+| 14 | Reward cadence / compounding | 2 | A kill every few turns, an upgrade every floor (~15 s), and MATCH multipliers that stack with Twin Fangs (×2 → ×3 → ×5) and Glass Cannon ×2. Real Balatro-style multiplication. |
+| 15 | One more go | 2 | Best and NEW BEST are shown. I wanted to try a dedicated Quake Face / Even Keel build. |
+
+**Total: 29 / 30 → Fun score 10**
+
+- **MDA aesthetic felt:** Challenge (tactical puzzle), with Expression through the build draft.
+- **Best moment:** Glass Cannon + Twin Fangs, then three straight 5-face hits: "PAIR ×3", then MATCH ×5 and +530 in one bump. The numbers went up absurdly.
+- **Worst moment:** Floor 4's wall of 14-HP skulls and a 34-HP elite when my build had no damage scaling. Two of the three upgrade cards in run 2 were defensive.
+- **Would I play a 4th run?** Yes. This is the deepest game in the set, and the draft means each run feels different.
+- **Bugs / friction:** No console errors. When a foe moved into the cell I was rolling toward, my roll became a bump (useful but surprising). Several times one of two consecutive bumps didn't count toward LAST HITS, I think because taking damage silently resets the chain. "dodged" floats over the die with no explanation. Space does nothing during play (I tried it as a "wait"). The face-net in "YOUR DIE" (top/under) is hard to read at a glance. The FLOOR 1 banner covers the die on the opening turn.
+
