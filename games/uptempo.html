@@ -411,7 +411,7 @@ function die() {
   S.cause = h.k === 'miss' ? 'missed a ' + h.kind + ' at ' + b + ' BPM — out of HP'
     : h.k === 'ghost' ? 'ghost-tapped your last HP away at ' + b + ' BPM'
     : 'HP drained out at ' + b + ' BPM — too few PERFECTs to heal';
-  if (S.t - S.pinT < 3000) S.cause += ' (the rising floor had your tempo pinned)';
+  if (S.t - S.pinT < 3000 && S.floor >= 100) S.cause += ' (the rising floor had your tempo pinned)';
   if (QUIET) return;
   shake(24); flash(0.8, '255,60,90'); FX.zoom = 0.08;
   for (let l = 0; l < 4; l++) burst(laneX(l, 1), HITY, 30, COL[l], 8, 0.12);
@@ -438,7 +438,7 @@ function step() {
   S.surge += (S.surgeGoal - S.surge) * 0.02;
   S.floor = floorAt(S.t) + S.surge;
   if (S.bpm < S.floor) {
-    if (S.t - S.pinT > 4000 && S.t - S.catchT > 15000) {               // the floor has caught up with your tempo
+    if (S.floor >= 100 && S.t - S.pinT > 4000 && S.t - S.catchT > 15000) {               // the floor has caught up with your tempo
       S.catchT = S.t;
       if (!QUIET) {
         FX.floorTxt = { life: 1 }; FX.floorPush = 1; shake(14); flash(0.35, '255,40,70'); FX.zoom = 0.05; FX.gauge = 1;
